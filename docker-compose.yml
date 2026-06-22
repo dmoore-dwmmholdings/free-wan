@@ -1,0 +1,50 @@
+services:
+  # Tailscale sidecar — provides private HTTPS for the app over your tailnet via Serve.
+  # The app shares this container's network namespace, so Serve proxies to localhost:8080.
+  # Set TS_AUTHKEY in .env. To expose publicly, switch serve.json to Funnel (opt-in).
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: free-wan-ts
+    hostname: free-wan
+    environment:
+      - TS_AUTHKEY=${TS_AUTHKEY:?set TS_AUTHKEY in .env}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_SERVE_CONFIG=/config/serve.json
+      - TS_EXTRA_ARGS=--accept-routes
+    volumes:
+      - ./data/tailscale:/var/lib/tailscale
+      - ./config/tailscale:/config:ro
+    cap_add:
+      - net_admin
+      - sys_module
+    restart: unless-stopped
+
+  free-wan:
+    build: .
+    container_name: free-wan
+    restart: unless-stopped
+    depends_on:
+      - tailscale
+    # Share the tailnet so `tailscale serve` reaches the app on 127.0.0.1:8080.
+    network_mode: service:tailscale
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - HOST=127.0.0.1
+      - DATA_DIR=/app/data
+      - TRUST_PROXY=true
+      - SESSION_SECRET=${SESSION_SECRET:?set a long random SESSION_SECRET in .env}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - COMMAND_ALLOWED_EXECUTABLES=${COMMAND_ALLOWED_EXECUTABLES:-}
+    volumes:
+      - ./data:/app/data
+      # Mount your media drives read-only and list them in config/repositories.yaml:
+      # - /path/to/drive-a:/media/drive-a:ro
+      # - /path/to/drive-b:/media/drive-b:ro
+
+# ── Notes ─────────────────────────────────────────────────────────────────────
+# • LAN-only (no Tailscale)? Remove the `tailscale` service and `network_mode`,
+#   set HOST=0.0.0.0, and add `ports: ["8080:8080"]` to the free-wan service.
+# • GPU transcoding: add the override → `docker compose -f docker-compose.yml \
+#   -f docker-compose.gpu.yml up -d` (needs an nvenc-capable ffmpeg image).

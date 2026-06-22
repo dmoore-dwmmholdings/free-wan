@@ -1,0 +1,15 @@
+# GPU transcode override (FR-29). Use with:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# Requires the NVIDIA Container Toolkit on the host AND an ffmpeg build with NVENC in the
+# image (the default slim ffmpeg may lack it — build a CUDA-enabled variant for real use).
+services:
+  free-wan:
+    environment:
+      - TRANSCODE_HWACCEL=nvenc
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

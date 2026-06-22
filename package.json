@@ -1,0 +1,21 @@
+{
+  "name": "free-wan",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@11.3.0",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @free-wan/api --filter @free-wan/web dev",
+    "build": "pnpm -r build",
+    "start": "pnpm --filter @free-wan/api start",
+    "start:direct": "pnpm --filter @free-wan/api start:direct",
+    "package": "pnpm -r build && node scripts/package-release.mjs",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "db:generate": "pnpm --filter @free-wan/api db:generate"
+  },
+  "devDependencies": {
+    "typescript": "5.7.2"
+  }
+}

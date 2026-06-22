@@ -1,0 +1,10 @@
+# Free-WAN repositories: the drives/folders to index.
+# Seeded into the DB on first run (Phase 2); thereafter managed in the admin UI.
+# Each repository is a root the scanner walks; categories derive from its subfolders.
+repositories: []
+  # - name: Movies
+  #   path: /media/drive-a
+  #   enabled: true
+  # - name: Photos
+  #   path: /media/drive-b
+  #   enabled: true

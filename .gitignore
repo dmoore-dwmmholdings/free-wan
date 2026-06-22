@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+coverage/
+*.tsbuildinfo
+
+# Runtime data (SQLite db, thumbs, hls cache, exports, branding, uploads)
+data/
+.verify-data/
+
+# Self-update working dirs and built packages
+.fw-update/
+release/
+
+# Secrets and local env (.env.example is committed)
+.env
+.env.local
+.env.*.local
+
+# Local sync / editor / OS junk
+sync.ffs_db
+*.ffs_db
+*.ffs_lock
+*.log
+.DS_Store
+Thumbs.db
+
+# Claude local (machine-specific) settings
+.claude/settings.local.json
+.claude/plans/

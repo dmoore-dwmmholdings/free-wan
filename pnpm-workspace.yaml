@@ -1,0 +1,11 @@
+packages:
+  - packages/*
+
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+
+# Native/postinstall build scripts we explicitly trust (pnpm 10+ blocks these by default).
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
