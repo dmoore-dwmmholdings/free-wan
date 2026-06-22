@@ -4,9 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Free-WAN</title>
+    <script src="/boot-check.js"></script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <div style="font-family: system-ui, sans-serif; margin: 14vh auto; max-width: 32rem; text-align: center; color: #e5e5e5;">
+        Free-WAN needs JavaScript enabled to run.
+      </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
