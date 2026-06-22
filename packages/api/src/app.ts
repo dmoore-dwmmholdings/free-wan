@@ -97,9 +97,16 @@ export async function buildApp(
     trustProxy: config.trustProxy, // behind the Tailscale Serve TLS proxy
   })
 
-  // Security headers / CSP / HSTS (security §7). The SPA uses no inline scripts (Vite emits
-  // external hashed bundles); style attributes need 'unsafe-inline'. Media/posters/HLS and
-  // the WebSocket are same-origin.
+  // Security headers / CSP (security §7). The SPA uses no inline scripts (Vite emits external
+  // hashed bundles); style attributes need 'unsafe-inline'. Media/posters/HLS and the WebSocket
+  // are same-origin.
+  //
+  // IMPORTANT: Free-WAN is commonly reached over **plain HTTP** on the tailnet (direct
+  // <tailscale-ip>:<port>), with TLS optionally provided by Tailscale Serve. So we must NOT send
+  // `upgrade-insecure-requests` — over HTTP it makes browsers upgrade every subresource (JS/CSS)
+  // to HTTPS the server can't answer, leaving a blank page (notably on iOS WebKit). And HSTS is
+  // sent only when the request is actually HTTPS, so a one-time HTTPS visit can't pin the host to
+  // HTTPS and break later HTTP access.
   await app.register(fastifyHelmet, {
     contentSecurityPolicy: {
       directives: {
@@ -113,10 +120,19 @@ export async function buildApp(
         objectSrc: ["'none'"],
         frameAncestors: ["'none'"],
         baseUri: ["'self'"],
+        upgradeInsecureRequests: null, // do not force HTTPS on subresources (see note above)
       },
     },
-    hsts: { maxAge: 31536000, includeSubDomains: true },
+    hsts: false, // set conditionally below (HTTPS only)
     crossOriginEmbedderPolicy: false,
+  })
+
+  // HSTS only over HTTPS (e.g. behind Tailscale Serve). Over plain HTTP it's ignored by browsers
+  // anyway, but omitting it avoids accidentally pinning the host to HTTPS.
+  app.addHook('onSend', async (req, reply) => {
+    if (req.protocol === 'https') {
+      reply.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    }
   })
 
   // Database + migrations. `here` is src/ in dev and dist/ in prod; the migrations

@@ -25,14 +25,36 @@ describe('Phase 10 — hardening & system panel', () => {
     await app.close()
   })
 
-  it('sets security headers (CSP, HSTS, nosniff, frame-ancestors)', async () => {
+  it('sets security headers; no upgrade-insecure-requests; HSTS only over HTTPS', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/health' })
     expect(res.headers['x-content-type-options']).toBe('nosniff')
-    expect(res.headers['strict-transport-security']).toContain('max-age=')
     const csp = String(res.headers['content-security-policy'])
     expect(csp).toContain("default-src 'self'")
     expect(csp).toContain("frame-ancestors 'none'")
     expect(csp).toContain("object-src 'none'")
+    // Must NOT force HTTPS on subresources — that blanks the page over plain-HTTP tailnet access.
+    expect(csp).not.toContain('upgrade-insecure-requests')
+    // Plain HTTP request → no HSTS (so it can't pin the host to HTTPS).
+    expect(res.headers['strict-transport-security']).toBeUndefined()
+  })
+
+  it('sends HSTS only when the request is HTTPS (behind a trusted proxy)', async () => {
+    const tls = await buildApp({
+      env: 'test',
+      dataDir: ':memory:',
+      adminUsername: 'admin',
+      adminPassword: 'admin-pass-123',
+      loginRateMax: 1000,
+      trustProxy: true,
+    })
+    await tls.ready()
+    const res = await tls.inject({
+      method: 'GET',
+      url: '/api/health',
+      headers: { 'x-forwarded-proto': 'https' },
+    })
+    expect(res.headers['strict-transport-security']).toContain('max-age=')
+    await tls.close()
   })
 
   it('reports system info to admins', async () => {
