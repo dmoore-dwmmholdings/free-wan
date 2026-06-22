@@ -64,7 +64,7 @@ export async function adminUpdateRoutes(app: FastifyInstance): Promise<void> {
     let version: string
     let changelog: string | null
     try {
-      const { manifest } = validatePackage(incoming)
+      const { manifest } = await validatePackage(incoming)
       version = manifest.version
       changelog = manifest.changelog ?? null
     } catch (e) {

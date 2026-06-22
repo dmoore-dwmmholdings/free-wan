@@ -107,7 +107,7 @@ describe('self-update (updater service)', () => {
   it('rejects a package missing the web build', async () => {
     const zip = join(tmp, 'noweb.zip')
     makePackage(zip, { omitWeb: true })
-    expect(() => validatePackage(zip)).toThrow(/web\/dist\/index\.html/)
+    await expect(validatePackage(zip)).rejects.toThrow(/web\/dist\/index\.html/)
   })
 
   it('rolls back to the previous version', async () => {

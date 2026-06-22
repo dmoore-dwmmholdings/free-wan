@@ -2,7 +2,23 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, renameSync, cpSync, readdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import AdmZip from 'adm-zip'
+// Type-only import (erased at build time) so the bundle has no top-level adm-zip require.
+// adm-zip is loaded lazily below — a missing optional dep must never crash server startup.
+import type AdmZipType from 'adm-zip'
+
+type Zip = InstanceType<typeof AdmZipType>
+
+/** Load adm-zip on demand; only update operations need it. */
+async function loadAdmZip(): Promise<typeof AdmZipType> {
+  try {
+    const mod = (await import('adm-zip')) as unknown as { default: typeof AdmZipType }
+    return mod.default ?? (mod as unknown as typeof AdmZipType)
+  } catch {
+    throw new UpdateError(
+      'The update feature needs the "adm-zip" package, which is not installed. Run "pnpm install" on the server.',
+    )
+  }
+}
 
 /** Exit code the app uses to ask the supervisor to relaunch it after applying an update. */
 export const UPDATE_RESTART_CODE = 75
@@ -76,8 +92,9 @@ async function moveDir(src: string, dest: string): Promise<void> {
 }
 
 /** Validate a package archive without touching anything on disk. */
-export function validatePackage(zipPath: string): { manifest: Manifest; zip: AdmZip } {
-  let zip: AdmZip
+export async function validatePackage(zipPath: string): Promise<{ manifest: Manifest; zip: Zip }> {
+  const AdmZip = await loadAdmZip()
+  let zip: Zip
   try {
     zip = new AdmZip(zipPath)
   } catch {
@@ -129,7 +146,7 @@ function restore(backupDir: string, paths: UpdatePaths): Promise<void[]> {
  * code dirs + `work`); DATA_DIR and env config are never touched.
  */
 export async function applyPackage(zipPath: string, paths: UpdatePaths): Promise<ApplyResult> {
-  const { manifest, zip } = validatePackage(zipPath)
+  const { manifest, zip } = await validatePackage(zipPath)
 
   const staging = join(paths.work, 'staging')
   rmSync(staging, { recursive: true, force: true })
