@@ -97,7 +97,7 @@ docker compose up -d            # starts app + Tailscale sidecar
 > admin System panel. Only **polish** remains (PWA, accessibility, Playwright e2e, the
 > browser passes) — tracked under "post-v1" in [`docs/PROGRESS.md`](docs/PROGRESS.md) (read
 > this first if you are the build agent), with the roadmap in
-> [`docs/14-build-plan.md`](docs/14-build-plan.md). **131 tests (118 backend + 11 web + 2
+> [`docs/14-build-plan.md`](docs/14-build-plan.md). **132 tests (119 backend + 11 web + 2
 > shared), all green.**
 
 ## License
