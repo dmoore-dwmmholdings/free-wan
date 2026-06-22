@@ -310,7 +310,21 @@ export async function buildApp(
   const webBuilt = existsSync(join(webDist, 'index.html'))
   if (webBuilt) {
     app.log.info(`Serving web UI from ${webDist}`)
-    await app.register(fastifyStatic, { root: webDist, wildcard: false })
+    await app.register(fastifyStatic, {
+      root: webDist,
+      wildcard: false,
+      cacheControl: false,
+      // index.html must always be revalidated so a client never holds a stale copy that
+      // points at a hashed chunk a later build removed (the classic blank-page-after-update).
+      // Hashed assets are content-addressed, so they can cache forever.
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith('index.html')) {
+          res.setHeader('Cache-Control', 'no-cache')
+        } else if (filePath.includes(`${sep}assets${sep}`)) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+        }
+      },
+    })
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith('/api')) {
         return reply.code(404).send({ error: { code: 'not_found', message: 'Not found' } })
