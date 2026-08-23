@@ -1308,3 +1308,24 @@ shared schema test, all green; every phase verified with a live built-server smo
   acknowledged development target rather than something assembled by hand each time.
   Documented under Testing, including what the browser cannot reach. Verified green: typecheck
   4/4, `pnpm -r test` **347**, `pnpm -r build`. Dev server stayed up throughout.
+- **2026-08-23 — Mobile app: regression sweep over everything that had shipped unverified.**
+  With browser checks now safe to run beside the dev server, the first use was the backlog:
+  several changes had been merged on typecheck and a green bundle alone, which is exactly how
+  the blank-screen crash got out. Walked the whole app in one pass and checked the console on
+  the way, since that crash was invisible except there.
+  All of it holds. Accessibility roles reach the DOM as roles, not just as props — five
+  buttons and three links on the library screen. The duration badge is white on a fixed dark
+  pill, so the light-preset contrast fix is real. Liking flips the control and triggers
+  **zero** list refetches, which is the cache patch behaving as designed and the first
+  end-to-end confirmation of it. Folder drill-down still works through the chip that gained a
+  button role. All five tabs render, including the two never previously seen: Downloads shows
+  its empty state and Settings reports the account, server and storage. A clean reload leaves
+  no `setColorScheme` exception, so last session's crash is gone.
+  One recurring console error chased to its cause rather than assumed harmless:
+  `NetworkError ... at componentDidMount`, seven of them, matching exactly seven poster
+  requests answered 401. react-native-web's `Image` drops the headers on a source, so
+  thumbnails go out unauthenticated. It is a property of the browser build, not of the app —
+  on a phone `Image` does send them, which is why this app carries a bearer token at all — and
+  it is now written down so nobody spends an afternoon on it.
+  No new defects. Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`. The
+  dev server stayed up for the whole sweep, which was the point of last session's work.

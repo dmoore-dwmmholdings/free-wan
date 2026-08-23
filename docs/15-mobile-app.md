@@ -360,7 +360,12 @@ pnpm --filter @free-wan/mobile exec expo export --platform web --output-dir <dir
 ```
 
 `expo-video` cannot play here and `expo-file-system` does nothing, so playback, downloads and
-uploads are all out of reach. Everything else behaves as it does on a phone: layout,
+uploads are all out of reach. Posters do not load either, and the console fills with
+`NetworkError ... at componentDidMount` because of it: react-native-web's `Image` drops the
+headers on a source, so every thumbnail request goes out unauthenticated and the server
+answers 401. On a phone `Image` does send them, which is the whole reason this app carries a
+bearer token rather than a cookie. Grey tiles and those errors in a browser are expected and
+are not worth chasing. Everything else behaves as it does on a phone: layout,
 navigation, the auth gate, branding, filters, pagination and every empty and error state,
 which is most of the app. `src/lib/secure-store.web.ts` is what makes it reachable past the
 login screen, since there is no keychain in a browser; `localStorage` is not one either, and
