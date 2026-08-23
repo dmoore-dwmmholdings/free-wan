@@ -420,17 +420,6 @@ that left the app on a blank screen.
 
 ---
 
-What tests cannot cover, and still needs a device: actual playback, real file I/O, and
-secure storage. The message shown when a video will not play is in that group as well — the
-browser cannot produce a player error to show it with. Resuming is squarely in it, and further
-out of reach than the rest:
-the browser harness cannot even load a video, because expo-video's web build never requests
-the stream, so the player never reports itself ready and the seek that resumes never runs.
-Uploading is in that group too. The floating button's placement and its
-pass-through behaviour were checked in the browser harness, but the picker, the
-which-library sheet and the transfer itself were not: `expo-image-picker` opens the platform
-file dialog, and `expo-file-system`'s upload task has no web implementation.
-
 Accessibility is checked in the browser rather than by test: a sweep over every button, link
 and input on all eight screens, failing anything without a name. It was worth running — the
 three text fields had none at all, and on the change-password screen there was no placeholder
@@ -441,6 +430,48 @@ One test reads both sides of a contract rather than exercising code: it collects
 has no route. This is checked because it has gone wrong before — an early version called an
 endpoint that was never written, and neither `tsc` nor a stubbed-`fetch` test can see that,
 since a URL is only a string.
+
+
+## Checking it on a phone
+
+Some of this app cannot be checked anywhere but on a phone, and that part has been built and
+reasoned about carefully but never watched working. Playback is the root of most of it: the
+browser harness cannot load a video at all, because `expo-video`'s web build never requests
+the stream, so the player never reports itself ready and everything hanging off that — the
+resume, the subtitle clock, the message shown when a source fails — never runs either. File
+I/O and the keychain are the other two: `expo-file-system` and `expo-secure-store` do nothing
+in a browser, which is why the download manager is exercised against a virtual filesystem.
+
+A run through the following settles it. Each says what should happen, and they are ordered by
+what would be worst if it were wrong.
+
+1. **Play a video.** Nothing below matters until this does.
+2. **Watch a few minutes, leave, and come back to it.** It should resume where you stopped,
+   once, without a second jump after it starts.
+3. **While it plays, switch to another app for a minute, then switch back.** The playhead must
+   not move backwards. This is the failure that was fixed without ever being seen.
+4. **Turn on aeroplane mode mid-playback.** The frame should say why it stopped and offer to
+   try again — and trying again should pick up where it broke, not at the beginning.
+5. **Download something large, and press Stop halfway.** It should disappear, leaving no file.
+   Then download it again and press Stop in the second *after* the progress bar fills: the
+   item should either finish cleanly or vanish cleanly, never appear as a download that will
+   not open.
+6. **Kill the app, turn the server off, reopen, and play that download.** It should play, and
+   resume where you left it if it had been played before.
+7. **Open a clip.** It should start at its in-point and hold at its out-point, looping or
+   stopping as the clip says.
+8. **Turn subtitles on.** The words should land on the right ones.
+9. **Upload from the camera roll.** The picker, the which-library sheet and the transfer are
+   all untried: `expo-image-picker` opens the platform's own file dialog, and the upload task
+   has no web implementation. Send several at once, including a video.
+10. **Open a big photo.** It should appear quickly; the app asks for a copy fitted to the
+    screen rather than the original.
+11. **Sign out and back in.** The token goes to the keychain, which has never been written to.
+12. **Point it at a server that is not running.** Every screen should say it cannot reach the
+    server, and none should claim your library is empty.
+13. **Turn on VoiceOver or TalkBack and change your password.** All three fields should name
+    themselves.
+
 
 ```bash
 pnpm --filter @free-wan/mobile build

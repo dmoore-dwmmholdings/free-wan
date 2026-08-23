@@ -1593,3 +1593,27 @@ shared schema test, all green; every phase verified with a live built-server smo
   authenticated image 401s in the harness. It is why photos and posters have never drawn there.
   Downloads still take the original: an offline copy should be the photo, not a view of it.
   Verified green: typecheck 4/4, `pnpm -r test` **373**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: a session revoked elsewhere, a 95-item library, and a checklist
+  for the phone.** No defects this pass, which is worth recording as plainly as a fix would be.
+  Three things were checked that had only ever been reasoned about.
+  A revoked session, end to end. The app's own token was revoked from outside while it held it,
+  then the app was made to talk to the server: the 401 cleared the token from storage, the
+  session change moved the gate, and the app landed on the login screen with the server address
+  still filled in — signing back in took a username and a password and nothing else. That is
+  the path every expired or admin-revoked session takes and none of it had been watched.
+  Pagination over a real library. A 95-item repository, walked page by page through the cursor:
+  40, 40, 15, no duplicates across pages, nothing missing, and the cursor stops. Worth checking
+  because a cursor over a key that ties — 95 files scanned in one pass share a timestamp
+  closely — can repeat or skip items, and the infinite list would show it as either.
+  An audit of every `useEffect` in the package against the failure that has produced three
+  separate defects here: an effect keyed on a value that changes under it. Sixteen effects,
+  all sound. The one dead eager-seek in the clip screen is noted rather than removed, since it
+  is harmless and pre-existing.
+  What came out of it is a section in the mobile doc: **Checking it on a phone**, thirteen
+  ordered steps saying what to do and what should happen, replacing a paragraph that had been
+  accreting "and this needs a device too" clauses for several sessions. Playback, the resume,
+  the backwards-jump fix, both edges of the download cancel, the offline copy, clips,
+  subtitles, uploading, the keychain, and the screen reader on the password fields. It is the
+  work standing between this app and being finished, and it is ten minutes with a phone.
+  Verified green: typecheck 4/4, `pnpm -r test` **373**, `pnpm -r build`.
