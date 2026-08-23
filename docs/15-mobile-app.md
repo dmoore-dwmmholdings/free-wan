@@ -464,6 +464,13 @@ resume, the subtitle clock, the message shown when a source fails — never runs
 I/O and the keychain are the other two: `expo-file-system` and `expo-secure-store` do nothing
 in a browser, which is why the download manager is exercised against a virtual filesystem.
 
+**Three of the steps below need a real build, not Expo Go.** Expo Go is a prebuilt app: it ships its own
+`Info.plist` and `AndroidManifest.xml`, so nothing a config plugin writes reaches it. Anything
+resting on that — background playback, picture-in-picture, the lock-screen controls, and the
+`freewan://` links — is absent there no matter what `app.json` says, and will look like a bug
+in the app rather than a limit of the client it is running in. They are marked below. The rest
+is ordinary JavaScript against standard Expo modules and behaves the same either way.
+
 A run through the following settles it. Each says what should happen, and they are ordered by
 what would be worst if it were wrong.
 
@@ -480,18 +487,26 @@ what would be worst if it were wrong.
    not open.
 6. **Kill the app, turn the server off, reopen, and play that download.** It should play, and
    resume where you left it if it had been played before.
-7. **Open a clip.** It should start at its in-point and hold at its out-point, looping or
-   stopping as the clip says.
-8. **Turn subtitles on.** The words should land on the right ones.
-9. **Upload from the camera roll.** The picker, the which-library sheet and the transfer are
-   all untried: `expo-image-picker` opens the platform's own file dialog, and the upload task
-   has no web implementation. Send several at once, including a video.
-10. **Open a big photo.** It should appear quickly; the app asks for a copy fitted to the
+7. **Leave the app while a video plays, and lock the phone.** *(needs a build)* The sound
+   should carry on, and the lock screen should offer play, pause and the title. Both were asked
+   for in the player's settings and granted by nothing until the config plugin was given its
+   options, so this is the first run on which either can work.
+8. **Send the video to a picture-in-picture window.** *(needs a build)* Same story: the
+   activity flag that allows it on Android arrived with that same fix.
+9. **Follow a `freewan://media/<id>` link from somewhere else on the phone.** *(needs a build)*
+   It should open that item, not the library. Expo Go answers to its own scheme, not this one.
+10. **Open a clip.** It should start at its in-point and hold at its out-point, looping or
+    stopping as the clip says.
+11. **Turn subtitles on.** The words should land on the right ones.
+12. **Upload from the camera roll.** The picker, the which-library sheet and the transfer are
+    all untried: `expo-image-picker` opens the platform's own file dialog, and the upload task
+    has no web implementation. Send several at once, including a video.
+13. **Open a big photo.** It should appear quickly; the app asks for a copy fitted to the
     screen rather than the original.
-11. **Sign out and back in.** The token goes to the keychain, which has never been written to.
-12. **Point it at a server that is not running.** Every screen should say it cannot reach the
+14. **Sign out and back in.** The token goes to the keychain, which has never been written to.
+15. **Point it at a server that is not running.** Every screen should say it cannot reach the
     server, and none should claim your library is empty.
-13. **Turn on VoiceOver or TalkBack and change your password.** All three fields should name
+16. **Turn on VoiceOver or TalkBack and change your password.** All three fields should name
     themselves.
 
 

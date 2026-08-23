@@ -1966,3 +1966,23 @@ shared schema test, all green; every phase verified with a live built-server smo
   nothing at build time. The package itself has to stay — `@expo/vector-icons` loads its icon
   fonts through it. And the splash screen's colour is baked into the build, so it cannot follow
   a server's branding; a light preset flashes dark for as long as the splash lasts.
+
+- **2026-08-23 — Mobile app: three of the device checklist's steps cannot be done in Expo Go,
+  and the checklist did not say so.** The whole device run has been framed around scanning a QR
+  code, which points at Expo Go — and Expo Go is a prebuilt app carrying its own `Info.plist`
+  and `AndroidManifest.xml`. Nothing a config plugin writes reaches it. So background playback,
+  picture-in-picture, the lock-screen controls and `freewan://` links are all absent there
+  whatever `app.json` says.
+  That matters more than it would have a week ago: two sessions back those very capabilities
+  were found missing from the build and fixed. Someone testing them in Expo Go would watch them
+  fail and reasonably conclude the fix did not work, when what they were running could never
+  have shown it either way.
+  The checklist now says which three need a real build and why, and has grown the two steps
+  those fixes deserve — leaving the app with a video playing and locking the phone, and sending
+  it to a picture-in-picture window — plus one for following a `freewan://` link, since Expo Go
+  answers only to its own scheme. Sixteen steps now, still ordered by what would be worst if it
+  were wrong, and the rest still behaves identically either way.
+  Renumbering that list took three attempts and is worth a line of its own: the first pass
+  renumbered the digits inside the text it had just inserted, and the second cut the list short
+  by treating its own preamble as the end of it. Both were visible immediately in the output —
+  a list running 7, 14, 15, 16, 8 — which is the only reason they did not survive.
