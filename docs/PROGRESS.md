@@ -230,10 +230,13 @@ FR-58–61, NFR-06.
 
 ### Still deferred (minor, non-blocking — pick up anytime)
 
-- Seed repositories from `config/repositories.yaml` on boot (needs a YAML dep). The
-  file's header comment still says repos are "seeded on first run"; until that lands,
-  repos are added in the UI (below) or via the admin API.
-- Case-insensitive category matching (COLLATE NOCASE / normalized key; ADR 0003 §4).
+- ~~Seed repositories from `config/repositories.yaml` on boot~~ — **done 2026-07-14** (see
+  post-v1 log): `lib/seed-repositories.ts`, one-shot via an `app_meta` flag, queues initial
+  scans; `REPOSITORIES_FILE` overrides the default `<repoRoot>/config/repositories.yaml`.
+- ~~Case-insensitive category matching~~ — **done 2026-07-14** (see post-v1 log): migration
+  `0012_categories_nocase` merges case-duplicates + recreates `idx_categories_repo_path`
+  with `COLLATE NOCASE`; the scanner lookup matches `path = ? COLLATE NOCASE`. First-seen
+  display case wins (ADR 0003 §4 resolved).
 
 ### Post-v1 — admin Repositories UI (DONE & verified, 2026-06-21)
 
@@ -613,6 +616,141 @@ shared schema test, all green; every phase verified with a live built-server smo
 
 ### Post-v1 progress
 
+- **2026-07-14 — Transcode quality caps; multi-bitrate ladder DECLINED (0.6.1).** New
+  `TRANSCODE_MAX_HEIGHT` (0 = source) and `TRANSCODE_MAXRATE_MBPS` (default 6) envs feed a
+  `TranscodeQuality` into `createTranscodeStarter`; `buildHlsArgs` is exported + unit-tested
+  (default = no scale filter; capped = `scale=-2:'min(ih,H)'` so it never upscales, bufsize
+  = 2×maxrate). **Ladder rationale:** per-viewer N× encode cost on a CPU-only home server is
+  the wrong default; a slow remote link tunes the caps instead. Revisit only with HW-accel
+  on a GPU host. **This closes the last buildable backlog item — everything remaining needs
+  the owner** (Docker smoke, Tailscale §8 walkthrough, phone pinch-zoom pass, GPU wiring).
+  Suite: **186 unit (173 api) + 18 e2e, all green.**
+- **2026-07-14 — Gallery pinch-zoom (0.6.1).** GalleryViewer (images only): pinch (pointer-
+  map two-finger tracking, 1–4× clamped, midpoint-anchored), double-tap/double-click toggles
+  1↔2.5× anchored at the tap (image taps now run on a 280 ms delay so the second tap can
+  become a zoom — videos keep instant taps), drag-to-pan while zoomed (swipe/tap-nav
+  suspended; a no-move tap while zoomed still double-taps out or toggles chrome), zoom resets
+  on item change, `touch-action:none` on the overlay. Double-tap path covered by e2e (gallery
+  flow asserts scale 2.5 → 1); the two-finger pinch itself is math-shared with double-tap but
+  needs a touch device for a hands-on pass — owner: try it on the phone. Closes the last
+  Phase 6 polish item. Suite: **184 unit + 18 e2e, green ×2.**
+- **2026-07-14 — Virtualized Browse grid (0.6.1).** `@tanstack/react-virtual@3.14.6`
+  (`useWindowVirtualizer`, row-chunked: `useGridColumns()` mirrors the old
+  2/3/4/5/6-column tailwind breakpoints; heights measured via `measureElement`). Only
+  visible rows + 4 overscan are mounted; infinite-scroll sentinel, gallery index mapping,
+  autoplay previews, and the a11y audits all unchanged/passing. New e2e `virt.spec.ts`
+  (120-copy JPEG fixture): scroll loads every page, the bottom-most item mounts, and the
+  card DOM stays <80 nodes. **Gotchas hit:** e2e assertions that assumed every card is in
+  the DOM had to target the visible window or navigate by id; `titleFromFilename` turns
+  underscores into spaces (`bulk_001` → "bulk 001"); the hidden preview tab suspends
+  IntersectionObserver (misleading during manual verification — use Playwright). Closes the
+  Phase 3 "virtualized grid" deferral. Suite: **184 unit + 18 e2e, green ×2.**
+- **2026-07-14 — RunConsole over WebSocket (0.6.1).** New `web/src/lib/ws.ts`
+  (`subscribeTopic` — one cookie-authed socket per subscription to `/api/ws`); the Commands
+  `Runner` subscribes to `run:{runId}`, appends `run.output` chunks live, and invalidates the
+  run query on the final `run.status` (the 800 ms poll stays as fallback — also covers
+  internal commands that finish before the socket opens). `runInternalCommand` now publishes
+  the final `run.status` for parity. Closes the Phase 9 "RunConsole over WebSocket" deferral.
+  Verified: EventHub→WS pipe driven live via a node ws client against the dev API (subscribe →
+  scan → 3 events), plus the real UI in the preview browser (run → streamed output pane →
+  `succeeded · exit 0`, zero console errors); full suite re-run green (184 unit + 17 e2e).
+- **2026-07-14 — Per-command concurrency cap (0.6.1).** Migration
+  `0013_command_concurrency` adds `commands.max_concurrent` (default 1); `POST
+  /api/commands/:id/run` counts queued+running runs for the command (all users) and 409s at
+  the cap; freed on completion/cancel. Editor gains a "Max concurrent runs" field
+  (1–16, zod-capped); internal commands stay at 1 (their PATCH guard already blocks it).
+  Closes the Phase 9 "per-command concurrency cap" deferral. 2 new tests (default cap 409 +
+  free-on-cancel; cap 2 admits two, rejects the third). Suite: **184 unit (171 api) + 17
+  e2e, green.**
+- **2026-07-14 — Internal (built-in) commands (0.6.1).** `lib/internal-commands.ts` seeds
+  three `is_internal` rows at boot (idempotent): `internal:rescan` (incremental scan per
+  enabled repo), `internal:rebuild-thumbnails` (queue posters for active items with none),
+  `internal:clear-transcode-cache`. The `command_run` worker dispatches internal executables
+  in-process (no spawn) but records the run row (status/output/exitCode) identically, so the
+  Commands UI needs zero changes. `internal:` executables can never be created via the admin
+  API (not in the allowlist); PATCH on built-ins allows only `enabled`/`allowNonAdmin`,
+  DELETE 422s. Closes the Phase 9 "internal commands" deferral. 6 new tests
+  (`test/internal-commands.test.ts`); the e2e commands flow now selects its command
+  explicitly since built-ins share the list. Suite: **182 unit (169 api) + 17 e2e, green.**
+- **2026-07-14 — Transcode cache size-cap eviction (0.6.1).** `TranscodeManager` now
+  LRU-evicts the on-disk HLS cache past `TRANSCODE_CACHE_MAX_MB` (default 2048; 0 disables):
+  the periodic sweep walks `data/hls/*`, skips in-flight transcodes, and removes
+  least-recently-used completed ones until under the cap. Recency = the playlist's mtime,
+  bumped on every cache reuse in `ensure()` (so rewatched items stay). `enforceCacheCap()`
+  is public for tests. Closes the Phase 4/10 "size-cap eviction" deferral (idle-kill already
+  existed). 2 new tests (oldest-first eviction; active spared + reuse bumps recency). Suite:
+  **176 unit (163 api) + 17 e2e, all green.**
+- **2026-07-14 — Accessibility pass (0.6.1) — WCAG A/AA clean.** `e2e/z-a11y.spec.ts`
+  (`@axe-core/playwright@4.12.1`, z-named to run last with real content) audits login /
+  Browse / watch / clips / commands / all four admin pages and asserts **zero** wcag2a+aa
+  violations. Fixes: `--fw-muted` mix 52%→62% (AA on bg *and* surface); new derived
+  `--fw-primary-strong` token (60% primary→text) for text-on-tint (active chips, dropzone
+  labels, font-picker active, System "Manage" link); default midnight primary `#7c5cff`→
+  `#6e4cff` (white button text was 4.36:1); Browse cards restructured (full-card overlay
+  BUTTON as a *sibling* of the z-10 LikeButton — `role="button"` containers with interactive
+  children are invalid; e2e now clicks `Open <title>`); aria-labels on the Browse selects,
+  the radius slider, and the logo-only home link. Also raised `LOGIN_RATE_MAX` in the e2e
+  env (per-test logins tripped the per-IP limit). Suite: **174 unit + 17 e2e, all green**;
+  tokens verified live in the dev preview.
+- **2026-07-14 — E2E: branding editor + commands UI (11 flows) → ALL browser passes done.**
+  `e2e/settings.spec.ts`: rename the site in the Branding studio → Save → document retitles
+  live + `/api/branding` and the PWA manifest reflect it; create a real `node` command in the
+  admin CommandEditor (executable select from the allowlist via
+  `COMMAND_ALLOWED_EXECUTABLES=node` in the e2e env, JSON arg template) → run it from
+  `/commands` → live output streams `e2e-hello` → status `succeeded`. With this, **every
+  deferred "browser pass" (player / gallery / clips / branding / commands) is covered by
+  e2e.** Suite: **173 unit/integration + 11 e2e**, all green (two consecutive runs).
+- **2026-07-14 — E2E extended to playback, clips, and the gallery (9 flows).**
+  `e2e/media.spec.ts` (+ shared `e2e/helpers.ts`, a 3 s h264 `ocean.mp4` fixture generated in
+  `start-server.mjs`): video library scanned via API with the browser session → card in
+  Browse; the watch page **direct-plays** (asserts `currentTime` advances, with
+  `--autoplay-policy=no-user-gesture-required` in test launch args); ClipBuilder set-in →
+  seek → set-out → save → clip card in `/clips`; photo card opens the GalleryViewer overlay
+  and Escape closes it. This clears the deferred **browser passes for the player, gallery,
+  and clips** (Phases 4/6/7). Still browser-unverified: branding editor, commands UI —
+  next e2e targets. Suite: **173 unit/integration + 9 e2e**, all green (two consecutive runs).
+- **2026-07-14 — Playwright e2e suite (the top polish item).** Root `playwright.config.ts` +
+  `e2e/core.spec.ts` drive the REAL built app (`node packages/api/dist/index.js` serving
+  `web/dist`) in headless Chromium on `:8199` with an isolated `e2e/.data`. **5 serial flows:**
+  unauthenticated redirect → login; bootstrap login → forced password change → app; old
+  password rejected; admin adds a library via the UI → Scan → item appears in Browse (real
+  ffmpeg-generated JPEG fixture); branded manifest served. Run: `pnpm -r build && pnpm
+  test:e2e` (dep `@playwright/test@1.61.1` pinned at the root; CI installs ffmpeg + chromium
+  and runs it after the unit suite). Gotcha encoded in the config: Playwright launches
+  `webServer` BEFORE `globalSetup`, so the per-run state wipe lives in `e2e/start-server.mjs`
+  (the webServer command itself), not in a globalSetup hook.
+- **2026-07-14 — PWA install manifest from branding (0.6.1).** Public
+  `GET /api/manifest.webmanifest` (routes/branding.ts) builds name/short_name/colors from the
+  live branding (`scope:'/'` set explicitly — manifests, unlike service workers, may widen
+  scope past their URL directory, and /api keeps the dev proxy + SPA fallback happy) plus
+  `GET /api/branding/pwa-icon`: the uploaded logo when it's an SVG, else a generated monogram
+  (site initial on brand primary, luminance-picked text color). `index.html` links the
+  manifest; ThemeProvider now also retunes `<meta name="theme-color">`. **Service worker
+  deliberately skipped**: Chromium no longer requires one for install, and a SW cache would
+  fight the self-update flow (no-cache index.html + immutable hashed assets is already the
+  right caching story). 2 new api tests (manifest reflects branding PUT; monogram → uploaded-
+  SVG switch) + live browser check (manifest fetch, icon, meta). Suite now **173 tests**
+  (api 160 + web 11 + shared 2).
+- **2026-07-14 — First-run repository seeding (0.6.1).** `config/repositories.yaml` is now
+  honored: on boot with an **empty** repositories table (and no prior attempt recorded),
+  `lib/seed-repositories.ts` creates each listed entry (zod-validated: name/path required,
+  `type` defaults `mixed`, `readOnly`/`enabled` default true), skips non-existent paths with a
+  warning, queues an initial scan per enabled repo, and kicks the worker. One-shot semantics:
+  an `app_meta` `repositories_seeded` flag records the attempt so UI deletions are never
+  resurrected. New pinned dep `yaml@2.9.0`; `REPOSITORIES_FILE` env (default resolved in
+  buildApp to `<repoRoot>/config/repositories.yaml` because the server cwd is `packages/api`).
+  3 new tests (`test/seed.test.ts`: seed+skip+auto-scan, once-per-data-dir across restart,
+  missing/malformed file tolerated) + a live tsx-server smoke (seed log, watcher attach,
+  auto-scan → itemCount 1). Suite now **170 tests** (api 157 + web 11 + shared 2).
+- **2026-07-14 — Case-insensitive categories (0.6.1).** Migration `0012_categories_nocase`
+  merges pre-existing case-duplicate categories per repo (links deduped via INSERT OR IGNORE,
+  children reparented, counts recomputed, first-seen row kept) and recreates
+  `idx_categories_repo_path` as `(repository_id, path COLLATE NOCASE)`; the scanner's
+  chain-upsert lookup now compares `COLLATE NOCASE`, so `Action/` and `action/` resolve to one
+  category with the first-seen display name. Covered by a new scanner test (case-variant folder
+  reuses an existing node — simulated at the DB layer since Windows/macOS filesystems can't
+  hold both spellings); the migration's merge path was verified against a simulated pre-0012
+  DB (dup+child+cross-repo cases). Suite now **167 tests** (api 154 + web 11 + shared 2).
 - **2026-06-21 — Web component tests added.** `packages/web` now has a Vitest + happy-dom +
   Testing Library setup with **11 tests** (format helpers, API client, `LikeButton` PUT/DELETE,
   `GalleryViewer` keyboard nav + Escape). Full suite is now **117 tests** (shared 2, web 11,
@@ -620,15 +758,29 @@ shared schema test, all green; every phase verified with a live built-server smo
 
 ### A next agent could pick up (post-v1)
 
-1. **The deferred polish** — **Playwright e2e** is now the top item (real-browser flows:
-   login → browse → play → gallery → clip → run command); then PWA service worker + a11y.
-   (Component-level web tests now exist — see above; e2e is the integrated-app layer.)
-2. **Carried-over refinements** noted per phase: scrub sprite sheets (Phase 4); multi-bitrate
-   HLS + HW-accel wiring; keyset (vs offset) pagination + virtualized grid (Phase 3);
-   case-insensitive categories + YAML repo seeding (Phase 2); CommandEditor + internal
-   commands (Phase 9); semantic-token theming so background/surface/mode go live (Phase 8).
+1. ~~The deferred polish~~ — **all landed 2026-07-14**: Playwright e2e (17 flows incl.
+   playback/gallery/clips/branding/commands), the a11y pass (axe WCAG A/AA clean), and the
+   PWA manifest (service worker deliberately skipped — see the post-v1 log).
+2. **Carried-over refinements** — mostly resolved or intentionally closed (2026-07-14):
+   - **Keyset pagination: DECLINED.** SQLite offset pagination walks the sorted index and
+     stays fast at personal-library scale; converting all five sort modes (incl. the
+     aggregate popularity sort and collection position) to composite keyset comparisons adds
+     real bug surface for marginal gain. Revisit only if profiling shows offset cost at
+     >100k items.
+   - **HW-accel transcode wiring: NEEDS REAL HARDWARE.** `docker-compose.gpu.yml` exists;
+     wiring/verifying NVENC flags requires a GPU host — owner task.
+   - Still genuinely open: multi-bitrate HLS ladder (single capped 6 Mbps rendition today —
+     fine on a tailnet, matters for slow remote links); virtualized Browse grid (DOM grows
+     with infinite scroll — matters past a few thousand loaded cards); scrub sprite sheets
+     (the `/frame?t=` grabber covers hover-scrub today); gallery pinch-zoom.
+   - Done earlier: CommandEditor (0.5.0), internal commands + concurrency cap + WS RunConsole
+     (0.6.1), semantic tokens (the `--fw-*` design system), case-insensitive categories +
+     YAML repo seeding (0.6.1).
 3. **Run the §8 acceptance walkthrough** end-to-end on real hardware over Tailscale, and a
-   `docker compose up --build` smoke (not run here — no Docker in the build env).
+   `docker compose up --build` smoke. (Attempted 2026-07-14: Docker Desktop is installed on
+   the build machine but its engine did not come up headlessly — likely needs an interactive
+   first-run/update step. Owner task: open Docker Desktop once, then `docker compose up
+   --build` and check `GET /api/health`.)
 
 **First steps for any continuation:** `pnpm install`, then `pnpm -r test` (api should be 104/104).
 

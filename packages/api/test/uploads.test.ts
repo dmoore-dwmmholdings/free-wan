@@ -35,6 +35,7 @@ describe('photo upload', () => {
   let dataDir: string
   let writableId: string
   let readonlyId: string
+  let mixedId: string
 
   beforeAll(async () => {
     root = await mkdtemp(join(tmpdir(), 'fw-upl-'))
@@ -65,6 +66,14 @@ describe('photo upload', () => {
       payload: { name: 'Locked', rootPath: root, type: 'image' }, // defaults to read-only
     })
     readonlyId = ro.json().id
+    const mixedRoot = await mkdtemp(join(tmpdir(), 'fw-uplm-'))
+    const mixed = await app.inject({
+      method: 'POST',
+      url: '/api/admin/repositories',
+      cookies,
+      payload: { name: 'Both', rootPath: mixedRoot, type: 'mixed', readOnly: false },
+    })
+    mixedId = mixed.json().id
   })
 
   afterAll(async () => {
@@ -120,7 +129,7 @@ describe('photo upload', () => {
     expect(res.statusCode).toBe(403)
   })
 
-  it('skips non-image parts', async () => {
+  it('skips unsupported file types', async () => {
     const { body, headers } = multipart('notes.txt', 'text/plain', Buffer.from('hello'))
     const res = await app.inject({
       method: 'POST',
@@ -131,6 +140,29 @@ describe('photo upload', () => {
     })
     expect(res.statusCode).toBe(422)
     expect(res.json().uploaded).toBe(0)
-    expect(res.json().skipped[0].reason).toBe('not an image')
+    expect(res.json().skipped[0].reason).toBe('unsupported file type')
+  })
+
+  it('accepts a video upload into a mixed repository and indexes it as video', async () => {
+    const { body, headers } = multipart('home movie.mp4', 'video/mp4', Buffer.from('fakemp4bytes'))
+    const res = await app.inject({ method: 'POST', url: `/api/repositories/${mixedId}/upload`, cookies, headers, payload: body })
+    expect(res.statusCode).toBe(202)
+    expect(res.json().uploaded).toBe(1)
+    await app.worker.onIdle()
+    const list = await app.inject({ method: 'GET', url: '/api/media', cookies })
+    const card = (list.json().data as Array<{ title: string; type: string }>).find((c) => c.title === 'home movie')
+    expect(card?.type).toBe('video')
+  })
+
+  it('skips a video sent to an image-only repository', async () => {
+    const { body, headers } = multipart('clip.mp4', 'video/mp4', Buffer.from('x'))
+    const res = await app.inject({ method: 'POST', url: `/api/repositories/${writableId}/upload`, cookies, headers, payload: body })
+    expect(res.statusCode).toBe(422)
+    expect(res.json().skipped[0].reason).toBe('this library only accepts images')
+  })
+
+  it('includes mixed/video repos as upload targets', async () => {
+    const ids = ((await app.inject({ method: 'GET', url: '/api/upload/targets', cookies })).json().data as Array<{ id: string }>).map((t) => t.id)
+    expect(ids).toContain(mixedId)
   })
 })

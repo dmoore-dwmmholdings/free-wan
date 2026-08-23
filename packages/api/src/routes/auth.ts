@@ -12,8 +12,6 @@ import { toMe } from '../plugins/auth'
 const invalidCreds = { error: { code: 'unauthorized', message: 'Invalid username or password' } }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
-  const isProd = app.config.env === 'production'
-
   app.post(
     '/api/auth/login',
     { config: { rateLimit: { max: app.config.loginRateMax, timeWindow: '1 minute' } } },
@@ -29,7 +27,9 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       if (!(await verifyPassword(password, u.passwordHash))) return reply.code(401).send(invalidCreds)
 
       const token = app.createSession(u.id, req.headers['user-agent'])
-      reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(isProd))
+      // `secure` tracks the real transport, not NODE_ENV: a Secure cookie set over plain HTTP
+      // (common on the tailnet) is dropped by the browser, which would break login.
+      reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(req.protocol === 'https'))
       const me: Me = {
         id: u.id,
         username: u.username,

@@ -13,7 +13,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:8080',
+      // FW_API_PORT lets dev point at an API on a non-default port; ws:true proxies /api/ws.
+      '/api': { target: `http://localhost:${process.env.FW_API_PORT || 8080}`, ws: true },
     },
   },
   build: {

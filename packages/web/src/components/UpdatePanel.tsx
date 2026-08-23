@@ -12,11 +12,11 @@ const STATUS_LABEL: Record<UpdateHistoryItem['status'], string> = {
   rolled_back: 'Rolled back',
 }
 const STATUS_CLASS: Record<UpdateHistoryItem['status'], string> = {
-  applying: 'bg-blue-500/15 text-blue-400',
-  pending_restart: 'bg-blue-500/15 text-blue-400',
-  success: 'bg-green-500/15 text-green-400',
-  failed: 'bg-red-500/15 text-red-400',
-  rolled_back: 'bg-amber-500/15 text-amber-400',
+  applying: 'text-primary',
+  pending_restart: 'text-primary',
+  success: 'text-accent',
+  failed: 'text-red-400',
+  rolled_back: 'text-amber-400',
 }
 
 function fmtDate(ms: number): string {
@@ -79,17 +79,13 @@ export function UpdatePanel() {
 
   return (
     <div className="mt-6">
-      <h2 className="text-sm uppercase text-neutral-500">Software updates</h2>
-      <div className="mt-2 rounded-xl border border-neutral-800 bg-neutral-900 p-4">
+      <h2 className="fw-mono-label">Software updates</h2>
+      <div className="fw-card mt-2 p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-sm text-neutral-300">
-            Current version <span className="font-medium text-neutral-100">v{data?.current ?? '…'}</span>
+          <span className="text-sm text-muted">
+            Current version <span className="font-semibold text-ink">v{data?.current ?? '…'}</span>
           </span>
-          <button
-            onClick={() => inputRef.current?.click()}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1.5 text-sm hover:border-brand disabled:opacity-50"
-          >
+          <button onClick={() => inputRef.current?.click()} disabled={busy} className="fw-btn-ghost h-9 px-3.5 text-sm">
             <UploadIcon className="h-4 w-4" />
             {busy ? 'Working…' : 'Upload update package (.zip)'}
           </button>
@@ -98,36 +94,32 @@ export function UpdatePanel() {
 
         {data && !data.supervised && (
           <p className="mt-2 text-xs text-amber-400">
-            No supervisor detected — after applying, you must restart the server yourself. Run the app
-            with <code>pnpm start</code> (the supervisor) for automatic restarts.
+            No supervisor detected — after applying, you must restart the server yourself. Run the app with{' '}
+            <code className="font-mono">pnpm start</code> (the supervisor) for automatic restarts.
           </p>
         )}
-        {msg && (
-          <p className={`mt-2 text-sm ${phase === 'error' ? 'text-red-400' : 'text-neutral-300'}`}>{msg}</p>
-        )}
-        <p className="mt-2 text-xs text-neutral-500">
-          Updates replace application code only. Your configuration, database, and media are never
-          touched, and a failed update rolls back automatically.
+        {msg && <p className={`mt-2 text-sm ${phase === 'error' ? 'text-red-400' : 'text-muted'}`}>{msg}</p>}
+        <p className="mt-2 text-xs text-muted">
+          Updates replace application code only. Your configuration, database, and media are never touched, and a failed
+          update rolls back automatically.
         </p>
 
         {data && data.history.length > 0 && (
           <div className="mt-4">
-            <h3 className="text-xs uppercase text-neutral-500">History</h3>
-            <div className="mt-2 divide-y divide-neutral-800 rounded-lg border border-neutral-800">
+            <h3 className="fw-mono-label">History</h3>
+            <div className="fw-card mt-2 divide-y divide-line">
               {data.history.map((h, i) => (
                 <details key={`${h.version}-${h.appliedAt}-${i}`} className="px-3 py-2">
                   <summary className="flex cursor-pointer items-center justify-between gap-3 text-sm">
-                    <span className="text-neutral-200">v{h.version}</span>
-                    <span className="flex items-center gap-2 text-neutral-500">
+                    <span className="text-ink">v{h.version}</span>
+                    <span className="flex items-center gap-2 text-muted">
                       <span className="text-xs">{fmtDate(h.appliedAt)}</span>
-                      <span className={`rounded px-1.5 py-0.5 text-xs ${STATUS_CLASS[h.status]}`}>
+                      <span className={`rounded-theme-sm bg-surface-2 px-2 py-0.5 text-xs ${STATUS_CLASS[h.status]}`}>
                         {STATUS_LABEL[h.status]}
                       </span>
                     </span>
                   </summary>
-                  {h.changelog && (
-                    <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-neutral-400">{h.changelog}</pre>
-                  )}
+                  {h.changelog && <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs text-muted">{h.changelog}</pre>}
                   {h.note && <p className="mt-1 text-xs text-red-400">{h.note}</p>}
                 </details>
               ))}

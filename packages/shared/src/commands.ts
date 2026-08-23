@@ -48,6 +48,7 @@ export const createCommandRequestSchema = z.object({
   workingDir: z.string().nullable().optional(),
   timeoutS: z.number().int().positive().max(86_400).optional(),
   maxOutputKb: z.number().int().positive().max(65_536).optional(),
+  maxConcurrent: z.number().int().positive().max(16).optional(),
   envAllowlist: z.array(z.string()).optional(),
   allowNonAdmin: z.boolean().optional(),
   enabled: z.boolean().optional(),
@@ -71,6 +72,19 @@ export const commandDtoSchema = z.object({
   params: z.array(commandParamDtoSchema),
 })
 export type CommandDto = z.infer<typeof commandDtoSchema>
+
+/** Admin-only view of a command: the full definition (executable, template, limits) the editor
+ *  needs to pre-fill an edit form. Not exposed on the user-facing /api/commands listing. */
+export const adminCommandDtoSchema = commandDtoSchema.extend({
+  executable: z.string(),
+  argTemplate: argTemplateSchema,
+  workingDir: z.string().nullable(),
+  timeoutS: z.number(),
+  maxOutputKb: z.number(),
+  maxConcurrent: z.number(),
+  envAllowlist: z.array(z.string()),
+})
+export type AdminCommandDto = z.infer<typeof adminCommandDtoSchema>
 
 export const runCommandRequestSchema = z.object({
   args: z.record(z.string(), z.unknown()).default({}),

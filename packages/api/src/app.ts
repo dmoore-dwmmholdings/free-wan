@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, mkdtempSync, statSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import Fastify, { type FastifyInstance } from 'fastify'
+import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify'
 import fastifyStatic from '@fastify/static'
 import fastifyCookie from '@fastify/cookie'
 import fastifyRateLimit from '@fastify/rate-limit'
@@ -16,6 +16,8 @@ import { openDatabase, type Db } from './db/client'
 import { runMigrations } from './db/migrate'
 import { authPlugin } from './plugins/auth'
 import { bootstrapAdmin } from './lib/bootstrap'
+import { seedRepositories } from './lib/seed-repositories'
+import { runInternalCommand, seedInternalCommands } from './lib/internal-commands'
 import { JobWorker } from './workers/worker'
 import { EventHub } from './services/events'
 import { WatcherManager } from './services/watcher'
@@ -23,10 +25,13 @@ import { runScan } from './services/scanner'
 import { createFfprobe, type Prober } from './services/ffprobe'
 import { createThumbnailer, type Thumbnailer } from './services/thumbnailer'
 import { createImageVariantMaker, type ImageVariantMaker } from './services/images'
+import { createFrameGrabber, type FrameGrabber } from './services/frame-grabber'
 import { createCaptionConverter, type CaptionConverter } from './services/captions'
 import { TranscodeManager, createTranscodeStarter, type TranscodeStarter } from './services/transcode'
 import { createClipExporter, type ClipExporter } from './services/clip-export'
 import { CommandRunner } from './services/command-runner'
+import { PluginHost } from './services/plugin-host'
+import { emitPluginEvent } from './services/plugin-events'
 import { resolveWithinRoot } from './lib/path-safety'
 import { enqueueJob } from './services/jobs'
 import { jobs, repositories, mediaItems, clips, commands, commandRuns } from './db/schema'
@@ -35,6 +40,7 @@ import { authRoutes } from './routes/auth'
 import { adminUserRoutes } from './routes/admin/users'
 import { adminRepositoryRoutes } from './routes/admin/repositories'
 import { mediaRoutes } from './routes/media'
+import { tagRoutes } from './routes/tags'
 import { categoryRoutes } from './routes/categories'
 import { playbackRoutes } from './routes/playback'
 import { likeRoutes } from './routes/likes'
@@ -42,6 +48,7 @@ import { collectionRoutes } from './routes/collections'
 import { clipRoutes } from './routes/clips'
 import { brandingRoutes, adminBrandingRoutes } from './routes/branding'
 import { adminCommandRoutes, commandRoutes } from './routes/commands'
+import { adminPluginRoutes, pluginRoutes } from './routes/plugins'
 import { adminSystemRoutes } from './routes/admin/system'
 import { adminUpdateRoutes } from './routes/admin/updates'
 import { reconcilePendingUpdate } from './services/update-reconcile'
@@ -55,6 +62,8 @@ export interface AppDeps {
   thumbnailer?: Thumbnailer
   /** Injectable image-variant resizer for /raw?w= (tests pass a fake). */
   imageVariant?: ImageVariantMaker
+  /** Injectable single-frame grabber for /frame?t= scrub previews (tests pass a fake). */
+  frameGrabber?: FrameGrabber
   /** Injectable subtitle→WebVTT converter (tests pass a fake). */
   captionConverter?: CaptionConverter
   /** Injectable HLS transcode starter (tests pass a fake). */
@@ -73,7 +82,9 @@ declare module 'fastify' {
     captionConverter: CaptionConverter
     transcoder: TranscodeManager
     imageVariant: ImageVariantMaker
+    frameGrabber: FrameGrabber
     commandRunner: CommandRunner
+    pluginHost: PluginHost
   }
 }
 
@@ -84,18 +95,41 @@ export async function buildApp(
   deps: AppDeps = {},
 ): Promise<FastifyInstance> {
   const config: AppConfig = { ...loadConfig(), ...overrides }
+  // Default seed file lives at the repo root; `here` is packages/api/{src,dist} in dev/prod.
+  config.repositoriesFile ??= join(here, '..', '..', '..', 'config', 'repositories.yaml')
   const prober: Prober = deps.prober ?? createFfprobe()
   const thumbnailer: Thumbnailer = deps.thumbnailer ?? createThumbnailer()
   const captionConverter: CaptionConverter = deps.captionConverter ?? createCaptionConverter()
   const imageVariant: ImageVariantMaker = deps.imageVariant ?? createImageVariantMaker()
-  const transcodeStarter: TranscodeStarter = deps.transcodeStarter ?? createTranscodeStarter()
+  const frameGrabber: FrameGrabber = deps.frameGrabber ?? createFrameGrabber()
+  const transcodeStarter: TranscodeStarter =
+    deps.transcodeStarter ??
+    createTranscodeStarter('ffmpeg', { maxHeight: config.transcodeMaxHeight, maxrateMbps: config.transcodeMaxrateMbps })
   const clipExporter: ClipExporter = deps.clipExporter ?? createClipExporter()
 
-  const app = Fastify({
+  const serverOptions: FastifyServerOptions = {
     loggerInstance: createLogger(config.env, config.logLevel),
     bodyLimit: 5 * 1024 * 1024,
-    trustProxy: config.trustProxy, // behind the Tailscale Serve TLS proxy
-  })
+    trustProxy: config.trustProxy, // behind the Tailscale Serve TLS proxy (X-Forwarded-*)
+  }
+  if (config.tls) {
+    // Native TLS: read the PEM cert/key and let Fastify create an HTTPS server. `req.protocol`
+    // is then 'https', so the session cookie is marked Secure and HSTS is sent automatically.
+    let key: Buffer
+    let cert: Buffer
+    try {
+      key = readFileSync(config.tls.keyFile)
+      cert = readFileSync(config.tls.certFile)
+    } catch (e) {
+      throw new Error(
+        `Cannot read TLS files (${config.tls.certFile} / ${config.tls.keyFile}): ${(e as Error).message}. ` +
+          'On Windows, use forward slashes in TLS_CERT_FILE/TLS_KEY_FILE (e.g. C:/path/cert.crt) — ' +
+          'backslashes are often stripped when setting env vars.',
+      )
+    }
+    ;(serverOptions as FastifyServerOptions & { https: { key: Buffer; cert: Buffer } }).https = { key, cert }
+  }
+  const app = Fastify(serverOptions)
 
   // Security headers / CSP (security §7). The SPA uses no inline scripts (Vite emits external
   // hashed bundles); style attributes need 'unsafe-inline'. Media/posters/HLS and the WebSocket
@@ -156,11 +190,16 @@ export async function buildApp(
       log: ctx.log,
       onProgress: (snapshot) =>
         events.publish(`scan:${repositoryId}`, { type: 'scan', repositoryId, ...snapshot }),
-      onIndexed: (itemId) => enqueueJob(db, 'thumbnail', { mediaItemId: itemId }, 0),
+      onIndexed: (itemId, type) => {
+        enqueueJob(db, 'thumbnail', { mediaItemId: itemId }, 0)
+        // Plugin trigger: a newly indexed item (docs/13-plugins.md). No-ops with no subscribers.
+        emitPluginEvent(app, 'media.added', { mediaItemId: itemId, type })
+      },
     })
     // Persist the result counts back onto the job payload for GET /…/scan to read.
     const merged = { ...(ctx.payload as object), result }
     db.update(jobs).set({ payload: JSON.stringify(merged) }).where(eq(jobs.id, ctx.jobId)).run()
+    emitPluginEvent(app, 'scan.completed', { repositoryId, ...result })
   })
   worker.register('thumbnail', async (ctx) => {
     const { mediaItemId } = ctx.payload as { mediaItemId: string }
@@ -220,6 +259,11 @@ export async function buildApp(
       db.update(commandRuns).set({ status: 'failed', finishedAt: Date.now() }).where(eq(commandRuns.id, runId)).run()
       return
     }
+    if (cmd.isInternal) {
+      // Built-ins run in-process — nothing is spawned.
+      await runInternalCommand(app, run, cmd)
+      return
+    }
     const argv = JSON.parse(run.resolvedArgv) as string[]
     const envAllow = JSON.parse(cmd.envAllowlist) as string[]
     // Minimal allowlisted env — server secrets are NOT inherited (security §5).
@@ -241,6 +285,34 @@ export async function buildApp(
       maxOutputKb: cmd.maxOutputKb,
     })
   })
+  // Plugin host: sandboxed child processes + mediated Host API (docs/13-plugins.md). The forked
+  // runtime is a sibling of both src/ (dev) and dist/ (prod), like the migrations folder.
+  const pluginHost = new PluginHost({
+    db,
+    events,
+    log: app.log,
+    dataDir: config.dataDir,
+    runtimePath: join(here, '..', 'runtime', 'plugin-runtime.mjs'),
+  })
+  app.decorate('pluginHost', pluginHost)
+  worker.register('plugin_command', async (ctx) => {
+    const { runId, pluginId, command, args } = ctx.payload as {
+      runId: string
+      pluginId: string
+      command: string
+      args: Record<string, unknown>
+    }
+    await pluginHost.runCommand(runId, pluginId, command, args, config.pluginTimeoutS * 1000)
+  })
+  worker.register('plugin_event', async (ctx) => {
+    const { runId, pluginId, event, payload } = ctx.payload as {
+      runId: string
+      pluginId: string
+      event: string
+      payload: unknown
+    }
+    await pluginHost.dispatchEvent(runId, pluginId, event, payload, config.pluginTimeoutS * 1000)
+  })
   app.decorate('worker', worker)
 
   // Filesystem watcher → debounced incremental rescan (FR-13). Disabled under tests.
@@ -256,10 +328,12 @@ export async function buildApp(
   app.decorate('watchers', watchers)
   app.decorate('captionConverter', captionConverter)
   app.decorate('imageVariant', imageVariant)
+  app.decorate('frameGrabber', frameGrabber)
 
   const transcoder = new TranscodeManager(config.dataDir, transcodeStarter, app.log, {
     idleMs: 60_000,
     sweep: config.env !== 'test',
+    maxCacheBytes: config.transcodeCacheMaxMb * 1024 * 1024,
   })
   app.decorate('transcoder', transcoder)
 
@@ -283,6 +357,7 @@ export async function buildApp(
     await watchers.stopAll()
     await transcoder.stopAll()
     commandRunner.stopAll()
+    await pluginHost.stopAll()
     sqlite.close()
   })
 
@@ -299,6 +374,7 @@ export async function buildApp(
   await app.register(adminUserRoutes)
   await app.register(adminRepositoryRoutes)
   await app.register(mediaRoutes)
+  await app.register(tagRoutes)
   await app.register(categoryRoutes)
   await app.register(playbackRoutes)
   await app.register(likeRoutes)
@@ -308,6 +384,8 @@ export async function buildApp(
   await app.register(adminBrandingRoutes)
   await app.register(adminCommandRoutes)
   await app.register(commandRoutes)
+  await app.register(adminPluginRoutes)
+  await app.register(pluginRoutes)
   await app.register(adminSystemRoutes)
   await app.register(adminUpdateRoutes)
   await app.register(uploadRoutes)
@@ -315,9 +393,15 @@ export async function buildApp(
 
   // First-run admin bootstrap (idempotent), then start watchers for existing repos.
   await bootstrapAdmin(app)
+  // First-run repository seeding from config/repositories.yaml (one-shot, FR-02).
+  seedRepositories(app)
+  // Built-in maintenance commands (idempotent).
+  seedInternalCommands(app)
   // Finalize a self-update that just restarted us (marks the changelog entry "success").
   reconcilePendingUpdate(app)
   watchers.sync()
+  // Bring already-enabled plugins online (daemons activate; others idle until invoked).
+  if (config.pluginsEnabled) pluginHost.startEnabled()
 
   // Serve the built frontend in production, with SPA fallback for client routes.
   // We check for index.html specifically: an empty/partial dist dir would pass an

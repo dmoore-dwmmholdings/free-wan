@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { tagSchema } from './tags'
 
 export const repositoryTypeSchema = z.enum(['video', 'image', 'mixed'])
 export type RepositoryType = z.infer<typeof repositoryTypeSchema>
@@ -97,6 +98,8 @@ export const mediaQuerySchema = z.object({
   /** Filter by the *repository's* type (one or many) — powers the Photos/Video tabs. */
   repositoryType: z.union([repositoryTypeSchema, z.array(repositoryTypeSchema)]).optional(),
   category: z.union([z.string(), z.array(z.string())]).optional(),
+  /** Filter by tag id(s). Multiple tags are AND-combined (items carrying *all* of them). */
+  tag: z.union([z.string(), z.array(z.string())]).optional(),
   collection: z.string().optional(),
   liked: z
     .union([z.boolean(), z.string()])
@@ -139,6 +142,7 @@ export const mediaDetailSchema = mediaCardSchema.extend({
   relPath: z.string(),
   categories: z.array(categoryChainNodeSchema),
   subtitles: z.array(subtitleDtoSchema),
+  tags: z.array(tagSchema),
 })
 export type MediaDetail = z.infer<typeof mediaDetailSchema>
 

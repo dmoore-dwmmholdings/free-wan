@@ -158,6 +158,41 @@ export const mediaCategories = sqliteTable(
 )
 export type MediaCategoryRow = typeof mediaCategories.$inferSelect
 
+// User-defined tags: a free-form labeling layer over media, independent of on-disk folders. Lets
+// items belong to many overlapping groups (and lets AND-combining tags carve out sub-groups)
+// without moving files. Tags are global (shared across repositories).
+export const tags = sqliteTable(
+  'tags',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    color: text('color'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    nameUnique: uniqueIndex('idx_tags_name').on(t.name),
+  }),
+)
+export type TagRow = typeof tags.$inferSelect
+
+export const mediaTags = sqliteTable(
+  'media_tags',
+  {
+    mediaItemId: text('media_item_id')
+      .notNull()
+      .references(() => mediaItems.id, { onDelete: 'cascade' }),
+    tagId: text('tag_id')
+      .notNull()
+      .references(() => tags.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.mediaItemId, t.tagId] }),
+    tagIdx: index('idx_media_tags_tag').on(t.tagId),
+  }),
+)
+export type MediaTagRow = typeof mediaTags.$inferSelect
+
 export const subtitleTracks = sqliteTable(
   'subtitle_tracks',
   {
@@ -238,6 +273,7 @@ export const commands = sqliteTable('commands', {
   workingDir: text('working_dir'), // must resolve within an allowed root
   timeoutS: integer('timeout_s').notNull().default(600),
   maxOutputKb: integer('max_output_kb').notNull().default(1024),
+  maxConcurrent: integer('max_concurrent').notNull().default(1),
   envAllowlist: text('env_allowlist').notNull().default('[]'), // JSON array of env var names
   allowNonAdmin: integer('allow_non_admin').notNull().default(0),
   enabled: integer('enabled').notNull().default(1),
@@ -378,6 +414,75 @@ export const jobs = sqliteTable(
   }),
 )
 export type JobRow = typeof jobs.$inferSelect
+
+// Phase 10 — plugins (docs/13-plugins.md). A plugin is admin-installed code that runs as a
+// sandboxed child process behind a mediated Host API. The manifest JSON is the source of truth
+// for the plugin's commands/panels/events/permissions; the columns are denormalized for queries.
+export const plugins = sqliteTable('plugins', {
+  id: text('id').primaryKey(), // the manifest id (reverse-DNS-ish), globally unique
+  name: text('name').notNull(),
+  version: text('version').notNull(),
+  description: text('description'),
+  author: text('author'),
+  icon: text('icon'), // sanitized inline SVG, or null
+  main: text('main').notNull(), // entry module, relative to install_path
+  manifest: text('manifest').notNull(), // full manifest JSON (authoritative)
+  permissions: text('permissions').notNull().default('[]'), // JSON array of declared permissions
+  daemon: integer('daemon').notNull().default(0),
+  enabled: integer('enabled').notNull().default(0),
+  status: text('status', { enum: ['installed', 'active', 'error', 'disabled'] })
+    .notNull()
+    .default('installed'),
+  lastError: text('last_error'),
+  config: text('config').notNull().default('{}'), // admin-set config values (JSON object)
+  installPath: text('install_path').notNull(),
+  installedBy: text('installed_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+export type PluginRow = typeof plugins.$inferSelect
+
+// Plugin-scoped key/value persistence (the `storage` Host API).
+export const pluginKv = sqliteTable(
+  'plugin_kv',
+  {
+    pluginId: text('plugin_id')
+      .notNull()
+      .references(() => plugins.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: text('value').notNull(), // JSON
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.pluginId, t.key] }),
+  }),
+)
+export type PluginKvRow = typeof pluginKv.$inferSelect
+
+// Audit log of plugin invocations (commands, events, panel actions, activation).
+export const pluginRuns = sqliteTable(
+  'plugin_runs',
+  {
+    id: text('id').primaryKey(),
+    pluginId: text('plugin_id')
+      .notNull()
+      .references(() => plugins.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['command', 'event', 'action', 'activate'] }).notNull(),
+    ref: text('ref'), // command id / event name / panel:action
+    userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+    input: text('input'), // JSON args/payload
+    output: text('output'), // collected logs / result JSON
+    error: text('error'),
+    status: text('status', { enum: ['queued', 'running', 'succeeded', 'failed', 'timeout'] }).notNull(),
+    startedAt: integer('started_at'),
+    finishedAt: integer('finished_at'),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => ({
+    pluginIdx: index('idx_plugin_runs_plugin').on(t.pluginId, t.createdAt),
+  }),
+)
+export type PluginRunRow = typeof pluginRuns.$inferSelect
 
 // Self-update history (changelog). One row per applied package; status transitions
 // applying → pending_restart → success (or failed / rolled_back). Code-only updates never

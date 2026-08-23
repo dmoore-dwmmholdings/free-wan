@@ -13,6 +13,7 @@ import {
 } from '@free-wan/shared'
 import { clips, mediaItems, type ClipRow } from '../db/schema'
 import { enqueueJob } from '../services/jobs'
+import { emitPluginEvent } from '../services/plugin-events'
 
 const validationError = { error: { code: 'validation_error', message: 'Invalid input' } }
 const notFound = { error: { code: 'not_found', message: 'Clip not found' } }
@@ -84,6 +85,7 @@ export async function clipRoutes(app: FastifyInstance): Promise<void> {
         updatedAt: now,
       })
       .run()
+    emitPluginEvent(app, 'clip.created', { clipId: id, sourceItemId, name })
     return reply.code(201).send(toDto(app, owned(app, id, req.user!.id)!))
   })
 

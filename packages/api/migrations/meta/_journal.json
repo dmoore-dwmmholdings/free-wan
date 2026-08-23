@@ -71,6 +71,34 @@
       "when": 1735000900000,
       "tag": "0009_updates",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1735001000000,
+      "tag": "0010_plugins",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1735001100000,
+      "tag": "0011_tags",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1735001200000,
+      "tag": "0012_categories_nocase",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1735001300000,
+      "tag": "0013_command_concurrency",
+      "breakpoints": true
     }
   ]
 }

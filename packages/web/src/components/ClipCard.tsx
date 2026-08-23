@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import type { ClipDto } from '@free-wan/shared'
 import { useDeleteClip, useExportClip } from '../lib/clips'
 
@@ -6,8 +7,31 @@ import { useDeleteClip, useExportClip } from '../lib/clips'
 export function ClipCard({ clip }: { clip: ClipDto }) {
   const ref = useRef<HTMLVideoElement>(null)
   const [visible, setVisible] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
   const del = useDeleteClip()
   const exp = useExportClip()
+
+  // Fullscreen playback: click the preview to play fullscreen with sound. Fullscreen the <video>
+  // element itself (not the wrapper) — a natively-fullscreened video is letterboxed to show the
+  // WHOLE frame, whereas the card deliberately crops it to fill (object-cover). The virtual-loop
+  // logic runs off the video's own timeupdate, so it keeps working in fullscreen either way.
+  const openFullscreen = () => {
+    const v = ref.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null
+    if (!v) return
+    v.muted = false
+    void v.play().catch(() => {})
+    if (v.requestFullscreen) void v.requestFullscreen().catch(() => v.webkitEnterFullscreen?.())
+    else v.webkitEnterFullscreen?.() // Safari/iOS
+  }
+  useEffect(() => {
+    const onChange = () => {
+      const isFs = document.fullscreenElement === ref.current
+      setFullscreen(isFs)
+      if (ref.current && !isFs) ref.current.muted = true // re-mute on exit
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
 
   useEffect(() => {
     const el = ref.current
@@ -25,12 +49,15 @@ export function ClipCard({ clip }: { clip: ClipDto }) {
   }, [visible])
 
   return (
-    <div className="overflow-hidden rounded-lg border border-neutral-800 bg-neutral-900">
-      <div className="relative aspect-video bg-neutral-800">
+    <div className="flex flex-col gap-2.5">
+      <div
+        onClick={clip.orphaned ? undefined : openFullscreen}
+        role={clip.orphaned ? undefined : 'button'}
+        aria-label={clip.orphaned ? undefined : `Play ${clip.name} fullscreen`}
+        className={`relative aspect-video overflow-hidden rounded-theme-sm bg-surface-2 ${clip.orphaned ? '' : 'cursor-pointer'}`}
+      >
         {clip.orphaned ? (
-          <div className="flex h-full items-center justify-center px-2 text-center text-xs text-neutral-500">
-            Source unavailable
-          </div>
+          <div className="flex h-full items-center justify-center px-2 text-center text-xs text-muted">Source unavailable</div>
         ) : (
           <video
             ref={ref}
@@ -39,7 +66,7 @@ export function ClipCard({ clip }: { clip: ClipDto }) {
             muted
             playsInline
             preload="metadata"
-            className="h-full w-full object-cover"
+            className={`h-full w-full ${fullscreen ? 'object-contain' : 'object-cover'}`}
             onLoadedMetadata={(e) => {
               e.currentTarget.currentTime = clip.startS
             }}
@@ -49,29 +76,34 @@ export function ClipCard({ clip }: { clip: ClipDto }) {
             }}
           />
         )}
-        <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">
+        <span className="absolute bottom-[7px] right-[7px] rounded bg-black/40 px-1.5 py-0.5 font-mono text-[9.5px] text-white backdrop-blur-sm">
           {clip.durationS.toFixed(1)}s
         </span>
       </div>
-      <div className="px-2 py-1.5">
-        <div className="truncate text-sm text-neutral-100" title={clip.name}>
+      <div className="flex flex-col gap-1 px-px">
+        <div className="truncate text-[13px] font-semibold text-ink" title={clip.name}>
           {clip.name}
         </div>
-        <div className="mt-1 flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-[11px]">
+          {!clip.orphaned && clip.sourceItemId && (
+            <Link to={`/watch/${clip.sourceItemId}`} className="text-muted hover:text-primary">
+              Source
+            </Link>
+          )}
           {clip.exportUrl ? (
-            <a href={clip.exportUrl} className="text-green-400 hover:underline">
+            <a href={clip.exportUrl} className="text-accent hover:underline">
               Download
             </a>
           ) : clip.exportStatus === 'queued' || clip.exportStatus === 'rendering' ? (
-            <span className="text-neutral-500">Exporting…</span>
+            <span className="text-muted">Exporting…</span>
           ) : (
             !clip.orphaned && (
-              <button onClick={() => exp.mutate({ id: clip.id, format: 'mp4' })} className="text-neutral-400 hover:text-brand">
+              <button onClick={() => exp.mutate({ id: clip.id, format: 'mp4' })} className="text-muted hover:text-primary">
                 Export MP4
               </button>
             )
           )}
-          <button onClick={() => del.mutate(clip.id)} className="ml-auto text-neutral-500 hover:text-red-400">
+          <button onClick={() => del.mutate(clip.id)} className="ml-auto text-muted hover:text-red-400">
             Delete
           </button>
         </div>

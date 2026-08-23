@@ -30,6 +30,7 @@ export class UpdateError extends Error {}
 export interface UpdatePaths {
   apiDist: string // packages/api/dist
   apiMigrations: string // packages/api/migrations
+  apiRuntime: string // packages/api/runtime (plugin host runtime, docs/13-plugins.md)
   webDist: string // packages/web/dist
   work: string // <repoRoot>/.fw-update  (staging, backups, pending.json) — never DATA_DIR
 }
@@ -64,6 +65,7 @@ export function resolvePaths(here = dirname(fileURLToPath(import.meta.url))): Up
   return {
     apiDist: join(apiDir, 'dist'),
     apiMigrations: join(apiDir, 'migrations'),
+    apiRuntime: join(apiDir, 'runtime'),
     webDist: join(packagesDir, 'web', 'dist'),
     work: join(repoRoot, '.fw-update'),
   }
@@ -136,6 +138,7 @@ function restore(backupDir: string, paths: UpdatePaths): Promise<void[]> {
   return Promise.all([
     moveDir(join(backupDir, 'api-dist'), paths.apiDist),
     moveDir(join(backupDir, 'api-migrations'), paths.apiMigrations),
+    moveDir(join(backupDir, 'api-runtime'), paths.apiRuntime),
     moveDir(join(backupDir, 'web-dist'), paths.webDist),
   ])
 }
@@ -156,14 +159,20 @@ export async function applyPackage(zipPath: string, paths: UpdatePaths): Promise
   const backupDir = join(paths.work, 'backups', `${manifest.version}-${Date.now()}`)
   mkdirSync(backupDir, { recursive: true })
 
+  // Only swap api/runtime if the package carries it (older packages may not), so updating from a
+  // runtime-bearing build to one without it doesn't strand the running server with no runtime.
+  const hasRuntime = existsSync(join(staging, 'api', 'runtime'))
+
   // Back up the current code so we can roll back.
   await moveDir(paths.apiDist, join(backupDir, 'api-dist'))
   await moveDir(paths.apiMigrations, join(backupDir, 'api-migrations'))
+  if (hasRuntime) await moveDir(paths.apiRuntime, join(backupDir, 'api-runtime'))
   await moveDir(paths.webDist, join(backupDir, 'web-dist'))
 
   try {
     await moveDir(join(staging, 'api', 'dist'), paths.apiDist)
     await moveDir(join(staging, 'api', 'migrations'), paths.apiMigrations)
+    if (hasRuntime) await moveDir(join(staging, 'api', 'runtime'), paths.apiRuntime)
     await moveDir(join(staging, 'web', 'dist'), paths.webDist)
   } catch (e) {
     await restore(backupDir, paths)

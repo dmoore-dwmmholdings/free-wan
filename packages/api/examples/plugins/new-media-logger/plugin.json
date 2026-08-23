@@ -1,0 +1,14 @@
+{
+  "id": "com.freewan.new-media-logger",
+  "name": "New Media Logger",
+  "version": "1.0.0",
+  "description": "Counts media.added and scan.completed events as they happen. A worked example of event-triggered automation.",
+  "author": "Free-WAN",
+  "main": "index.mjs",
+  "daemon": false,
+  "permissions": ["storage", "notify"],
+  "events": ["media.added", "scan.completed"],
+  "commands": [
+    { "id": "report", "name": "Show counts", "description": "Returns the running event counts.", "allowNonAdmin": true }
+  ]
+}

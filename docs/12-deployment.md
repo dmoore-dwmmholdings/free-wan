@@ -204,6 +204,40 @@ unless a repository must be written to by commands/exports.
 - Install the OS Tailscale client on viewing devices (or share the node); open the
   MagicDNS URL. No router/port-forward changes.
 
+## 6.5 HTTPS without Docker (bare-metal)
+
+The compose stack gets HTTPS for free from the Tailscale sidecar. Running bare-metal
+(`pnpm start`) you have two ways to get a browser-trusted `https://` URL — pick **one**
+terminator (don't run native TLS behind Serve):
+
+- **Tailscale Serve (no app change).** Keep the app on plain HTTP with `TRUST_PROXY=true`,
+  and let the host's Tailscale terminate TLS:
+
+  ```sh
+  tailscale serve --bg --https=443 http://localhost:8080
+  ```
+
+  Tailscale uses a real `*.ts.net` certificate; the app reads the forwarded scheme, so the
+  session cookie is marked `Secure` and HSTS is sent automatically.
+
+- **Native TLS (the app speaks HTTPS).** Get a Tailscale cert and point the server at it. The
+  helper is bundled into the API entrypoint, so it ships with the code-only update package:
+
+  ```sh
+  node packages/api/dist/index.js tls-cert   # → data/tls/<domain>.crt/.key, prints the env lines
+  # …or run it yourself:
+  #   mkdir -p data/tls
+  #   tailscale cert --cert-file data/tls/<domain>.crt --key-file data/tls/<domain>.key <domain>
+  # set in .env:  TLS_CERT_FILE=…   TLS_KEY_FILE=…
+  pnpm start                                 # now listens on https://<domain>:<PORT>
+  ```
+
+  Requires HTTPS certificates enabled for your tailnet (Admin console → DNS). Tailscale certs
+  are short-lived — re-run before expiry (e.g. on a schedule).
+
+Plain HTTP over the tailnet is already WireGuard-encrypted, so HTTPS here is mainly about
+stopping browsers from forcing `https://` and enabling `Secure` cookies.
+
 ## 7. First run
 
 1. `cp .env.example .env` and fill admin creds, `FW_SESSION_SECRET` (e.g.

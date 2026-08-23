@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { FastifyInstance } from 'fastify'
@@ -8,7 +8,7 @@ import { buildApp } from '../src/app'
 import { SESSION_COOKIE } from '../src/lib/auth'
 import type { Prober } from '../src/services/ffprobe'
 import type { Thumbnailer } from '../src/services/thumbnailer'
-import type { TranscodeStarter } from '../src/services/transcode'
+import { TranscodeManager, buildHlsArgs, type TranscodeStarter } from '../src/services/transcode'
 
 // A non-browser-friendly file → playbackMode 'hls'.
 const fakeProber: Prober = async () => ({
@@ -109,5 +109,86 @@ describe('Phase 4 — HLS transcode', () => {
 
   it('requires authentication', async () => {
     expect((await app.inject({ method: 'GET', url: `/api/media/${id}/hls/master.m3u8` })).statusCode).toBe(401)
+  })
+})
+
+describe('transcode cache size-cap eviction (LRU)', () => {
+  const PLAYLIST = '#EXTM3U\n#EXT-X-ENDLIST\n'
+  const noopLog = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} } as unknown as import('fastify').FastifyBaseLogger
+
+  function seedCached(dataDir: string, id: string, segBytes: number, mtime: Date): number {
+    const dir = join(dataDir, 'hls', id)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'index.m3u8'), PLAYLIST)
+    writeFileSync(join(dir, 'seg_00000.ts'), 'X'.repeat(segBytes))
+    utimesSync(join(dir, 'index.m3u8'), mtime, mtime)
+    utimesSync(join(dir, 'seg_00000.ts'), mtime, mtime)
+    return PLAYLIST.length + segBytes
+  }
+
+  it('evicts the least-recently-used completed transcodes past the cap', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'fw-hlscap-'))
+    try {
+      const size = seedCached(dataDir, 'old', 100, new Date(Date.now() - 3 * 3600_000))
+      seedCached(dataDir, 'mid', 100, new Date(Date.now() - 2 * 3600_000))
+      seedCached(dataDir, 'new', 100, new Date(Date.now() - 1 * 3600_000))
+      const mgr = new TranscodeManager(dataDir, () => ({ kill: () => {} }), noopLog, {
+        idleMs: 60_000,
+        sweep: false,
+        maxCacheBytes: size * 2, // three cached → must drop exactly the oldest
+      })
+      mgr.enforceCacheCap()
+      expect(existsSync(join(dataDir, 'hls', 'old'))).toBe(false)
+      expect(existsSync(join(dataDir, 'hls', 'mid'))).toBe(true)
+      expect(existsSync(join(dataDir, 'hls', 'new'))).toBe(true)
+      await mgr.stopAll()
+    } finally {
+      await rm(dataDir, { recursive: true, force: true })
+    }
+  })
+
+  it('never evicts an in-flight transcode, and reuse bumps LRU recency', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'fw-hlscap2-'))
+    try {
+      const size = seedCached(dataDir, 'colder', 100, new Date(Date.now() - 3 * 3600_000))
+      seedCached(dataDir, 'warmer', 100, new Date(Date.now() - 2 * 3600_000))
+      // An in-flight transcode bigger than the whole cap — must survive the sweep.
+      const activeStarter: TranscodeStarter = ({ outDir }) => {
+        mkdirSync(outDir, { recursive: true })
+        writeFileSync(join(outDir, 'index.m3u8'), '#EXTM3U\n') // no ENDLIST — still running
+        writeFileSync(join(outDir, 'seg_00000.ts'), 'X'.repeat(10_000))
+        return { kill: () => {} }
+      }
+      const mgr = new TranscodeManager(dataDir, activeStarter, noopLog, {
+        idleMs: 60_000,
+        sweep: false,
+        maxCacheBytes: size + 50, // room for ~one cached dir beside the active one
+      })
+      mgr.ensure('running', '/fake/file.mkv') // registers as active
+      mgr.ensure('colder', '/fake/other.mkv') // completed → reused → mtime bumped to now
+      mgr.enforceCacheCap()
+      expect(existsSync(join(dataDir, 'hls', 'running'))).toBe(true) // active spared
+      expect(existsSync(join(dataDir, 'hls', 'colder'))).toBe(true) // freshly reused → kept
+      expect(existsSync(join(dataDir, 'hls', 'warmer'))).toBe(false) // now the LRU → evicted
+      await mgr.stopAll()
+    } finally {
+      await rm(dataDir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('transcode quality caps (single rendition)', () => {
+  it('keeps the source resolution by default (no scale filter)', () => {
+    const args = buildHlsArgs('/in.mkv', '/out', 4)
+    expect(args).not.toContain('-vf')
+    expect(args[args.indexOf('-maxrate') + 1]).toBe('6M')
+    expect(args[args.indexOf('-bufsize') + 1]).toBe('12M')
+  })
+
+  it('applies TRANSCODE_MAX_HEIGHT / MAXRATE without ever upscaling', () => {
+    const args = buildHlsArgs('/in.mkv', '/out', 4, { maxHeight: 720, maxrateMbps: 3 })
+    expect(args[args.indexOf('-vf') + 1]).toBe("scale=-2:'min(ih,720)'") // min() → no upscale
+    expect(args[args.indexOf('-maxrate') + 1]).toBe('3M')
+    expect(args[args.indexOf('-bufsize') + 1]).toBe('6M')
   })
 })

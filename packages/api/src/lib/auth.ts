@@ -31,11 +31,18 @@ export function newSessionToken(): string {
   return randomBytes(32).toString('base64url')
 }
 
-export function sessionCookieOptions(isProd: boolean): CookieSerializeOptions {
+/**
+ * Cookie attributes for the session. `secure` must track the *actual request scheme*, not the
+ * environment: Free-WAN is commonly reached over plain HTTP on the tailnet, and browsers silently
+ * drop a `Secure` cookie that was set over HTTP — which breaks login (the session is never stored,
+ * so the next request is unauthenticated). Pass `req.protocol === 'https'` so the flag is set only
+ * when TLS is really in play (e.g. behind Tailscale Serve, which forwards `x-forwarded-proto`).
+ */
+export function sessionCookieOptions(secure: boolean): CookieSerializeOptions {
   return {
     httpOnly: true,
     sameSite: 'lax',
-    secure: isProd,
+    secure,
     signed: true,
     path: '/',
     maxAge: Math.floor(SESSION_TTL_MS / 1000),

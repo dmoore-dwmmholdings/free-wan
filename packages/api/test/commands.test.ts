@@ -122,4 +122,72 @@ describe('Phase 9 — custom commands (sandboxed runner)', () => {
     // and admin endpoints are admin-only
     expect((await app.inject({ method: 'GET', url: '/api/admin/commands', cookies: viewer })).statusCode).toBe(403)
   })
+
+  it('admin listing exposes the executable allowlist and the full definition (for the editor)', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/admin/commands', cookies: admin })
+    expect(res.statusCode).toBe(200)
+    const body = res.json() as { data: Array<{ id: string; executable: string; argTemplate: unknown[] }>; executables: string[] }
+    expect(body.executables).toContain(NODE)
+    const probe = body.data.find((c) => c.id === probeId)!
+    expect(probe.executable).toBe(NODE)
+    expect(Array.isArray(probe.argTemplate)).toBe(true)
+  })
+
+  it('edits a command via PATCH', async () => {
+    const res = await app.inject({ method: 'PATCH', url: `/api/admin/commands/${probeId}`, cookies: admin, payload: { description: 'updated desc' } })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().description).toBe('updated desc')
+    const list = await app.inject({ method: 'GET', url: '/api/admin/commands', cookies: admin })
+    const probe = (list.json().data as Array<{ id: string; description: string }>).find((c) => c.id === probeId)!
+    expect(probe.description).toBe('updated desc')
+  })
+
+  it('enforces the per-command concurrency cap (default 1) with 409, freeing on completion', async () => {
+    const create = await createCmd({
+      name: 'sleeper',
+      executable: NODE,
+      argTemplate: ['-e', SLEEP],
+      timeoutS: 30,
+      params: [],
+    })
+    expect(create.statusCode).toBe(201)
+    expect(create.json().maxConcurrent).toBe(1)
+    const id = create.json().id as string
+
+    const first = await app.inject({ method: 'POST', url: `/api/commands/${id}/run`, cookies: admin, payload: { args: {} } })
+    expect(first.statusCode).toBe(202)
+    // Second launch while the first is queued/running is rejected.
+    const second = await app.inject({ method: 'POST', url: `/api/commands/${id}/run`, cookies: admin, payload: { args: {} } })
+    expect(second.statusCode).toBe(409)
+
+    // Cancel the first → the slot frees and a new run is accepted.
+    await app.inject({ method: 'POST', url: `/api/command-runs/${first.json().runId}/cancel`, cookies: admin })
+    await app.worker.onIdle()
+    const third = await app.inject({ method: 'POST', url: `/api/commands/${id}/run`, cookies: admin, payload: { args: {} } })
+    expect(third.statusCode).toBe(202)
+    await app.inject({ method: 'POST', url: `/api/command-runs/${third.json().runId}/cancel`, cookies: admin })
+    await app.worker.onIdle()
+  })
+
+  it('a raised maxConcurrent admits that many parallel runs', async () => {
+    const create = await createCmd({
+      name: 'sleeper2',
+      executable: NODE,
+      argTemplate: ['-e', SLEEP],
+      timeoutS: 30,
+      maxConcurrent: 2,
+      params: [],
+    })
+    const id = create.json().id as string
+    const a = await app.inject({ method: 'POST', url: `/api/commands/${id}/run`, cookies: admin, payload: { args: {} } })
+    const b = await app.inject({ method: 'POST', url: `/api/commands/${id}/run`, cookies: admin, payload: { args: {} } })
+    const c = await app.inject({ method: 'POST', url: `/api/commands/${id}/run`, cookies: admin, payload: { args: {} } })
+    expect(a.statusCode).toBe(202)
+    expect(b.statusCode).toBe(202)
+    expect(c.statusCode).toBe(409) // third exceeds the cap of 2
+    for (const r of [a, b]) {
+      await app.inject({ method: 'POST', url: `/api/command-runs/${r.json().runId}/cancel`, cookies: admin })
+    }
+    await app.worker.onIdle()
+  })
 })

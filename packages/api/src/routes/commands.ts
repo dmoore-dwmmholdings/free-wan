@@ -1,5 +1,5 @@
 import { statSync } from 'node:fs'
-import { and, eq, desc } from 'drizzle-orm'
+import { and, count, eq, desc, inArray } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 import type { FastifyInstance } from 'fastify'
 import {
@@ -7,6 +7,8 @@ import {
   updateCommandRequestSchema,
   runCommandRequestSchema,
   type CommandDto,
+  type AdminCommandDto,
+  type ArgToken,
   type CommandParamInput,
   type CommandRunDto,
 } from '@free-wan/shared'
@@ -65,6 +67,20 @@ function toDto(app: FastifyInstance, c: CommandRow): CommandDto {
   }
 }
 
+/** Full definition for the admin editor — includes the bits toDto() hides from regular users. */
+function toAdminDto(app: FastifyInstance, c: CommandRow): AdminCommandDto {
+  return {
+    ...toDto(app, c),
+    executable: c.executable,
+    argTemplate: JSON.parse(c.argTemplate) as ArgToken[],
+    workingDir: c.workingDir,
+    timeoutS: c.timeoutS,
+    maxOutputKb: c.maxOutputKb,
+    maxConcurrent: c.maxConcurrent,
+    envAllowlist: JSON.parse(c.envAllowlist) as string[],
+  }
+}
+
 function toRunDto(r: CommandRunRow): CommandRunDto {
   return {
     id: r.id,
@@ -105,7 +121,9 @@ export async function adminCommandRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/api/admin/commands', async () => {
     const rows = app.db.select().from(commands).all()
-    return { data: rows.map((c) => toDto(app, c)) }
+    // The executable allowlist is server-configured (COMMAND_ALLOWED_EXECUTABLES); the editor needs
+    // it to offer a picker and to explain why creating a command may be blocked.
+    return { data: rows.map((c) => toAdminDto(app, c)), executables: app.config.commandAllowedExecutables }
   })
 
   app.post('/api/admin/commands', async (req, reply) => {
@@ -129,6 +147,7 @@ export async function adminCommandRoutes(app: FastifyInstance): Promise<void> {
         workingDir: d.workingDir ?? null,
         timeoutS: d.timeoutS ?? 600,
         maxOutputKb: d.maxOutputKb ?? 1024,
+        maxConcurrent: d.maxConcurrent ?? 1,
         envAllowlist: JSON.stringify(d.envAllowlist ?? []),
         allowNonAdmin: d.allowNonAdmin ? 1 : 0,
         enabled: d.enabled === false ? 0 : 1,
@@ -139,7 +158,7 @@ export async function adminCommandRoutes(app: FastifyInstance): Promise<void> {
       })
       .run()
     insertParams(app, id, d.params)
-    return reply.code(201).send(toDto(app, app.db.select().from(commands).where(eq(commands.id, id)).get()!))
+    return reply.code(201).send(toAdminDto(app, app.db.select().from(commands).where(eq(commands.id, id)).get()!))
   })
 
   app.patch('/api/admin/commands/:id', async (req, reply) => {
@@ -152,6 +171,15 @@ export async function adminCommandRoutes(app: FastifyInstance): Promise<void> {
     if (d.executable !== undefined && !app.config.commandAllowedExecutables.includes(d.executable)) {
       return reply.code(422).send({ error: { code: 'validation_error', message: 'executable is not allowlisted' } })
     }
+    // Built-ins: only the enabled / who-may-run toggles are editable.
+    if (cmd.isInternal) {
+      const allowed = new Set(['enabled', 'allowNonAdmin'])
+      if (Object.keys(d).some((k) => !allowed.has(k))) {
+        return reply
+          .code(422)
+          .send({ error: { code: 'validation_error', message: 'Built-in command — only enabled/allowNonAdmin may change' } })
+      }
+    }
     const patch: Partial<CommandRow> = { updatedAt: Date.now() }
     if (d.name !== undefined) patch.name = d.name
     if (d.description !== undefined) patch.description = d.description ?? null
@@ -160,6 +188,7 @@ export async function adminCommandRoutes(app: FastifyInstance): Promise<void> {
     if (d.workingDir !== undefined) patch.workingDir = d.workingDir ?? null
     if (d.timeoutS !== undefined) patch.timeoutS = d.timeoutS
     if (d.maxOutputKb !== undefined) patch.maxOutputKb = d.maxOutputKb
+    if (d.maxConcurrent !== undefined) patch.maxConcurrent = d.maxConcurrent
     if (d.envAllowlist !== undefined) patch.envAllowlist = JSON.stringify(d.envAllowlist)
     if (d.allowNonAdmin !== undefined) patch.allowNonAdmin = d.allowNonAdmin ? 1 : 0
     if (d.enabled !== undefined) patch.enabled = d.enabled ? 1 : 0
@@ -168,13 +197,15 @@ export async function adminCommandRoutes(app: FastifyInstance): Promise<void> {
       app.db.delete(commandParams).where(eq(commandParams.commandId, id)).run()
       insertParams(app, id, d.params)
     }
-    return toDto(app, app.db.select().from(commands).where(eq(commands.id, id)).get()!)
+    return toAdminDto(app, app.db.select().from(commands).where(eq(commands.id, id)).get()!)
   })
 
   app.delete('/api/admin/commands/:id', async (req, reply) => {
     const { id } = req.params as { id: string }
-    if (!app.db.select({ id: commands.id }).from(commands).where(eq(commands.id, id)).get()) {
-      return reply.code(404).send(notFound)
+    const cmd = app.db.select({ id: commands.id, isInternal: commands.isInternal }).from(commands).where(eq(commands.id, id)).get()
+    if (!cmd) return reply.code(404).send(notFound)
+    if (cmd.isInternal) {
+      return reply.code(422).send({ error: { code: 'validation_error', message: 'Built-in commands cannot be deleted (disable instead)' } })
     }
     app.db.delete(commands).where(eq(commands.id, id)).run()
     return reply.code(204).send()
@@ -202,6 +233,19 @@ export async function commandRoutes(app: FastifyInstance): Promise<void> {
     if (!cmd) return reply.code(404).send(notFound)
     if (!canRun(cmd, req.user!.role, req.user!.canRunCommands)) {
       return reply.code(403).send({ error: { code: 'forbidden', message: 'Not permitted to run this command' } })
+    }
+
+    // Per-command concurrency cap (security §5): counts queued + running runs by anyone.
+    const inFlight =
+      app.db
+        .select({ n: count() })
+        .from(commandRuns)
+        .where(and(eq(commandRuns.commandId, id), inArray(commandRuns.status, ['queued', 'running'])))
+        .get()?.n ?? 0
+    if (inFlight >= cmd.maxConcurrent) {
+      return reply.code(409).send({
+        error: { code: 'conflict', message: `Command already has ${inFlight} run(s) in flight (max ${cmd.maxConcurrent})` },
+      })
     }
 
     const resolveRepoPath: RepoPathResolver = (repoId, value, mustBeDir) => {

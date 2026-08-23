@@ -1,0 +1,27 @@
+{
+  "id": "com.freewan.library-stats",
+  "name": "Library Stats",
+  "version": "1.0.0",
+  "description": "Shows library statistics, the latest media, and a saved note. A worked example of a UI panel plus a command.",
+  "author": "Free-WAN",
+  "main": "index.mjs",
+  "daemon": false,
+  "permissions": ["media:read", "storage"],
+  "commands": [
+    {
+      "id": "count",
+      "name": "Count items",
+      "description": "Counts items in the library, optionally by type.",
+      "allowNonAdmin": true,
+      "params": [
+        { "name": "type", "label": "Type", "type": "enum", "options": ["all", "video", "image"], "default": "all" }
+      ]
+    }
+  ],
+  "ui": [
+    { "id": "main", "title": "Library Stats", "placement": "plugin_page", "allowNonAdmin": true }
+  ],
+  "config": [
+    { "name": "greeting", "label": "Panel heading", "type": "string", "default": "Your Library" }
+  ]
+}

@@ -94,11 +94,15 @@ docker compose up -d            # starts app + Tailscale sidecar
 > register sandboxed **custom commands** (no-shell `spawn`, validated args, cwd jail, env
 > allowlist, timeouts, output caps) that permitted users run from generated forms. It ships
 > hardened: strict CSP/HSTS headers, a non-root container, a Tailscale Serve sidecar, and an
-> admin System panel. Only **polish** remains (PWA, accessibility, Playwright e2e, the
-> browser passes) — tracked under "post-v1" in [`docs/PROGRESS.md`](docs/PROGRESS.md) (read
-> this first if you are the build agent), with the roadmap in
-> [`docs/14-build-plan.md`](docs/14-build-plan.md). **132 tests (119 backend + 11 web + 2
-> shared), all green.**
+> admin System panel. It's installable as a **PWA** (branded manifest + icon) and has a
+> **Playwright e2e suite** (`pnpm -r build && pnpm test:e2e`) covering login, the forced
+> password change, add-library → scan → browse, video playback, clip building, the gallery
+> overlay, the branding editor, command creation + a live sandboxed run, and **axe WCAG A/AA
+> accessibility audits of every major page (zero violations)** — all in a real browser.
+> Remaining refinements are tracked under "post-v1" in
+> [`docs/PROGRESS.md`](docs/PROGRESS.md) (read this first if you are the build agent), with
+> the roadmap in [`docs/14-build-plan.md`](docs/14-build-plan.md). **186 unit/integration
+> tests (173 backend + 11 web + 2 shared) + 18 e2e flows, all green.**
 
 ## License
 

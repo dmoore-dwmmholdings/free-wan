@@ -1,11 +1,20 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, fireEvent, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { MediaCard } from '@free-wan/shared'
 import { GalleryViewer } from '../src/components/GalleryViewer'
+import { MediaPrefsProvider } from '../src/components/MediaPrefsProvider'
 
 function renderInRouter(ui: React.ReactElement) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>)
+  const qc = new QueryClient()
+  return render(
+    <QueryClientProvider client={qc}>
+      <MediaPrefsProvider>
+        <MemoryRouter>{ui}</MemoryRouter>
+      </MediaPrefsProvider>
+    </QueryClientProvider>,
+  )
 }
 
 const img = (id: string, title: string): MediaCard => ({

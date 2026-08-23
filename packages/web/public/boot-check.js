@@ -7,9 +7,9 @@
     if (!root) return
     root.innerHTML =
       '<div style="font-family:system-ui,-apple-system,sans-serif;max-width:34rem;margin:14vh auto;' +
-      'padding:1.5rem;color:#e5e5e5;background:#171717;border:1px solid #333;border-radius:12px;line-height:1.55">' +
+      'padding:1.5rem;color:#e9e9ee;background:#16161d;border:1px solid rgba(255,255,255,0.11);border-radius:16px;line-height:1.55">' +
       '<h1 style="font-size:1.15rem;margin:0 0 .5rem">' + title + '</h1>' +
-      '<p style="margin:0;color:#a3a3a3">' + msg + '</p></div>'
+      '<p style="margin:0;color:#8e8e9c">' + msg + '</p></div>'
   }
 
   // Browsers without ES module support ignore the app script entirely.

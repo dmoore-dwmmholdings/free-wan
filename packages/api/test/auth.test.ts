@@ -210,3 +210,28 @@ describe('login rate limiting', () => {
     expect(saw429).toBe(true)
   })
 })
+
+// Regression: a `Secure` cookie set over plain HTTP is dropped by browsers, which silently
+// breaks login on a tailnet reached over http://. The flag must track the real request scheme.
+describe('session cookie Secure flag tracks the request scheme', () => {
+  const creds = { username: 'admin', password: 'admin-pass-123' }
+  const sessionCookie = (res: LightMyRequestResponse) => res.cookies.find((c) => c.name === SESSION_COOKIE)
+
+  it('is NOT Secure over plain HTTP', async () => {
+    const app = await buildApp({ env: 'test', dataDir: ':memory:', adminUsername: creds.username, adminPassword: creds.password, loginRateMax: 1000 })
+    await app.ready()
+    const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: creds })
+    expect(res.statusCode).toBe(200)
+    expect(sessionCookie(res)?.secure).toBeFalsy()
+    await app.close()
+  })
+
+  it('is Secure when the request is HTTPS (x-forwarded-proto behind a trusted proxy)', async () => {
+    const app = await buildApp({ env: 'test', dataDir: ':memory:', adminUsername: creds.username, adminPassword: creds.password, loginRateMax: 1000, trustProxy: true })
+    await app.ready()
+    const res = await app.inject({ method: 'POST', url: '/api/auth/login', headers: { 'x-forwarded-proto': 'https' }, payload: creds })
+    expect(res.statusCode).toBe(200)
+    expect(sessionCookie(res)?.secure).toBe(true)
+    await app.close()
+  })
+})

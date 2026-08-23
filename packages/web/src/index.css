@@ -1,3 +1,119 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * FreeWAN design tokens (FR-45–48). The five base colors + radius + fonts are written at
+ * runtime by <ThemeProvider> from GET /api/branding; everything else is derived here with
+ * color-mix so a preset only needs to set the base values and the whole UI retunes live.
+ * Defaults below are the "Midnight" preset so first paint matches before branding loads.
+ */
+:root {
+  --fw-bg: #0b0b10;
+  --fw-surface: #16161d;
+  --fw-primary: #6e4cff;
+  --fw-accent: #22d3ee;
+  --fw-text: #e9e9ee;
+  --fw-on-primary: #ffffff;
+  --fw-radius: 16px;
+  --fw-font-head: 'Space Grotesk', sans-serif;
+  --fw-font-body: 'Hanken Grotesk', sans-serif;
+  --fw-font-mono: 'IBM Plex Mono', monospace;
+
+  /* Derived — auto-track the base vars. */
+  --fw-surface-2: color-mix(in srgb, var(--fw-surface), var(--fw-text) 6%);
+  --fw-border: color-mix(in srgb, var(--fw-text) 11%, transparent);
+  /* 62% (not 52%) keeps muted text at WCAG AA 4.5:1 on both bg and surface. */
+  --fw-muted: color-mix(in srgb, var(--fw-text) 62%, var(--fw-bg));
+  /* Primary pushed toward the text color — for text-on-tint uses (active chips) where the
+     raw primary lacks AA contrast against its own tint. */
+  --fw-primary-strong: color-mix(in srgb, var(--fw-primary) 60%, var(--fw-text));
+  --fw-radius-sm: calc(var(--fw-radius) * 0.58);
+  --fw-primary-tint: color-mix(in srgb, var(--fw-primary) 15%, transparent);
+  --fw-primary-line: color-mix(in srgb, var(--fw-primary) 40%, transparent);
+  --fw-accent-tint: color-mix(in srgb, var(--fw-accent) 15%, transparent);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  /* Belt-and-suspenders against accidental horizontal scroll on mobile. `clip` (not `hidden`)
+     keeps vertical scrolling and `position: sticky` working. */
+  html {
+    overflow-x: clip;
+  }
+  body {
+    margin: 0;
+    background: var(--fw-bg);
+    color: var(--fw-text);
+    font-family: var(--fw-font-body);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--fw-border);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--fw-muted);
+  }
+}
+
+@keyframes fwpulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.82);
+  }
+}
+
+@layer components {
+  /* Micro uppercase label in mono — the recurring section/field caption. */
+  .fw-mono-label {
+    @apply font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-muted;
+  }
+  /* Form input / select shell. */
+  .fw-input {
+    @apply h-11 w-full rounded-theme-sm border border-line bg-surface px-3.5 text-sm text-ink outline-none transition-colors placeholder:text-muted focus:border-primary;
+  }
+  /* Buttons. */
+  .fw-btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-theme-sm font-head text-sm font-semibold transition disabled:cursor-default disabled:opacity-50;
+  }
+  .fw-btn-primary {
+    @apply fw-btn bg-primary text-on-primary hover:brightness-110;
+  }
+  .fw-btn-ghost {
+    @apply fw-btn border border-line bg-transparent text-ink hover:bg-surface-2;
+  }
+  /* Surface card. */
+  .fw-card {
+    @apply rounded-theme border border-line bg-surface;
+  }
+  /* Pill filter chip. */
+  .fw-chip {
+    @apply inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-full border border-line px-3 text-[12.5px] text-ink transition;
+  }
+  .fw-chip-active {
+    @apply border-primary-line bg-primary-tint font-semibold text-primary-strong;
+  }
+  /* Horizontal filter scroller on phones — scrolls without showing a scrollbar. */
+  .fw-hscroll {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .fw-hscroll::-webkit-scrollbar {
+    display: none;
+  }
+}

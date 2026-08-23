@@ -2,7 +2,7 @@ import { readdir, stat } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { join, relative, sep, dirname } from 'node:path'
 import { v7 as uuidv7 } from 'uuid'
-import { and, eq, count } from 'drizzle-orm'
+import { and, eq, count, sql } from 'drizzle-orm'
 import type { FastifyBaseLogger } from 'fastify'
 import type { Db } from '../db/client'
 import {
@@ -107,7 +107,9 @@ function upsertCategoryChain(db: Db, repoId: string, rel: string, itemId: string
     let cat = db
       .select()
       .from(categories)
-      .where(and(eq(categories.repositoryId, repoId), eq(categories.path, node.path)))
+      // Case-insensitive match (spec: first-seen display case wins) — pairs with the
+      // COLLATE NOCASE unique index from migration 0012.
+      .where(and(eq(categories.repositoryId, repoId), sql`${categories.path} = ${node.path} COLLATE NOCASE`))
       .get()
     if (!cat) {
       cat = {
@@ -228,15 +230,22 @@ function upsertItem(
 }
 
 function refreshCategoryCounts(db: Db, repoId: string): void {
-  const cats = db.select().from(categories).where(eq(categories.repositoryId, repoId)).all()
-  for (const c of cats) {
-    const row = db
-      .select({ n: count() })
+  // One grouped count for all categories (not one COUNT per node), and only write rows whose
+  // count actually changed — a no-op rescan of a large library used to rewrite every category.
+  const counts = new Map(
+    db
+      .select({ categoryId: mediaCategories.categoryId, n: count() })
       .from(mediaCategories)
       .innerJoin(mediaItems, eq(mediaCategories.mediaItemId, mediaItems.id))
-      .where(and(eq(mediaCategories.categoryId, c.id), eq(mediaItems.status, 'active')))
-      .get()
-    db.update(categories).set({ itemCount: row?.n ?? 0 }).where(eq(categories.id, c.id)).run()
+      .where(eq(mediaItems.status, 'active'))
+      .groupBy(mediaCategories.categoryId)
+      .all()
+      .map((r) => [r.categoryId, r.n]),
+  )
+  const cats = db.select().from(categories).where(eq(categories.repositoryId, repoId)).all()
+  for (const c of cats) {
+    const n = counts.get(c.id) ?? 0
+    if (n !== c.itemCount) db.update(categories).set({ itemCount: n }).where(eq(categories.id, c.id)).run()
   }
   // Prune now-empty nodes (cascades to any 0-count children via parent_id FK).
   db.delete(categories)
@@ -301,6 +310,10 @@ export async function runScan(
     else byDir.set(d, [f])
   }
 
+  // Throttle progress to whole-percent changes: emitting per file means one jobs-table
+  // UPDATE and one WebSocket push per file, which crawls on large libraries.
+  let lastPct = -1
+
   for (const f of files) {
     const kind = classify(f.name)
     if (!kind) continue
@@ -329,8 +342,12 @@ export async function runScan(
       opts.log?.warn?.(`indexing failed for ${f.rel}: ${String(e)}`)
     }
     const progress = result.found > 0 ? result.indexed / result.found : 1
-    opts.setProgress?.(progress)
-    opts.onProgress?.({ status: 'scanning', progress, ...result })
+    const pct = Math.floor(progress * 100)
+    if (pct !== lastPct) {
+      lastPct = pct
+      opts.setProgress?.(progress)
+      opts.onProgress?.({ status: 'scanning', progress, ...result })
+    }
   }
 
   // Sweep: previously-known items not seen this pass are missing; returned items revive.

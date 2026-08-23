@@ -1,21 +1,27 @@
 {
   "name": "free-wan",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.6.1",
   "type": "module",
   "packageManager": "pnpm@11.3.0",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "pnpm --parallel --filter @free-wan/api --filter @free-wan/web dev",
     "build": "pnpm -r build",
     "start": "pnpm --filter @free-wan/api start",
     "start:direct": "pnpm --filter @free-wan/api start:direct",
     "package": "pnpm -r build && node scripts/package-release.mjs",
+    "tls:cert": "node packages/api/dist/index.js tls-cert",
     "test": "pnpm -r test",
+    "test:e2e": "playwright test",
     "typecheck": "pnpm -r typecheck",
     "db:generate": "pnpm --filter @free-wan/api db:generate"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.61.1",
     "typescript": "5.7.2"
   }
 }

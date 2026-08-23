@@ -4,7 +4,7 @@ import { api } from './api'
 export interface UploadTarget {
   id: string
   name: string
-  type: 'image' | 'mixed'
+  type: 'image' | 'video' | 'mixed'
 }
 
 export interface UploadResult {
@@ -13,7 +13,7 @@ export interface UploadResult {
   skipped: Array<{ name: string; reason: string }>
 }
 
-/** Writable, image-capable repositories a user can upload into. */
+/** Writable, media-capable repositories a user can upload into. */
 export function useUploadTargets() {
   return useQuery({
     queryKey: ['upload-targets'],
@@ -21,7 +21,14 @@ export function useUploadTargets() {
   })
 }
 
-export function useUploadPhotos() {
+/** The HTML file-input `accept` value for a target type — what the OS picker should offer. */
+export function acceptFor(type: UploadTarget['type'] | undefined): string {
+  if (type === 'image') return 'image/*'
+  if (type === 'video') return 'video/*'
+  return 'image/*,video/*'
+}
+
+export function useUploadMedia() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ repositoryId, files }: { repositoryId: string; files: File[] }) => {

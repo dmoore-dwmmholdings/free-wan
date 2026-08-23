@@ -17,8 +17,11 @@ const builtAt = new Date().toISOString()
 
 const apiDist = join(repoRoot, 'packages', 'api', 'dist')
 const apiMigrations = join(repoRoot, 'packages', 'api', 'migrations')
+// The plugin host runtime is a standalone .mjs (not bundled by tsup); it must ship beside the
+// bundle so forked plugin processes can be launched in production (docs/13-plugins.md).
+const apiRuntime = join(repoRoot, 'packages', 'api', 'runtime')
 const webDist = join(repoRoot, 'packages', 'web', 'dist')
-for (const [label, p] of [['api/dist', apiDist], ['api/migrations', apiMigrations], ['web/dist', webDist]]) {
+for (const [label, p] of [['api/dist', apiDist], ['api/migrations', apiMigrations], ['api/runtime', apiRuntime], ['web/dist', webDist]]) {
   if (!existsSync(p)) {
     console.error(`Missing ${label} (${p}). Run "pnpm -r build" first.`)
     process.exit(1)
@@ -46,6 +49,7 @@ zip.addFile('api/dist/build-info.json', buildInfo)
 zip.addLocalFile(join(apiDist, 'index.js'), 'api/dist')
 if (existsSync(join(apiDist, 'index.js.map'))) zip.addLocalFile(join(apiDist, 'index.js.map'), 'api/dist')
 zip.addLocalFolder(apiMigrations, 'api/migrations')
+zip.addLocalFolder(apiRuntime, 'api/runtime')
 zip.addLocalFolder(webDist, 'web/dist')
 
 const manifest = {

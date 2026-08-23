@@ -2,15 +2,25 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Free-WAN</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0b10" />
+    <link rel="manifest" href="/api/manifest.webmanifest" />
+    <title>FreeWAN</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #0b0b10;
+        color: #e9e9ee;
+      }
+    </style>
     <script src="/boot-check.js"></script>
   </head>
   <body>
     <div id="root"></div>
     <noscript>
-      <div style="font-family: system-ui, sans-serif; margin: 14vh auto; max-width: 32rem; text-align: center; color: #e5e5e5;">
-        Free-WAN needs JavaScript enabled to run.
+      <div style="font-family: system-ui, sans-serif; margin: 14vh auto; max-width: 32rem; text-align: center; color: #e9e9ee;">
+        FreeWAN needs JavaScript enabled to run.
       </div>
     </noscript>
     <script type="module" src="/src/main.tsx"></script>

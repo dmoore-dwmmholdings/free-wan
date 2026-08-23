@@ -3,6 +3,7 @@ import { RequireAuth } from './components/RequireAuth'
 import { LoginPage } from './routes/LoginPage'
 import { ChangePasswordPage } from './routes/ChangePasswordPage'
 import { BrowsePage } from './routes/BrowsePage'
+import { CategoriesPage } from './routes/CategoriesPage'
 import { DetailPage } from './routes/DetailPage'
 import { WatchPage } from './routes/WatchPage'
 import { CollectionsPage } from './routes/CollectionsPage'
@@ -10,7 +11,10 @@ import { ClipsPage } from './routes/ClipsPage'
 import { ClipBuilder } from './routes/ClipBuilder'
 import { BrandingPage } from './routes/BrandingPage'
 import { CommandsPage } from './routes/CommandsPage'
+import { PluginsPage } from './routes/PluginsPage'
 import { RepositoriesPage } from './routes/RepositoriesPage'
+import { AdminCommandsPage } from './routes/AdminCommandsPage'
+import { AdminPluginsPage } from './routes/AdminPluginsPage'
 import { SystemPage } from './routes/SystemPage'
 
 export function App() {
@@ -23,6 +27,14 @@ export function App() {
         element={
           <RequireAuth>
             <BrowsePage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/categories"
+        element={
+          <RequireAuth>
+            <CategoriesPage />
           </RequireAuth>
         }
       />
@@ -83,10 +95,34 @@ export function App() {
         }
       />
       <Route
+        path="/plugins"
+        element={
+          <RequireAuth>
+            <PluginsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/settings/repositories"
         element={
           <RequireAuth>
             <RepositoriesPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings/commands"
+        element={
+          <RequireAuth>
+            <AdminCommandsPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/settings/plugins"
+        element={
+          <RequireAuth>
+            <AdminPluginsPage />
           </RequireAuth>
         }
       />

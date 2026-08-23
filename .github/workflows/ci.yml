@@ -19,3 +19,7 @@ jobs:
       - run: pnpm -r typecheck
       - run: pnpm -r build
       - run: pnpm -r test
+      # E2E: real browser against the built app (needs ffmpeg for the media fixture + scan).
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: npx playwright install --with-deps chromium
+      - run: pnpm test:e2e

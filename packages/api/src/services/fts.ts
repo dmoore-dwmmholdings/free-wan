@@ -30,12 +30,13 @@ export function deleteFts(db: Db, itemId: string): void {
   db.run(sql`DELETE FROM media_fts WHERE media_item_id = ${itemId}`)
 }
 
-/** Matching media_item_ids for a raw query, or null when the query is empty. */
-export function searchFtsIds(db: Db, raw: string): string[] | null {
+/**
+ * FTS match as an IN-subquery condition, or null when the query is empty. Unlike
+ * materializing ids and binding them one-by-one (which blows SQLite's bound-variable
+ * limit when a broad prefix matches tens of thousands of items), this stays one query.
+ */
+export function ftsMatchCondition(raw: string) {
   const q = ftsQueryString(raw)
   if (!q) return null
-  const rows = db.all(
-    sql`SELECT media_item_id AS id FROM media_fts WHERE media_fts MATCH ${q}`,
-  ) as Array<{ id: string }>
-  return rows.map((r) => r.id)
+  return sql`(SELECT media_item_id FROM media_fts WHERE media_fts MATCH ${q})`
 }

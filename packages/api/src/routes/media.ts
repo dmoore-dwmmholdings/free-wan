@@ -11,10 +11,13 @@ import {
   likes,
   collectionItems,
   repositories,
+  mediaTags,
 } from '../db/schema'
-import { searchFtsIds } from '../services/fts'
+import { ftsMatchCondition } from '../services/fts'
+import { tagsForItem } from './tags'
 import { resolveWithinRoot } from '../lib/path-safety'
 import { contentTypeForExt } from '../lib/content-types'
+import { KeyedLimiter } from '../lib/keyed-limiter'
 
 const sortColumns = {
   title: mediaItems.title,
@@ -39,6 +42,11 @@ function decodeCursor(c?: string): number {
 
 export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate)
+
+  // One ffmpeg budget for request-triggered variant/frame generation. Without this, a
+  // gallery page (or two users scrubbing) spawns one ffmpeg per request, and concurrent
+  // requests for the same uncached file race each other writing it.
+  const ffmpegLimiter = new KeyedLimiter(4)
 
   app.get('/api/media', async (req, reply) => {
     const parsed = mediaQuerySchema.safeParse(req.query)
@@ -83,6 +91,21 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
         ),
       )
     }
+    // Tag filter: AND across tags — an item must carry *every* selected tag (subgroups of subgroups).
+    if (p.tag) {
+      const tagIds = Array.isArray(p.tag) ? p.tag : [p.tag]
+      conds.push(
+        inArray(
+          mediaItems.id,
+          app.db
+            .select({ id: mediaTags.mediaItemId })
+            .from(mediaTags)
+            .where(inArray(mediaTags.tagId, tagIds))
+            .groupBy(mediaTags.mediaItemId)
+            .having(sql`COUNT(DISTINCT ${mediaTags.tagId}) = ${tagIds.length}`),
+        ),
+      )
+    }
     // A collection view only includes (and orders by) its members.
     if (p.collection) {
       conds.push(
@@ -96,11 +119,10 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
       )
     }
     if (p.q !== undefined) {
-      const ids = searchFtsIds(app.db, p.q)
-      if (ids !== null) {
-        if (ids.length === 0) return { data: [], nextCursor: null, total: 0 }
-        conds.push(inArray(mediaItems.id, ids))
-      }
+      // IN-subquery, not a materialized id list: binding one variable per matched id blew
+      // SQLite's bound-variable cap when a short prefix matched most of a large library.
+      const match = ftsMatchCondition(p.q)
+      if (match) conds.push(sql`${mediaItems.id} IN ${match}`)
     }
 
     const where = and(...conds)
@@ -219,6 +241,7 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
         label: s.label,
         format: s.format,
       })),
+      tags: tagsForItem(app, id),
     }
     return detail
   })
@@ -266,14 +289,64 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
 
     const outDir = join(app.config.dataDir, 'thumbs', item.id)
     const outPath = join(outDir, `w${width}.jpg`)
-    if (!existsSync(outPath)) {
+    // isPending: a file being written right now exists on disk but is not complete yet.
+    if (!existsSync(outPath) || ffmpegLimiter.isPending(outPath)) {
       mkdirSync(outDir, { recursive: true })
       try {
-        await app.imageVariant({ absPath: abs, width, outPath })
+        await ffmpegLimiter.run(outPath, () => app.imageVariant({ absPath: abs, width, outPath }))
       } catch {
         // Fall back to the original on any resize failure.
         reply.header('Cache-Control', 'public, max-age=86400').type(contentTypeForExt(item.ext))
         return reply.send(createReadStream(abs))
+      }
+    }
+    reply.header('Cache-Control', 'public, max-age=31536000, immutable').type('image/jpeg')
+    return reply.send(createReadStream(outPath))
+  })
+
+  // A single JPEG frame at ?t=SECONDS, for the player's scrub-bar thumbnail preview. Videos only.
+  // Works for both direct and HLS items (extracted from the original source) and is cached on disk.
+  app.get('/api/media/:id/frame', async (req, reply) => {
+    const { id } = req.params as { id: string }
+    const item = app.db
+      .select()
+      .from(mediaItems)
+      .where(and(eq(mediaItems.id, id), eq(mediaItems.status, 'active')))
+      .get()
+    if (!item || item.type !== 'video') return reply.code(404).send({ error: { code: 'not_found', message: 'Video not found' } })
+    const repo = app.db.select().from(repositories).where(eq(repositories.id, item.repositoryId)).get()
+    if (!repo) return reply.code(404).send({ error: { code: 'not_found', message: 'Video not found' } })
+
+    let abs: string
+    try {
+      abs = resolveWithinRoot(repo.rootPath, item.relPath)
+    } catch {
+      return reply.code(404).send({ error: { code: 'not_found', message: 'Video not found' } })
+    }
+
+    const tRaw = Number((req.query as { t?: string }).t)
+    if (!Number.isFinite(tRaw) || tRaw < 0) {
+      return reply.code(422).send({ error: { code: 'validation_error', message: 'Invalid time' } })
+    }
+    // Quantise to ~100 buckets across the video (min 1s step) so dragging the scrubber reuses
+    // cached frames instead of spawning ffmpeg per pixel. The client rounds the same way, so its
+    // request URLs line up with the cache.
+    const dur = item.durationS ?? null
+    const step = dur && dur > 0 ? Math.max(1, dur / 100) : 2
+    // Clamp just short of the end: extracting a frame at exactly EOF yields nothing (ffmpeg
+    // finds no frame past the last keyframe), which 404'd scrubs at the right edge of the bar.
+    const maxT = dur && dur > 0 ? Math.max(0, dur - 0.5) : tRaw
+    const q = Math.min(maxT, Math.max(0, Math.round(tRaw / step) * step))
+    const key = Math.round(q * 100) // centiseconds → a safe, stable filename
+
+    const outDir = join(app.config.dataDir, 'thumbs', item.id)
+    const outPath = join(outDir, `frame_${key}.jpg`)
+    if (!existsSync(outPath) || ffmpegLimiter.isPending(outPath)) {
+      mkdirSync(outDir, { recursive: true })
+      try {
+        await ffmpegLimiter.run(outPath, () => app.frameGrabber({ absPath: abs, timeS: q, width: 320, outPath }))
+      } catch {
+        return reply.code(404).send({ error: { code: 'not_found', message: 'Frame unavailable' } })
       }
     }
     reply.header('Cache-Control', 'public, max-age=31536000, immutable').type('image/jpeg')

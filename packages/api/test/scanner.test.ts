@@ -141,3 +141,56 @@ describe('scanner', () => {
     expect(stuck.every((i) => i.status === 'offline')).toBe(true)
   })
 })
+
+describe('scanner — case-insensitive categories', () => {
+  // Case-variant folders can't coexist on Windows/macOS filesystems, so simulate the
+  // Linux scenario: a category node already exists as "Action" and the scan walks a
+  // lower-case "action" folder. The scanner must reuse the node, not duplicate it.
+  it('matches an existing category that differs only by case (first-seen name wins)', async () => {
+    const handle = openDatabase(':memory:')
+    runMigrations(handle.sqlite, migrationsFolder)
+    const caseDb = handle.db
+    const caseRoot = await mkdtemp(join(tmpdir(), 'fw-scan-case-'))
+    try {
+      await mkdir(join(caseRoot, 'action'), { recursive: true })
+      await writeFile(join(caseRoot, 'action', 'clip.mp4'), 'x')
+      const now = Date.now()
+      const rid = uuidv7()
+      caseDb.insert(repositories)
+        .values({
+          id: rid,
+          name: 'Case',
+          rootPath: caseRoot,
+          type: 'video',
+          enabled: 1,
+          readOnly: 1,
+          status: 'unknown',
+          lastScanAt: null,
+          lastError: null,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .run()
+      caseDb.insert(categories)
+        .values({ id: uuidv7(), repositoryId: rid, parentId: null, name: 'Action', path: 'Action', depth: 0, itemCount: 0 })
+        .run()
+
+      await runScan(caseDb, rid, fakeProber)
+
+      const cats = caseDb.select().from(categories).where(eq(categories.repositoryId, rid)).all()
+      expect(cats).toHaveLength(1) // no case-duplicate created
+      expect(cats[0]!.name).toBe('Action') // first-seen display case preserved
+      expect(cats[0]!.itemCount).toBe(1)
+      const item = caseDb.select().from(mediaItems).where(eq(mediaItems.repositoryId, rid)).get()!
+      const link = caseDb
+        .select()
+        .from(mediaCategories)
+        .where(and(eq(mediaCategories.mediaItemId, item.id), eq(mediaCategories.categoryId, cats[0]!.id)))
+        .get()
+      expect(link).toBeDefined()
+    } finally {
+      handle.sqlite.close()
+      await rm(caseRoot, { recursive: true, force: true })
+    }
+  })
+})

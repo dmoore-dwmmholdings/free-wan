@@ -1,22 +1,23 @@
 import { useRef, useState } from 'react'
 import { ApiError } from '../lib/api'
-import { useUploadTargets, useUploadPhotos } from '../lib/uploads'
+import { useUploadTargets, useUploadMedia, acceptFor } from '../lib/uploads'
 import { UploadIcon } from './icons'
 
-/** Upload photos into a writable image/mixed repository, straight from the library. */
+/** Upload photos or videos into a writable repository, straight from the library. */
 export function UploadButton() {
   const { data } = useUploadTargets()
   const targets = data?.data ?? []
-  const upload = useUploadPhotos()
+  const upload = useUploadMedia()
   const inputRef = useRef<HTMLInputElement>(null)
   const [repoId, setRepoId] = useState('')
   const [msg, setMsg] = useState<string | null>(null)
 
-  const effectiveRepo = repoId || targets[0]?.id || ''
+  const target = targets.find((t) => t.id === repoId) ?? targets[0]
+  const effectiveRepo = target?.id ?? ''
 
   const onPick = () => {
     if (targets.length === 0) {
-      setMsg('No writable photo library — uncheck “Read-only” on an image or mixed repository.')
+      setMsg('No writable library — uncheck “Read-only” on a repository to upload into it.')
       return
     }
     inputRef.current?.click()
@@ -43,7 +44,7 @@ export function UploadButton() {
         <select
           value={effectiveRepo}
           onChange={(e) => setRepoId(e.target.value)}
-          className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1"
+          className="h-9 rounded-theme-sm border border-line bg-surface px-2.5 text-[13px] text-ink outline-none"
           title="Upload destination"
         >
           {targets.map((t) => (
@@ -53,16 +54,12 @@ export function UploadButton() {
           ))}
         </select>
       )}
-      <button
-        onClick={onPick}
-        disabled={upload.isPending}
-        className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-700 px-3 py-1 hover:border-brand disabled:opacity-50"
-      >
+      <button onClick={onPick} disabled={upload.isPending} className="fw-btn-ghost h-9 px-3.5 text-[13px]">
         <UploadIcon className="h-4 w-4" />
         {upload.isPending ? 'Uploading…' : 'Upload'}
       </button>
-      <input ref={inputRef} type="file" accept="image/*" multiple className="hidden" onChange={onFiles} />
-      {msg && <span className="text-xs text-neutral-400">{msg}</span>}
+      <input ref={inputRef} type="file" accept={acceptFor(target?.type)} multiple className="hidden" onChange={onFiles} />
+      {msg && <span className="text-xs text-muted">{msg}</span>}
     </div>
   )
 }

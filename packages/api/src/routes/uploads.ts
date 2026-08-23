@@ -1,19 +1,21 @@
-import { existsSync, mkdirSync, statSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
+import { createWriteStream, existsSync, mkdirSync, statSync } from 'node:fs'
+import { rm } from 'node:fs/promises'
+import { pipeline } from 'node:stream/promises'
 import { basename, join } from 'node:path'
 import { and, eq, inArray } from 'drizzle-orm'
 import type { FastifyInstance } from 'fastify'
 import { repositories } from '../db/schema'
 import { enqueueJob } from '../services/jobs'
-import { IMAGE_EXTS, extOf } from '../lib/media-types'
+import { IMAGE_EXTS, VIDEO_EXTS, extOf } from '../lib/media-types'
 
-/** Where uploaded photos land inside the target repo (also becomes their category). */
+/** Where uploads land inside the target repo (also becomes their category). */
 const UPLOAD_SUBDIR = 'Uploads'
-const MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 // 2 GB — videos are large; we stream to disk.
 const MAX_FILES = 50
 
-// mimetype → canonical extension. Falls back to the file's own extension if it's a known image.
-const IMAGE_MIME: Record<string, string> = {
+// mimetype → canonical extension (images + videos). Mobile browsers often send a generic or empty
+// mimetype for videos, so we also fall back to the file's own extension below.
+const MIME_EXT: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
@@ -23,7 +25,32 @@ const IMAGE_MIME: Record<string, string> = {
   'image/tiff': 'tiff',
   'image/heic': 'heic',
   'image/heif': 'heic',
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/x-matroska': 'mkv',
+  'video/webm': 'webm',
+  'video/x-msvideo': 'avi',
+  'video/x-ms-wmv': 'wmv',
+  'video/mpeg': 'mpg',
+  'video/mp2t': 'ts',
+  'video/x-flv': 'flv',
+  'video/ogg': 'ogv',
+  'video/3gpp': 'mp4',
 }
+
+type Kind = 'image' | 'video'
+
+/** Resolve a usable extension + media kind from a part's mimetype, falling back to its filename. */
+function resolveFile(mimetype: string, filename: string): { ext: string; kind: Kind } | null {
+  const mimeExt = MIME_EXT[mimetype]
+  if (mimeExt) return { ext: mimeExt, kind: VIDEO_EXTS.has(mimeExt) ? 'video' : 'image' }
+  const e = extOf(filename)
+  if (IMAGE_EXTS.has(e)) return { ext: e, kind: 'image' }
+  if (VIDEO_EXTS.has(e)) return { ext: e, kind: 'video' }
+  return null
+}
+
+const repoAccepts = (repoType: string, kind: Kind): boolean => repoType === 'mixed' || repoType === kind
 
 function safeStem(filename: string): string {
   const stem = filename
@@ -31,7 +58,7 @@ function safeStem(filename: string): string {
     .replace(/[^\w .-]/g, '_')
     .replace(/\s+/g, ' ')
     .trim()
-  return stem || 'photo'
+  return stem || 'upload'
 }
 
 /** A non-colliding "<stem>.<ext>" (or "<stem> (n).<ext>") inside dir. */
@@ -45,12 +72,12 @@ function uniqueName(dir: string, stem: string, ext: string): string {
 export async function uploadRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate)
 
-  // Repositories a user may upload photos into: writable and image-capable.
+  // Repositories a user may upload into: writable and media-capable (any of image/video/mixed).
   app.get('/api/upload/targets', async () => {
     const rows = app.db
       .select()
       .from(repositories)
-      .where(and(eq(repositories.readOnly, 0), inArray(repositories.type, ['image', 'mixed'])))
+      .where(and(eq(repositories.readOnly, 0), inArray(repositories.type, ['image', 'video', 'mixed'])))
       .all()
     return { data: rows.filter((r) => r.enabled).map((r) => ({ id: r.id, name: r.name, type: r.type })) }
   })
@@ -62,10 +89,8 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     if (repo.readOnly) {
       return reply.code(403).send({ error: { code: 'forbidden', message: 'Repository is read-only' } })
     }
-    if (repo.type !== 'image' && repo.type !== 'mixed') {
-      return reply
-        .code(422)
-        .send({ error: { code: 'validation_error', message: 'Repository does not accept images' } })
+    if (repo.type !== 'image' && repo.type !== 'video' && repo.type !== 'mixed') {
+      return reply.code(422).send({ error: { code: 'validation_error', message: 'Repository does not accept uploads' } })
     }
     if (!existsSync(repo.rootPath) || !statSync(repo.rootPath).isDirectory()) {
       return reply.code(409).send({ error: { code: 'offline', message: 'Repository folder is unavailable' } })
@@ -83,24 +108,35 @@ export async function uploadRoutes(app: FastifyInstance): Promise<void> {
     }
 
     for await (const part of parts) {
-      const ext = IMAGE_MIME[part.mimetype] ?? (IMAGE_EXTS.has(extOf(part.filename)) ? extOf(part.filename) : null)
-      if (!ext) {
-        await part.toBuffer().catch(() => {}) // drain so the next part can be read
-        skipped.push({ name: part.filename, reason: 'not an image' })
-        continue
-      }
-      const buf = await part.toBuffer()
-      if (part.file.truncated || buf.length > MAX_UPLOAD_BYTES) {
-        skipped.push({ name: part.filename, reason: 'too large' })
+      const resolved = resolveFile(part.mimetype, part.filename)
+      if (!resolved || !repoAccepts(repo.type, resolved.kind)) {
+        part.file.resume() // drain to nowhere so the next part can be read — toBuffer() would hold a whole (up to 2 GB) rejected file in memory
+        const reason = !resolved
+          ? 'unsupported file type'
+          : `this library only accepts ${repo.type === 'video' ? 'videos' : 'images'}`
+        skipped.push({ name: part.filename, reason })
         continue
       }
       mkdirSync(dir, { recursive: true })
-      const target = join(dir, uniqueName(dir, safeStem(part.filename), ext))
-      await writeFile(target, buf)
+      const name = uniqueName(dir, safeStem(part.filename), resolved.ext)
+      const target = join(dir, name)
+      // Stream straight to disk so a large video never has to fit in memory.
+      try {
+        await pipeline(part.file, createWriteStream(target))
+      } catch {
+        await rm(target, { force: true }).catch(() => {})
+        skipped.push({ name: part.filename, reason: 'write failed' })
+        continue
+      }
+      if (part.file.truncated) {
+        await rm(target, { force: true }).catch(() => {})
+        skipped.push({ name: part.filename, reason: 'too large' })
+        continue
+      }
       uploaded.push(basename(target))
     }
 
-    // Index the new files: an incremental scan picks them up and enqueues thumbnails.
+    // Index the new files: an incremental scan picks them up and enqueues thumbnails/probes.
     if (uploaded.length > 0) {
       enqueueJob(app.db, 'scan', { repositoryId: repo.id }, 8)
       app.worker.kick()

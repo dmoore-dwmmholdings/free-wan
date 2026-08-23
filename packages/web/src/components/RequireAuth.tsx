@@ -8,9 +8,7 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-neutral-950 text-neutral-500">
-        Loading…
-      </main>
+      <main className="flex min-h-screen items-center justify-center bg-bg text-muted">Loading…</main>
     )
   }
   if (!me) return <Navigate to="/login" replace />

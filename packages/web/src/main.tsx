@@ -4,6 +4,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import { ThemeProvider } from './components/ThemeProvider'
+import { MediaPrefsProvider } from './components/MediaPrefsProvider'
+import { AutoplayProvider } from './components/AutoplayProvider'
+import './fonts'
 import './index.css'
 
 const root = document.getElementById('root')
@@ -17,9 +20,13 @@ ReactDOM.createRoot(root).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
+        <MediaPrefsProvider>
+          <AutoplayProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </AutoplayProvider>
+        </MediaPrefsProvider>
       </ThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>,

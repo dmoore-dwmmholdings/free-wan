@@ -1,13 +1,16 @@
-import { useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { AppHeader } from '../components/AppHeader'
-import { useMediaDetail } from '../lib/media'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import Hls from 'hls.js'
+import { PageShell } from '../components/AppLayout'
+import { ScissorsIcon } from '../components/icons'
+import { useMediaDetail, usePlayback } from '../lib/media'
 import { useCreateClip } from '../lib/clips'
 
 export function ClipBuilder() {
   const [params] = useSearchParams()
   const source = params.get('source') ?? ''
   const detail = useMediaDetail(source)
+  const { data: playback } = usePlayback(source)
   const ref = useRef<HTMLVideoElement>(null)
   const create = useCreateClip()
   const navigate = useNavigate()
@@ -17,6 +20,21 @@ export function ClipBuilder() {
   const [error, setError] = useState<string | null>(null)
 
   const valid = outS > inS && name.trim().length > 0
+
+  // Attach the source the same way the player does: direct-play sets src; HLS-only items
+  // (non-web codecs) go through hls.js — a bare /stream src was unplayable for those.
+  useEffect(() => {
+    const v = ref.current
+    if (!v || !playback) return
+    if (playback.mode === 'hls' && !v.canPlayType('application/vnd.apple.mpegurl') && Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: true })
+      hls.loadSource(playback.url)
+      hls.attachMedia(v)
+      return () => hls.destroy()
+    }
+    v.src = playback.url
+    return undefined
+  }, [playback])
 
   async function save() {
     setError(null)
@@ -33,21 +51,16 @@ export function ClipBuilder() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <AppHeader />
-      <main className="mx-auto max-w-3xl px-6 py-6">
-        <Link to={`/media/${source}`} className="text-sm text-neutral-400 hover:text-white">
-          Back
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold">Make a clip</h1>
-        {detail.data && <p className="text-sm text-neutral-500">from “{detail.data.title}”</p>}
+    <PageShell back={`/media/${source}`} trail={[{ label: 'Clips', to: '/clips' }, { label: 'Make a clip' }]}>
+      <main className="mx-auto max-w-3xl px-5 py-6 sm:px-6">
+        <h1 className="font-head text-2xl font-semibold tracking-[-0.01em] text-ink">Make a clip</h1>
+        {detail.data && <p className="mt-1 text-sm text-muted">from “{detail.data.title}”</p>}
 
         <video
           ref={ref}
-          src={`/api/media/${source}/stream`}
           controls
           playsInline
-          className="mt-4 w-full rounded-xl bg-black"
+          className="mt-4 w-full rounded-theme bg-black"
           onTimeUpdate={(e) => {
             // Live loop preview between the chosen in/out points.
             const v = e.currentTarget
@@ -56,35 +69,26 @@ export function ClipBuilder() {
         />
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-          <button onClick={() => setInS(ref.current?.currentTime ?? 0)} className="rounded border border-neutral-700 px-3 py-1.5 hover:border-brand">
+          <button onClick={() => setInS(ref.current?.currentTime ?? 0)} className="fw-btn-ghost h-9 px-3.5">
             Set in
           </button>
-          <span className="tabular-nums text-neutral-400">in {inS.toFixed(1)}s</span>
-          <button onClick={() => setOutS(ref.current?.currentTime ?? 0)} className="rounded border border-neutral-700 px-3 py-1.5 hover:border-brand">
+          <span className="font-mono tabular-nums text-muted">in {inS.toFixed(1)}s</span>
+          <button onClick={() => setOutS(ref.current?.currentTime ?? 0)} className="fw-btn-ghost h-9 px-3.5">
             Set out
           </button>
-          <span className="tabular-nums text-neutral-400">out {outS.toFixed(1)}s</span>
-          {outS > inS && <span className="text-neutral-500">({(outS - inS).toFixed(1)}s)</span>}
+          <span className="font-mono tabular-nums text-muted">out {outS.toFixed(1)}s</span>
+          {outS > inS && <span className="font-mono text-primary">({(outS - inS).toFixed(1)}s)</span>}
         </div>
 
         {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
-        <div className="mt-4 flex gap-2">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Clip name…"
-            className="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2 text-sm outline-none focus:border-brand"
-          />
-          <button
-            onClick={save}
-            disabled={!valid || create.isPending}
-            className="rounded-lg bg-brand px-5 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
-          >
-            Save clip
+        <div className="mt-4 flex gap-2.5">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Clip name…" className="fw-input flex-1" />
+          <button onClick={save} disabled={!valid || create.isPending} className="fw-btn-primary h-11 px-5">
+            <ScissorsIcon className="h-4 w-4" /> Save clip
           </button>
         </div>
       </main>
-    </div>
+    </PageShell>
   )
 }

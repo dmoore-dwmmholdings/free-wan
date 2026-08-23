@@ -8,11 +8,16 @@ import { mediaItems, repositories, subtitleTracks, playbackProgress } from '../d
 import { resolveWithinRoot } from '../lib/path-safety'
 import { contentTypeForExt } from '../lib/content-types'
 import { extOf } from '../lib/media-types'
+import { KeyedLimiter } from '../lib/keyed-limiter'
 
 const notFound = { error: { code: 'not_found', message: 'Media not found' } }
 
 export async function playbackRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate)
+
+  // Caption extraction reads the whole source with ffmpeg; dedupe concurrent requests for the
+  // same track and cap how many conversions run at once (same rationale as the media routes).
+  const captionLimiter = new KeyedLimiter(2)
 
   app.get('/api/media/:id/playback', async (req, reply) => {
     const { id } = req.params as { id: string }
@@ -59,12 +64,13 @@ export async function playbackRoutes(app: FastifyInstance): Promise<void> {
     if (!repo) return reply.code(404).send(notFound)
 
     let abs: string
+    let size: number
     try {
       abs = resolveWithinRoot(repo.rootPath, item.relPath)
+      size = statSync(abs).size
     } catch {
       return reply.code(404).send(notFound) // missing file or path escape → 404
     }
-    const size = statSync(abs).size
     reply.header('Accept-Ranges', 'bytes').type(contentTypeForExt(item.ext))
 
     const range = req.headers.range
@@ -109,10 +115,12 @@ export async function playbackRoutes(app: FastifyInstance): Promise<void> {
       if (track.kind === 'sidecar' && track.relPath) {
         const abs = resolveWithinRoot(repo.rootPath, track.relPath)
         if (extOf(track.relPath) === 'vtt') return reply.send(readFileSync(abs, 'utf8'))
-        return reply.send(await app.captionConverter({ absPath: abs }))
+        return reply.send(await captionLimiter.run(trackId, () => app.captionConverter({ absPath: abs })))
       }
       const abs = resolveWithinRoot(repo.rootPath, item.relPath)
-      return reply.send(await app.captionConverter({ absPath: abs, streamIndex: track.streamIndex ?? 0 }))
+      return reply.send(
+        await captionLimiter.run(trackId, () => app.captionConverter({ absPath: abs, streamIndex: track.streamIndex ?? 0 })),
+      )
     } catch {
       return reply.code(404).send({ error: { code: 'not_found', message: 'Caption source unavailable' } })
     }

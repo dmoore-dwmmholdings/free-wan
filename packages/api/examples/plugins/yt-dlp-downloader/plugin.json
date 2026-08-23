@@ -1,0 +1,36 @@
+{
+  "id": "com.freewan.yt-dlp-downloader",
+  "name": "Video Downloader (yt-dlp)",
+  "version": "1.3.1",
+  "description": "Download a video, a whole playlist, or search-and-download with yt-dlp straight into a library folder, with live progress. yt-dlp installs itself automatically on first use — no setup needed. New files appear in your library after the next scan. (ffmpeg, already required by Free-WAN, is used to merge best-quality video+audio.)",
+  "author": "Free-WAN",
+  "main": "index.mjs",
+  "daemon": true,
+  "permissions": ["media:read", "network"],
+  "ui": [
+    { "id": "main", "title": "Video Downloader", "placement": "plugin_page", "refreshMs": 1200 }
+  ],
+  "config": [
+    {
+      "name": "ytdlpPath",
+      "label": "yt-dlp binary (optional)",
+      "type": "string",
+      "default": "yt-dlp",
+      "help": "Leave as 'yt-dlp' to auto-install and manage yt-dlp for you. Set a command or absolute path (e.g. C:/tools/yt-dlp.exe) only if you want to use your own copy."
+    },
+    {
+      "name": "cookiesPath",
+      "label": "Cookies file (optional)",
+      "type": "string",
+      "default": "",
+      "help": "Path to a Netscape-format cookies.txt on the server. Unlocks sites that need a login, age check, or region cookie. Export with a 'cookies.txt' browser extension."
+    },
+    {
+      "name": "extraArgs",
+      "label": "Extra yt-dlp flags (optional)",
+      "type": "string",
+      "default": "",
+      "help": "Appended to every download, e.g. --impersonate chrome (needs yt-dlp installed with curl-cffi) or --proxy socks5://host:port. Quotes group values with spaces."
+    }
+  ]
+}

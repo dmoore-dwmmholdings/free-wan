@@ -1,0 +1,10 @@
+{
+  "id": "com.freewan.permission-probe",
+  "name": "Permission Probe",
+  "version": "1.0.0",
+  "description": "Test fixture: attempts a Host API call it lacks permission for.",
+  "author": "Free-WAN",
+  "main": "index.mjs",
+  "permissions": ["media:read"],
+  "commands": [{ "id": "badclip", "name": "Create clip (no permission)", "allowNonAdmin": true }]
+}
