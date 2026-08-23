@@ -25,6 +25,40 @@ import { theme } from '@/theme'
 const GAP = theme.space(2.5)
 const PADDING = theme.space(3)
 
+/** Compact icon toggle for the filters that sit beside the search field. */
+function FilterToggle({
+  on,
+  icon,
+  label,
+  onPress,
+}: {
+  on: boolean
+  icon: keyof typeof Ionicons.glyphMap
+  label: string
+  onPress: () => void
+}) {
+  return (
+    <Pressable
+      accessibilityLabel={label}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 44,
+        borderRadius: theme.radius.full,
+        borderWidth: 1,
+        borderColor: on ? theme.color.primary : theme.color.border,
+        backgroundColor: on ? theme.color.primaryTint : theme.color.surface,
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <Ionicons name={icon} size={18} color={on ? theme.color.primary : theme.color.muted} />
+    </Pressable>
+  )
+}
+
 export default function BrowseScreen() {
   const { width: screenWidth } = useWindowDimensions()
   const [search, setSearch] = useState('')
@@ -32,6 +66,7 @@ export default function BrowseScreen() {
   const [trail, setTrail] = useState<Crumb[]>([])
   const [likedOnly, setLikedOnly] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [mediaType, setMediaType] = useState<'video' | 'image' | null>(null)
   const currentCategory = trail.length > 0 ? trail[trail.length - 1]!.id : null
 
   const { columns, tileWidth } = gridMetrics(screenWidth, PADDING, GAP)
@@ -46,8 +81,9 @@ export default function BrowseScreen() {
         category: currentCategory,
         liked: likedOnly || undefined,
         tags: selectedTags,
+        type: mediaType ?? undefined,
       }),
-      [query, currentCategory, likedOnly, selectedTags],
+      [query, currentCategory, likedOnly, selectedTags, mediaType],
     ),
   )
   const items = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data])
@@ -105,27 +141,24 @@ export default function BrowseScreen() {
               paddingVertical: theme.space(2.5),
             }}
           />
-          <Pressable
-            accessibilityLabel={likedOnly ? 'Show all media' : 'Show only liked media'}
-            accessibilityRole="button"
+          <FilterToggle
+            on={likedOnly}
+            icon={likedOnly ? 'heart' : 'heart-outline'}
+            label={likedOnly ? 'Show all media' : 'Show only liked media'}
             onPress={() => setLikedOnly((v) => !v)}
-            style={({ pressed }) => ({
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 44,
-              borderRadius: theme.radius.full,
-              borderWidth: 1,
-              borderColor: likedOnly ? theme.color.primary : theme.color.border,
-              backgroundColor: likedOnly ? theme.color.primaryTint : theme.color.surface,
-              opacity: pressed ? 0.7 : 1,
-            })}
-          >
-            <Ionicons
-              name={likedOnly ? 'heart' : 'heart-outline'}
-              size={18}
-              color={likedOnly ? theme.color.primary : theme.color.muted}
-            />
-          </Pressable>
+          />
+          <FilterToggle
+            on={mediaType === 'video'}
+            icon="film-outline"
+            label={mediaType === 'video' ? 'Show all media types' : 'Show only videos'}
+            onPress={() => setMediaType((t) => (t === 'video' ? null : 'video'))}
+          />
+          <FilterToggle
+            on={mediaType === 'image'}
+            icon="image-outline"
+            label={mediaType === 'image' ? 'Show all media types' : 'Show only photos'}
+            onPress={() => setMediaType((t) => (t === 'image' ? null : 'image'))}
+          />
         </View>
         <CategoryChips
           trail={trail}
@@ -163,7 +196,9 @@ export default function BrowseScreen() {
         <View style={{ paddingTop: theme.space(20), alignItems: 'center', gap: theme.space(2) }}>
           <Text style={{ color: theme.color.text, fontSize: 16, fontWeight: '700' }}>Nothing here</Text>
           <Text style={{ color: theme.color.muted, fontSize: 14, textAlign: 'center' }}>
-            {selectedTags.length > 0
+            {mediaType
+              ? `No ${mediaType === 'video' ? 'videos' : 'photos'} here. Tap the ${mediaType === 'video' ? 'film' : 'image'} icon again to show everything.`
+              : selectedTags.length > 0
               ? 'Nothing carries all of the selected tags. Tap one to remove it.'
               : likedOnly
               ? 'Nothing liked yet. Tap the heart on anything you want to find again.'

@@ -9,6 +9,7 @@ export function useMediaList(
     category?: string | null
     collection?: string
     tags?: string[]
+    type?: 'video' | 'image'
   } = {},
 ) {
   return useInfiniteQuery({
@@ -18,6 +19,7 @@ export function useMediaList(
       const qs = new URLSearchParams({ limit: '40' })
       if (params.q) qs.set('q', params.q)
       if (params.liked) qs.set('liked', 'true')
+      if (params.type) qs.set('type', params.type)
       if (params.category) qs.set('category', params.category)
       if (params.collection) qs.set('collection', params.collection)
       // Repeated `tag` params are AND-combined by the API.
