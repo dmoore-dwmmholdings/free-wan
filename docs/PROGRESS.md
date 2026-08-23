@@ -1245,3 +1245,25 @@ shared schema test, all green; every phase verified with a live built-server smo
   The five other tests around the like path stand — control-tested earlier, catching
   first-page-only patching and corruption of the detail query. Verified green: typecheck 4/4,
   `pnpm -r test` **346**, `pnpm -r build`.
+- **2026-08-23 — Mobile app: a download could be listed twice, and one screen had no
+  pull-to-refresh.** Read the two screens never previously examined.
+  The Downloads tab keys its rows by id over `[...failed, ...active, ...items]`, and
+  `startDownload` published the finished record to the index but only retired the in-flight
+  entry in its `finally` — so for the length of a storage write the item was in both lists.
+  Any *other* transfer's progress tick emits during that window, and the tab would render the
+  same id twice. Concurrent downloads are ordinary, so this was reachable. The in-flight entry
+  is now retired in the same breath as the record is published; the `finally` still clears it
+  for the failure paths.
+  The test needed two attempts and the control caught the first. Holding the next storage
+  write to observe the window did nothing, because `startDownload` hydrates first and
+  hydration ends with a write of its own, which swallowed the hold — the test passed against
+  deliberately broken code. Hydrating first in the test fixes it, and the control now fails
+  with the id present in both lists.
+  Also: `app/collection/[id].tsx` was the only list screen without pull-to-refresh. Browse,
+  Clips and Collections all have it; Downloads correctly does not, being local state with
+  nothing to refetch. Added, matching how Browse guards the spinner against
+  `isFetchingNextPage`. It cannot be checked in the browser — `RefreshControl` is inert under
+  react-native-web — so it needs a device.
+  Reviewed and left alone: the collections list screen, and `useCollection`, which fetches
+  rather than assuming the list is already cached. Verified green: typecheck 4/4,
+  `pnpm -r test` **347**, `pnpm -r build`.

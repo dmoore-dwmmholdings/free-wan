@@ -238,3 +238,28 @@ describe('cancelling a transfer', () => {
     expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
   })
 })
+
+describe('the state the Downloads tab reads', () => {
+  it('never has an item in flight and finished at the same time', async () => {
+    const { fs, storage, downloads } = await fresh()
+    // Hydrate first: it ends with a write of its own, which would otherwise swallow the hold
+    // below and leave this testing nothing.
+    await downloads.loadDownloads()
+
+    // Pause the index write. The record is published before it and, before this was fixed,
+    // the in-flight entry was only retired afterwards — so any other transfer's progress tick
+    // during the write would have rendered two rows with the same key.
+    const releaseWrite = storage.default.__holdNextWrite()
+
+    const pending = downloads.startDownload(VIDEO)
+    await new Promise((r) => setTimeout(r, 20))
+
+    const { activeIds, doneIds } = downloads.__test.snapshot()
+    const both = activeIds.filter((id) => doneIds.includes(id))
+    expect(both).toEqual([])
+
+    releaseWrite()
+    await pending
+    expect(fs.__fs.has(`file:///doc/downloads/${VIDEO.id}`)).toBe(true)
+  })
+})

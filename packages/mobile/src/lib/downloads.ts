@@ -176,6 +176,12 @@ export async function startDownload(item: {
       bytes: info.exists && 'size' in info ? info.size : 0,
       completedAt: Date.now(),
     }
+    // Retire the in-flight entry in the same breath as publishing the finished one. Writing
+    // the index and only clearing `active` in the `finally` leaves the item in both for the
+    // length of a storage write, and any other transfer's progress tick emits during that
+    // window — the Downloads tab lists failed, then active, then done, keyed by id, so it
+    // would render the same id twice. The `finally` still clears it for the failure paths.
+    delete active[item.id]
     await persist()
   } catch (err) {
     // A download failing is ordinary — a phone leaves the tailnet mid-transfer. Record it so
@@ -301,4 +307,13 @@ export function formatBytes(bytes: number): string {
   // otherwise round down to "0 KB", and must not make an empty total claim storage.
   if (bytes <= 0) return '0 KB'
   return `${Math.max(1, Math.round(bytes / 1e3))} KB`
+}
+
+/**
+ * Test-only view of the two collections the Downloads tab concatenates. Exposed because the
+ * invariant that matters — an item is never both in flight and finished — is only observable
+ * between them, and the screen keys its rows by id.
+ */
+export const __test = {
+  snapshot: () => ({ activeIds: Object.keys(active), doneIds: Object.keys(index) }),
 }

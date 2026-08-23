@@ -1,5 +1,12 @@
 import { useMemo } from 'react'
-import { ActivityIndicator, FlatList, Text, useWindowDimensions, View } from 'react-native'
+import {
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  Text,
+  useWindowDimensions,
+  View,
+} from 'react-native'
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { ErrorState } from '@/components/ErrorState'
 import { MediaTile, gridMetrics } from '@/components/MediaTile'
@@ -36,6 +43,15 @@ export default function CollectionScreen() {
           contentContainerStyle={{ padding: PADDING, gap: GAP }}
           columnWrapperStyle={columns > 1 ? { gap: GAP } : undefined}
           renderItem={({ item }) => <MediaTile item={item} width={tileWidth} />}
+          refreshControl={
+            <RefreshControl
+              // Guarded against `isFetchingNextPage` for the same reason as the library: the
+              // spinner belongs to a pull, not to scrolling onto the next page.
+              refreshing={list.isRefetching && !list.isFetchingNextPage}
+              onRefresh={() => void list.refetch()}
+              tintColor={theme.color.muted}
+            />
+          }
           onEndReachedThreshold={0.6}
           onEndReached={() => {
             if (list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage()
