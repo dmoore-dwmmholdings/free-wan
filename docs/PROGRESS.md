@@ -1051,3 +1051,28 @@ shared schema test, all green; every phase verified with a live built-server smo
   correct, then reverted to `midnight` and confirmed it follows back. Verified green:
   typecheck 4/4, `pnpm -r test` **297** (api 180 + mobile 104 + web 11 + shared 2),
   `pnpm -r build`.
+- **2026-08-23 — Mobile app: hardening pass over the newest code; two real defects, both
+  mine.** With no documented gaps left, this was a review of what the last few sessions added
+  rather than new features.
+  (1) **Upload filenames were derived wrongly.** The picker leaves `fileName` null often
+  enough to matter, and the fallback used `uri.split('.').pop()`. That returns the *whole
+  string* when there is no dot, so an Android `content://` URI produced a name like
+  `upload-1.content://media/external/images/media/1234` — and because `pop()` on a non-empty
+  array is never `undefined`, the `?? 'jpg'` written as the safety net could never run. A
+  query string or a dot in a parent directory broke it too: three of four realistic URI shapes
+  gave garbage. This is not cosmetic — the server uses the extension to decide what a file is
+  whenever it cannot place the MIME type, so an ordinary photo could come back as
+  "unsupported file type". Now a tested `fileNameFor`: strips query and fragment, takes the
+  extension only from the last path segment and only when it looks like one, and otherwise
+  falls back on the media kind. Ten tests; seven fail against the old logic.
+  (2) **The caption time signal ran for every video.** `timeUpdateEventInterval` was set
+  unconditionally, and its default is 0, meaning no event at all — so this turned on a
+  4 Hz event, and a `setState` per tick, for every video whether or not subtitles were on.
+  Each tick re-rendered the whole media screen. Now gated on a track being selected.
+  Audited the same class of problem elsewhere: no other fragile string parsing outside
+  `palette.ts`, which is regex-guarded and tested. Checked crash handling too and left it
+  alone — expo-router's default error boundary already shows a message and a Retry rather
+  than a blank screen; it does not follow branding, which is noted but not worth a custom
+  screen. Captions re-verified in the browser after the gating change. Verified green:
+  typecheck 4/4, `pnpm -r test` **306** (api 180 + mobile 113 + web 11 + shared 2),
+  `pnpm -r build`.

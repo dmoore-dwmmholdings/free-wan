@@ -214,12 +214,16 @@ export default function MediaScreen() {
   const [captionPickerOpen, setCaptionPickerOpen] = useState(false)
   const [playheadS, setPlayheadS] = useState(0)
 
+  // Only while a track is showing. The interval defaults to 0, meaning no event at all, and
+  // leaving it on for every video would re-render this whole screen — player, poster, tags,
+  // buttons — four times a second for the sake of subtitles nobody asked for.
+  const captionsOn = captionTrackId !== null
   useEffect(() => {
-    if (player) player.timeUpdateEventInterval = CAPTION_TICK_S
-  }, [player])
+    if (player) player.timeUpdateEventInterval = captionsOn ? CAPTION_TICK_S : 0
+  }, [player, captionsOn])
 
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    setPlayheadS(currentTime)
+    if (captionsOn) setPlayheadS(currentTime)
   })
 
 

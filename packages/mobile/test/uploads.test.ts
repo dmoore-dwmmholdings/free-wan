@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { __test } from '@/lib/uploads'
+import { __test, fileNameFor } from '@/lib/uploads'
 
 const { outcomeFor } = __test
 
@@ -33,5 +33,60 @@ describe('reading the server upload response', () => {
       skipped: [{ name: 'b.txt', reason: 'unsupported file type' }],
     })
     expect(outcome).toEqual({ name: 'a.jpg', ok: true })
+  })
+})
+
+describe('naming a file the picker returned', () => {
+  it('uses the name the picker gave when there is one', () => {
+    expect(fileNameFor({ uri: 'file:///var/x/ABC.HEIC', fileName: 'Holiday.HEIC' }, 0)).toBe(
+      'Holiday.HEIC',
+    )
+  })
+
+  it('falls back when the name is missing or blank', () => {
+    // `??` alone would keep an empty string and send a file with no name at all.
+    expect(fileNameFor({ uri: 'file:///var/x/ABC.heic', fileName: '' }, 0)).toBe('upload-1.heic')
+    expect(fileNameFor({ uri: 'file:///var/x/ABC.heic', fileName: '   ' }, 0)).toBe('upload-1.heic')
+    expect(fileNameFor({ uri: 'file:///var/x/ABC.heic', fileName: null }, 0)).toBe('upload-1.heic')
+    expect(fileNameFor({ uri: 'file:///var/x/ABC.heic' }, 0)).toBe('upload-1.heic')
+  })
+
+  it('takes the extension from the URI, lowercased', () => {
+    expect(fileNameFor({ uri: 'file:///var/x/ABC.HEIC' }, 0)).toBe('upload-1.heic')
+  })
+
+  it('handles a content:// URI, which carries no extension at all', () => {
+    // The previous version produced "upload-1.content://media/external/images/media/1234",
+    // because String.split('.').pop() returns the whole string when there is no dot — which
+    // also meant the intended `?? 'jpg'` fallback could never run.
+    expect(fileNameFor({ uri: 'content://media/external/images/media/1234' }, 0)).toBe(
+      'upload-1.jpg',
+    )
+  })
+
+  it('ignores a query string or fragment', () => {
+    expect(fileNameFor({ uri: 'file:///x.jpg?width=100' }, 0)).toBe('upload-1.jpg')
+    expect(fileNameFor({ uri: 'file:///x.jpg#frag' }, 0)).toBe('upload-1.jpg')
+  })
+
+  it('ignores a dot that is in a directory rather than the file', () => {
+    expect(fileNameFor({ uri: 'file:///my.folder/IMG1234' }, 0)).toBe('upload-1.jpg')
+  })
+
+  it('rejects a trailing segment that is not extension-shaped', () => {
+    expect(fileNameFor({ uri: 'file:///x/archive.tar.gzipped' }, 0)).toBe('upload-1.jpg')
+  })
+
+  it('defaults by media type when the URI says nothing', () => {
+    expect(fileNameFor({ uri: 'content://x/1', type: 'video' }, 0)).toBe('upload-1.mp4')
+    // The movie half of a live photo is still a video.
+    expect(fileNameFor({ uri: 'content://x/1', type: 'pairedVideo' }, 0)).toBe('upload-1.mp4')
+    expect(fileNameFor({ uri: 'content://x/1', type: 'image' }, 0)).toBe('upload-1.jpg')
+  })
+
+  it('keeps unnamed files in one batch distinct', () => {
+    // Sharing a name would make the outcome summary undercount.
+    const names = [0, 1, 2].map((i) => fileNameFor({ uri: 'content://x/1' }, i))
+    expect(new Set(names).size).toBe(3)
   })
 })

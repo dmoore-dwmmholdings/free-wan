@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker'
 import { useQueryClient } from '@tanstack/react-query'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import {
+  fileNameFor,
   MAX_FILES_PER_BATCH,
   uploadFile,
   useUploadTargets,
@@ -18,12 +19,9 @@ interface Picked {
   mimeType?: string | null
 }
 
-/** What the picker returned, named. It leaves fileName null often enough to matter. */
+/** What the picker returned, named. See `fileNameFor` for why the name needs deriving. */
 function toPicked(asset: ImagePicker.ImagePickerAsset, i: number): Picked {
-  // A missing name still has to be unique within the batch, or two unnamed photos would
-  // collide in the outcome list and the summary would undercount.
-  const fallback = `upload-${i + 1}.${asset.uri.split('.').pop() ?? 'jpg'}`
-  return { uri: asset.uri, name: asset.fileName ?? fallback, mimeType: asset.mimeType }
+  return { uri: asset.uri, name: fileNameFor(asset, i), mimeType: asset.mimeType }
 }
 
 function reportOutcomes(results: UploadOutcome[]): void {

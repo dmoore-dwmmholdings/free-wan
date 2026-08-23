@@ -149,6 +149,10 @@ A few things worth knowing:
 - One file failing does not abandon the rest. Anything rejected is listed by name with the
   reason — an unsupported type, or too large — so a single odd clip cannot cost you the whole
   selection.
+- Photos and videos do not always come out of the picker with a name. Where there is none the
+  app makes one, taking the file type from the URI when it carries one and from the kind of
+  media when it does not. The name matters: the server uses the extension to decide what a
+  file is whenever it cannot tell from the upload itself.
 - A library has to be writable and hold images or video to accept uploads. If none does, the
   app says so rather than failing at the end.
 - The server accepts up to 50 files per batch and 2 GB per file.

@@ -21,6 +21,45 @@ export interface UploadOutcome {
 /** The server caps a batch at 50 files and 2 GB each; see packages/api/src/routes/uploads.ts. */
 export const MAX_FILES_PER_BATCH = 50
 
+/** The subset of a picker asset that naming depends on. */
+export interface NameableAsset {
+  uri: string
+  fileName?: string | null
+  type?: 'image' | 'video' | 'livePhoto' | 'pairedVideo' | null
+}
+
+/**
+ * A filename for something the picker returned.
+ *
+ * The picker leaves `fileName` null often enough to matter, and the URI is not a reliable
+ * substitute: an Android `content://` URI has no extension at all, a URI can carry a query
+ * string, and a dot can appear in a directory rather than in the file. The name matters
+ * because the server falls back to the extension when it cannot place the MIME type, so a
+ * bad one turns an ordinary photo into "unsupported file type".
+ *
+ * The index keeps unnamed files distinct within one batch; without it two of them would share
+ * a name and the summary would report fewer results than were sent.
+ */
+export function fileNameFor(asset: NameableAsset, index: number): string {
+  const given = asset.fileName?.trim()
+  if (given) return given
+  return `upload-${index + 1}.${extensionFor(asset)}`
+}
+
+function extensionFor(asset: NameableAsset): string {
+  // Query and fragment first, then the last path segment: a dot in a parent directory says
+  // nothing about the file.
+  const path = asset.uri.split(/[?#]/)[0] ?? ''
+  const segment = path.split('/').pop() ?? ''
+  const dot = segment.lastIndexOf('.')
+  const candidate = dot > 0 ? segment.slice(dot + 1) : ''
+  // Only accept something that looks like an extension. Anything else means the URI does not
+  // carry one, whatever it happens to contain.
+  if (/^[a-z0-9]{1,5}$/i.test(candidate)) return candidate.toLowerCase()
+  // `pairedVideo` is the movie half of a live photo, so it is a video too.
+  return asset.type === 'video' || asset.type === 'pairedVideo' ? 'mp4' : 'jpg'
+}
+
 export function useUploadTargets() {
   return useQuery({
     queryKey: ['upload-targets'],
