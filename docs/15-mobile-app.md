@@ -111,12 +111,17 @@ Three behaviours worth knowing:
 - If the OS reclaims a file to free space, its record is dropped when the app next loads its
   index, rather than leaving an entry that fails to open.
 - A transfer that fails leaves no record behind, so a broken download never looks complete.
+- Stopping a transfer deletes the partial file, so an abandoned download does not quietly
+  consume storage that nothing accounts for.
 - A failure is shown rather than swallowed. Leaving the tailnet mid-transfer is ordinary, so
   the item says it failed and why, and tapping it starts again. Failures are held in memory
   only: after a restart the item simply offers Download again.
 
 The Downloads tab lists failures first, then transfers still running, then what is on disk.
-There is no way to cancel a transfer in progress.
+A transfer in progress can be stopped, from the cross on its row in the Downloads tab or the
+Stop control on the item's own screen. Stopping discards what had been written — there is no
+resuming a part-finished file — and the item goes back to offering Download rather than
+reporting a failure, since you are the one who stopped it.
 
 ---
 
@@ -224,8 +229,12 @@ The unit tests cover the logic that does not need a device: server-address parsi
 handling, formatting, the API request layer, and the download manager.
 
 The download tests run against an in-memory filesystem stub that can report progress, hold a
-transfer open midway, fail one, and evict a file behind the app's back, so the manager's real
-behaviour is exercised without a phone. The request-layer tests drive a stubbed `fetch`,
+transfer open midway, fail one, fail a *cancel* midway, and evict a file behind the app's
+back, so the manager's real behaviour is exercised without a phone. The cancel path is
+covered this way but its buttons are not: the Downloads tab's cross and the Stop control only
+appear while a transfer is running, and `expo-file-system` has no web implementation, so the
+browser harness used for the rest of the UI cannot reach that state. Those two controls need
+a device. The request-layer tests drive a stubbed `fetch`,
 covering the cases a proxy in front of the server produces — an HTML error page, a 401 that
 is not JSON — which are the ones that used to be mishandled.
 

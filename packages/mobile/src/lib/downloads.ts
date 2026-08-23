@@ -49,6 +49,13 @@ export type DownloadState =
 let index: Record<string, DownloadRecord> = {}
 let active: Record<string, ActiveDownload> = {}
 let failures: Record<string, FailedDownload> = {}
+// Live transfers, so one can be stopped. A phone on a metered connection needs a way out of a
+// multi-gigabyte download it started by mistake.
+let tasks: Record<string, { cancelAsync: () => Promise<void> }> = {}
+// Ids the user cancelled. A cancel surfaces as the same rejected download as a dropped
+// connection, and without this the Downloads tab would report "failed" for something the user
+// asked to stop, and offer to retry it.
+let cancelled = new Set<string>()
 let loaded = false
 let hydrating: Promise<void> | null = null
 const listeners = new Set<() => void>()
@@ -140,7 +147,9 @@ export async function startDownload(item: {
         }
       },
     )
+    tasks[item.id] = task
     const result = await task.downloadAsync()
+    // expo resolves to undefined rather than rejecting when a transfer is cancelled.
     if (!result) throw new Error('Download was cancelled')
 
     // Poster is best-effort: a missing thumbnail should not fail the download.
@@ -172,19 +181,47 @@ export async function startDownload(item: {
     // A download failing is ordinary — a phone leaves the tailnet mid-transfer. Record it so
     // the Downloads tab can say so and offer a retry; throwing here would only surface as an
     // unhandled rejection, and the progress row would vanish with no explanation.
-    const entry = active[item.id]
-    failures[item.id] = {
-      id: item.id,
-      title: item.title,
-      type: item.type,
-      durationSec: item.durationSec ?? null,
-      progress: entry?.progress ?? 0,
-      error: err instanceof Error ? err.message : 'Download failed',
+    if (!cancelled.has(item.id)) {
+      const entry = active[item.id]
+      failures[item.id] = {
+        id: item.id,
+        title: item.title,
+        type: item.type,
+        durationSec: item.durationSec ?? null,
+        progress: entry?.progress ?? 0,
+        error: err instanceof Error ? err.message : 'Download failed',
+      }
     }
   } finally {
     delete active[item.id]
+    delete tasks[item.id]
+    cancelled.delete(item.id)
     emit()
   }
+}
+
+/**
+ * Stop a transfer in progress and discard what was written. Does nothing for an item that is
+ * not currently downloading, so a double tap is harmless.
+ */
+export async function cancelDownload(id: string): Promise<void> {
+  const task = tasks[id]
+  if (!task) return
+
+  // Marked before the await: cancelling makes the download reject, and the catch above runs
+  // as soon as it does. Setting this afterwards would race, and the item would be reported
+  // as a failure roughly half the time.
+  cancelled.add(id)
+  await task.cancelAsync().catch(() => {})
+
+  // expo deletes the partial file itself, but only for a cancel it completed cleanly; a
+  // half-written file left behind would count against the storage the Settings tab reports.
+  await FileSystem.deleteAsync(`${DIR}${id}`, { idempotent: true }).catch(() => {})
+  await FileSystem.deleteAsync(`${DIR}${id}.poster.jpg`, { idempotent: true }).catch(() => {})
+
+  delete active[id]
+  delete tasks[id]
+  emit()
 }
 
 /** Remove a downloaded item and its files. */

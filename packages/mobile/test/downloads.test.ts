@@ -171,3 +171,70 @@ describe('offline download manager', () => {
     expect(downloads2.getDownloadState(VIDEO.id)).toEqual({ status: 'none' })
   })
 })
+
+describe('cancelling a transfer', () => {
+  it('stops the download and leaves no record, rather than reporting a failure', async () => {
+    const { fs, downloads } = await fresh()
+    const release = fs.__fs.holdNextDownload()
+
+    const inFlight = downloads.startDownload(VIDEO)
+    // startDownload hydrates the index and resolves auth headers first; give it real time.
+    await new Promise((r) => setTimeout(r, 20))
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('downloading')
+
+    await downloads.cancelDownload(VIDEO.id)
+    release()
+    await inFlight
+
+    // A cancel is deliberate. Reporting it as "Download failed — tap to try again" would be
+    // telling the user something went wrong when they are the one who stopped it.
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('none')
+  })
+
+  it('discards the partially written file even when the cancel itself fails', async () => {
+    const { fs, downloads } = await fresh()
+    const release = fs.__fs.holdNextDownload()
+    // expo deletes the partial file as part of a clean cancel, so a passing test proves
+    // nothing unless the cancel is the kind that does not get that far.
+    fs.__fs.failNextCancel()
+
+    const inFlight = downloads.startDownload(VIDEO)
+    // startDownload hydrates the index and resolves auth headers first; give it real time.
+    await new Promise((r) => setTimeout(r, 20))
+    // The stub writes as it goes, so there is a partial file to clean up.
+    expect(fs.__fs.size()).toBeGreaterThan(0)
+
+    await downloads.cancelDownload(VIDEO.id)
+    release()
+    await inFlight
+
+    // Left behind, this counts against the storage total the Settings tab reports and is
+    // never reachable again — nothing records that it exists.
+    expect(fs.__fs.paths()).toEqual([])
+  })
+
+  it('lets the same item be downloaded again afterwards', async () => {
+    const { fs, downloads } = await fresh()
+    const release = fs.__fs.holdNextDownload()
+    const inFlight = downloads.startDownload(VIDEO)
+    // startDownload hydrates the index and resolves auth headers first; give it real time.
+    await new Promise((r) => setTimeout(r, 20))
+    await downloads.cancelDownload(VIDEO.id)
+    release()
+    await inFlight
+
+    await downloads.startDownload(VIDEO)
+
+    const state = downloads.getDownloadState(VIDEO.id)
+    expect(state.status).toBe('done')
+    if (state.status === 'done') expect(state.record.title).toBe(VIDEO.title)
+  })
+
+  it('is a no-op for an item that is not downloading', async () => {
+    const { downloads } = await fresh()
+    await downloads.startDownload(VIDEO)
+    await expect(downloads.cancelDownload(VIDEO.id)).resolves.toBeUndefined()
+    // The finished download is untouched: cancel must not double as a delete.
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
+  })
+})

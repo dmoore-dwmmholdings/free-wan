@@ -9,7 +9,7 @@ import { AuthImage } from '@/components/AuthImage'
 import { ErrorState } from '@/components/ErrorState'
 import { apiUrl, authHeaders } from '@/lib/api'
 import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
-import { formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
+import { cancelDownload, formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
 import { TagList } from '@/components/TagChips'
 import { useProgressReporter } from '@/lib/progress'
 import { useToggleLike } from '@/lib/social'
@@ -102,9 +102,20 @@ function DownloadButton({
     const pct = Math.round(state.progress * 100)
     return (
       <View style={{ gap: theme.space(2) }}>
-        <Text style={{ color: theme.color.muted, fontSize: 13, fontWeight: '600' }}>
-          Downloading… {pct}%
-        </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space(3) }}>
+          <Text style={{ flex: 1, color: theme.color.muted, fontSize: 13, fontWeight: '600' }}>
+            Downloading… {pct}%
+          </Text>
+          <Pressable
+            onPress={() => void cancelDownload(id)}
+            accessibilityRole="button"
+            accessibilityLabel="Stop downloading"
+            hitSlop={12}
+            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+          >
+            <Text style={{ color: theme.color.muted, fontSize: 13, fontWeight: '700' }}>Stop</Text>
+          </Pressable>
+        </View>
         <View style={{ height: 4, borderRadius: 2, backgroundColor: theme.color.surface2, overflow: 'hidden' }}>
           <View style={{ width: `${pct}%`, height: '100%', backgroundColor: theme.color.primary }} />
         </View>

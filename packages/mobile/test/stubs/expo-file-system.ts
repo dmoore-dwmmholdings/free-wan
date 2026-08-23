@@ -8,6 +8,8 @@ const files = new Map<string, number>()
 let failNextDownload = false
 let downloadedBytes = 123_456
 let hold: Promise<void> | null = null
+let pendingRelease: (() => void) | null = null
+let failNextCancel = false
 
 export const __fs = {
   reset() {
@@ -15,6 +17,8 @@ export const __fs = {
     failNextDownload = false
     downloadedBytes = 123_456
     hold = null
+    pendingRelease = null
+    failNextCancel = false
   },
   /** Simulate the OS reclaiming a file behind the app's back. */
   evict(uri: string) {
@@ -26,6 +30,10 @@ export const __fs = {
   failNext() {
     failNextDownload = true
   },
+  /** Simulate a cancel that does not complete, so it cleans nothing up of its own accord. */
+  failNextCancel() {
+    failNextCancel = true
+  },
   setDownloadSize(bytes: number) {
     downloadedBytes = bytes
   },
@@ -35,6 +43,7 @@ export const __fs = {
     hold = new Promise<void>((resolve) => {
       release = resolve
     })
+    pendingRelease = release
     return release
   },
 }
@@ -59,6 +68,9 @@ export function createDownloadResumable(
   _opts: unknown,
   onProgress?: ProgressCb,
 ) {
+  let isCancelled = false
+  const releaseHold = () => pendingRelease?.()
+
   return {
     async downloadAsync() {
       if (failNextDownload) {
@@ -66,14 +78,32 @@ export function createDownloadResumable(
         throw new Error('simulated network failure')
       }
       onProgress?.({ totalBytesWritten: 512, totalBytesExpectedToWrite: 1024 })
+      // A real transfer writes as it goes, so a cancel has something to clean up.
+      files.set(target, 512)
       if (hold) {
         const pending = hold
         hold = null
         await pending
       }
+      // expo resolves to undefined for a cancelled transfer rather than rejecting.
+      if (isCancelled) return undefined
       onProgress?.({ totalBytesWritten: 1024, totalBytesExpectedToWrite: 1024 })
       files.set(target, downloadedBytes)
       return { uri: target }
+    },
+    async cancelAsync() {
+      isCancelled = true
+      if (failNextCancel) {
+        failNextCancel = false
+        // Cancelled, but the partial file is left behind for the caller to deal with.
+        hold = null
+        releaseHold()
+        throw new Error('cancel failed')
+      }
+      files.delete(target)
+      // Let the held transfer finish unblocking, as a real cancel would.
+      hold = null
+      releaseHold()
     },
   }
 }

@@ -940,3 +940,18 @@ shared schema test, all green; every phase verified with a live built-server smo
   typecheck 4/4, `pnpm -r test` **231** (api 180 + mobile 38 + web 11 + shared 2),
   `pnpm -r build`. **Still not verified — needs a device: real playback, real file I/O,
   secure storage.**
+- **2026-08-23 — Mobile app: a transfer in progress can now be stopped.** The one gap the
+  downloads documentation admitted to. For an app whose reason to exist is keeping video on
+  the phone, starting a multi-gigabyte download with no way out is a poor bargain on a
+  metered connection. `cancelDownload` stops the transfer, discards the partial file, and
+  returns the item to offering Download — deliberately *not* to the failure state, since
+  reporting "Download failed — tap to try again" for something the user chose to stop would
+  be telling them something went wrong. Controls: a cross on the Downloads tab row, a Stop
+  beside the progress bar on the item's own screen. Four tests, control-tested: dropping the
+  cancel/failure distinction reports 'failed', and skipping the partial-file cleanup leaves
+  the file behind. The cleanup test needed a stub that can fail a cancel midway — expo
+  deletes the partial file itself on a clean cancel, so the first version of that test passed
+  against deliberately broken code and proved nothing. Verified green: typecheck 4/4,
+  `pnpm -r test` **235** (api 180 + mobile 42 + web 11 + shared 2), `pnpm -r build`.
+  **The two cancel controls are unverified in a browser and need a device: they only appear
+  while a transfer runs, and `expo-file-system` has no web implementation.**

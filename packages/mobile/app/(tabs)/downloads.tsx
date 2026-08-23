@@ -3,6 +3,7 @@ import { Link } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { AuthImage } from '@/components/AuthImage'
 import {
+  cancelDownload,
   formatBytes,
   removeDownload,
   startDownload,
@@ -84,6 +85,17 @@ function ActiveRow({ item }: { item: ActiveDownload }) {
           {pct > 0 ? `Downloading… ${pct}%` : 'Starting…'}
         </Text>
       </View>
+      <Pressable
+        onPress={() => void cancelDownload(item.id)}
+        accessibilityRole="button"
+        accessibilityLabel={`Stop downloading ${item.title}`}
+        // Generous padding: this is a small target next to a progress bar, and hitting it by
+        // accident is cheap to undo while missing it on a metered connection is not.
+        hitSlop={12}
+        style={({ pressed }) => ({ padding: theme.space(2), opacity: pressed ? 0.6 : 1 })}
+      >
+        <Ionicons name="close" size={20} color={theme.color.muted} />
+      </Pressable>
     </View>
   )
 }
