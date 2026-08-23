@@ -1224,3 +1224,24 @@ shared schema test, all green; every phase verified with a live built-server smo
   which makes a mistap undoable. The query is marked stale without refetching, so the list
   corrects itself next time it is opened. Verified green: typecheck 4/4, `pnpm -r test`
   **346**, `pnpm -r build`.
+- **2026-08-23 — Mobile app: the grid stops re-rendering while you type.** `MediaTile` was a
+  plain component and `renderItem` an inline arrow, so every keystroke in the search box —
+  which sets state on each character — re-rendered every visible tile, each one a link, a
+  pressable and an image with its own state and effect. Costs nothing on a desktop and is the
+  usual shape of typing lag on a phone. Now memoised.
+  Worth recording how the accompanying test went, because it went badly twice. The first
+  version asserted that untouched cards keep their object identity through a cache write, on
+  the grounds that memo depends on it. Control-tested by rebuilding every card: **it passed**,
+  because TanStack does structural sharing and collapses a deeply-equal object back to the
+  original reference — so the test was describing the library, not this code. Retargeting it
+  at the client the app actually builds and disabling `structuralSharing` there **also
+  passed**. Two controls, neither able to fail it, so it was deleted rather than kept with a
+  confident comment behind it. The comment on `MediaTile` now claims only what was
+  demonstrated: typing does not touch the cache, so the cards come back identical and the
+  comparison holds.
+  A process note from the same episode: a broken test file was reported as "148 passed"
+  because only the `Tests` line was being read, and a file that fails to *collect* does not
+  appear there. Both `Test Files` and `Tests` are checked now.
+  The five other tests around the like path stand — control-tested earlier, catching
+  first-page-only patching and corruption of the detail query. Verified green: typecheck 4/4,
+  `pnpm -r test` **346**, `pnpm -r build`.

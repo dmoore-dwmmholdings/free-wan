@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { Link } from 'expo-router'
 import type { MediaCard } from '@free-wan/shared'
@@ -5,8 +6,18 @@ import { AuthImage } from './AuthImage'
 import { formatDuration } from '@/lib/media'
 import { theme } from '@/theme'
 
-/** One grid tile. Shared by Browse and a collection's contents. */
-export function MediaTile({ item, width }: { item: MediaCard; width: number }) {
+/**
+ * One grid tile. Shared by Browse and a collection's contents.
+ *
+ * Memoised because the browse screen holds the search box, and its state changes on every
+ * keystroke. Without this, typing one character re-renders every visible tile — each of them
+ * a link, a pressable and an image with its own state — which is exactly the shape of typing
+ * lag on a phone and costs nothing on a desktop.
+ *
+ * This works because typing does not touch the query cache at all: the cards come back from
+ * it with the same identity, so the comparison holds and nothing below re-renders.
+ */
+function MediaTileImpl({ item, width }: { item: MediaCard; width: number }) {
   const duration = formatDuration(item.durationS)
   return (
     <Link href={`/media/${item.id}`} asChild>
@@ -61,3 +72,5 @@ export function gridMetrics(screenWidth: number, padding: number, gap: number) {
   const tileWidth = (screenWidth - padding * 2 - gap * (columns - 1)) / columns
   return { columns, tileWidth }
 }
+
+export const MediaTile = memo(MediaTileImpl)

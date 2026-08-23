@@ -91,4 +91,5 @@ describe('writing a like into the cached library', () => {
     expect(likedOnly.pages[0]!.data[0]).toMatchObject({ liked: true, likeCount: 3 })
     expect(pagesOf(qc).pages[0]!.data[0]).toMatchObject({ liked: true, likeCount: 3 })
   })
+
 })
