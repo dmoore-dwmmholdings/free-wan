@@ -122,7 +122,12 @@ export default function BrowseScreen() {
         <View style={{ flexDirection: 'row', gap: theme.space(2), marginBottom: theme.space(2) }}>
           <TextInput
             value={search}
-            onChangeText={setSearch}
+            onChangeText={(text) => {
+              setSearch(text)
+              // Emptying the box brings the library back straight away. There is no clear
+              // button, so requiring another submit would leave no way out of a search.
+              if (text.trim() === '') setQuery('')
+            }}
             onSubmitEditing={() => setQuery(search.trim())}
             returnKeyType="search"
             placeholder="Search your library"
