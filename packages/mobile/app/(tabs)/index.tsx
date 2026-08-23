@@ -14,8 +14,10 @@ import { Ionicons } from '@expo/vector-icons'
 import type { MediaCard } from '@free-wan/shared'
 import { CategoryChips, type Crumb } from '@/components/CategoryChips'
 import { MediaTile, gridMetrics } from '@/components/MediaTile'
+import { ErrorState } from '@/components/ErrorState'
 import { TagChips } from '@/components/TagChips'
 import { useCategoryChildren } from '@/lib/categories'
+import { useDownloads } from '@/lib/downloads'
 import { useTags } from '@/lib/tags'
 import { useMediaList } from '@/lib/media'
 import { theme } from '@/theme'
@@ -36,6 +38,7 @@ export default function BrowseScreen() {
 
   const categories = useCategoryChildren(currentCategory)
   const tags = useTags()
+  const { items: downloaded } = useDownloads()
   const list = useMediaList(
     useMemo(
       () => ({
@@ -147,6 +150,16 @@ export default function BrowseScreen() {
         ) : null
       }
       ListEmptyComponent={
+        list.isError || !list.data ? (
+          <ErrorState
+            onRetry={() => void list.refetch()}
+            hint={
+              downloaded.length > 0
+                ? `Check that it is running and that this phone is on the same network or tailnet. ${downloaded.length} download${downloaded.length === 1 ? '' : 's'} are still playable from the Downloads tab.`
+                : undefined
+            }
+          />
+        ) : (
         <View style={{ paddingTop: theme.space(20), alignItems: 'center', gap: theme.space(2) }}>
           <Text style={{ color: theme.color.text, fontSize: 16, fontWeight: '700' }}>Nothing here</Text>
           <Text style={{ color: theme.color.muted, fontSize: 14, textAlign: 'center' }}>
@@ -161,6 +174,7 @@ export default function BrowseScreen() {
                 : 'Your library is empty, or the server is still scanning.'}
           </Text>
         </View>
+        )
       }
     />
   )

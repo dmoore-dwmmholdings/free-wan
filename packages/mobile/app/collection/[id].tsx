@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { ActivityIndicator, FlatList, Text, useWindowDimensions, View } from 'react-native'
 import { Stack, useLocalSearchParams } from 'expo-router'
+import { ErrorState } from '@/components/ErrorState'
 import { MediaTile, gridMetrics } from '@/components/MediaTile'
 import { useCollection } from '@/lib/collections'
 import { useMediaList } from '@/lib/media'
@@ -40,9 +41,13 @@ export default function CollectionScreen() {
             if (list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage()
           }}
           ListEmptyComponent={
-            <View style={{ paddingTop: theme.space(20), alignItems: 'center' }}>
-              <Text style={{ color: theme.color.muted, fontSize: 14 }}>This collection is empty.</Text>
-            </View>
+            list.isError || !list.data ? (
+              <ErrorState onRetry={() => void list.refetch()} />
+            ) : (
+              <View style={{ paddingTop: theme.space(20), alignItems: 'center' }}>
+                <Text style={{ color: theme.color.muted, fontSize: 14 }}>This collection is empty.</Text>
+              </View>
+            )
           }
         />
       )}

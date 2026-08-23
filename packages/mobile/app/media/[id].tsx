@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import { AuthImage } from '@/components/AuthImage'
+import { ErrorState } from '@/components/ErrorState'
 import { apiUrl, authHeaders } from '@/lib/api'
 import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
 import { formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
@@ -165,10 +166,22 @@ export default function MediaScreen() {
     [detail.data?.durationS, offlineRecord],
   )
 
-  if (detail.isLoading && !downloadedUri) {
+  if (detail.isLoading && !offlineRecord) {
     return (
       <View style={{ flex: 1, backgroundColor: theme.color.bg, alignItems: 'center', justifyContent: 'center' }}>
         <ActivityIndicator color={theme.color.primary} />
+      </View>
+    )
+  }
+
+  // Nothing to show and nothing still in flight: the fetch failed, or never got to run.
+  // Testing `data` rather than `isError` covers both — a query that is pending but not
+  // fetching reports neither loading nor error, and would otherwise render an empty shell.
+  // A downloaded item still plays with the server unreachable, so it takes precedence.
+  if (!detail.data && !offlineRecord && !detail.isLoading) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.color.bg }}>
+        <ErrorState onRetry={() => void detail.refetch()} />
       </View>
     )
   }

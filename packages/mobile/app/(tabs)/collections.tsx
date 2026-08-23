@@ -3,6 +3,7 @@ import { Link } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import type { CollectionDto } from '@free-wan/shared'
 import { AuthImage } from '@/components/AuthImage'
+import { ErrorState } from '@/components/ErrorState'
 import { useCollections } from '@/lib/collections'
 import { theme } from '@/theme'
 
@@ -52,7 +53,7 @@ function Row({ item }: { item: CollectionDto }) {
 }
 
 export default function CollectionsScreen() {
-  const { data, isLoading, isRefetching, refetch } = useCollections()
+  const { data, isLoading, isError, isRefetching, refetch } = useCollections()
   const items = data?.data ?? []
 
   if (isLoading) {
@@ -73,6 +74,9 @@ export default function CollectionsScreen() {
       refreshing={isRefetching}
       onRefresh={() => void refetch()}
       ListEmptyComponent={
+        isError || !data ? (
+          <ErrorState onRetry={() => void refetch()} />
+        ) : (
         <View style={{ paddingTop: theme.space(24), alignItems: 'center', gap: theme.space(2), paddingHorizontal: theme.space(8) }}>
           <Ionicons name="albums-outline" size={40} color={theme.color.muted} />
           <Text style={{ color: theme.color.text, fontSize: 16, fontWeight: '700', marginTop: theme.space(2) }}>
@@ -82,6 +86,7 @@ export default function CollectionsScreen() {
             Collections you create on the web app show up here.
           </Text>
         </View>
+        )
       }
     />
   )
