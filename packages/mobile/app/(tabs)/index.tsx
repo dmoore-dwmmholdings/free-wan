@@ -12,58 +12,14 @@ import {
 import { Link } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import type { MediaCard } from '@free-wan/shared'
-import { AuthImage } from '@/components/AuthImage'
 import { CategoryChips, type Crumb } from '@/components/CategoryChips'
+import { MediaTile, gridMetrics } from '@/components/MediaTile'
 import { useCategoryChildren } from '@/lib/categories'
-import { formatDuration, useMediaList } from '@/lib/media'
+import { useMediaList } from '@/lib/media'
 import { theme } from '@/theme'
 
 const GAP = theme.space(2.5)
 const PADDING = theme.space(3)
-
-function Tile({ item, width }: { item: MediaCard; width: number }) {
-  const duration = formatDuration(item.durationS)
-  return (
-    <Link href={`/media/${item.id}`} asChild>
-      <Pressable style={({ pressed }) => ({ width, opacity: pressed ? 0.7 : 1 })}>
-        <View
-          style={{
-            width,
-            aspectRatio: 16 / 10,
-            borderRadius: theme.radius.sm,
-            overflow: 'hidden',
-            backgroundColor: theme.color.surface2,
-          }}
-        >
-          <AuthImage path={item.posterUrl} style={{ width: '100%', height: '100%' }} />
-          {duration ? (
-            <View
-              style={{
-                position: 'absolute',
-                right: 6,
-                bottom: 6,
-                backgroundColor: 'rgba(11,11,16,0.82)',
-                borderRadius: 5,
-                paddingHorizontal: 6,
-                paddingVertical: 2,
-              }}
-            >
-              <Text style={{ color: theme.color.text, fontSize: 11, fontVariant: ['tabular-nums'] }}>
-                {duration}
-              </Text>
-            </View>
-          ) : null}
-        </View>
-        <Text
-          numberOfLines={2}
-          style={{ color: theme.color.text, fontSize: 13, fontWeight: '600', marginTop: theme.space(2) }}
-        >
-          {item.title}
-        </Text>
-      </Pressable>
-    </Link>
-  )
-}
 
 export default function BrowseScreen() {
   const { width: screenWidth } = useWindowDimensions()
@@ -73,9 +29,7 @@ export default function BrowseScreen() {
   const [likedOnly, setLikedOnly] = useState(false)
   const currentCategory = trail.length > 0 ? trail[trail.length - 1]!.id : null
 
-  // Two columns on a phone, more as the viewport grows (tablet, landscape).
-  const columns = Math.max(2, Math.floor(screenWidth / 220))
-  const tileWidth = (screenWidth - PADDING * 2 - GAP * (columns - 1)) / columns
+  const { columns, tileWidth } = gridMetrics(screenWidth, PADDING, GAP)
 
   const categories = useCategoryChildren(currentCategory)
   const list = useMediaList(
@@ -103,7 +57,7 @@ export default function BrowseScreen() {
       keyExtractor={(m) => m.id}
       contentContainerStyle={{ padding: PADDING, gap: GAP }}
       columnWrapperStyle={columns > 1 ? { gap: GAP } : undefined}
-      renderItem={({ item }) => <Tile item={item} width={tileWidth} />}
+      renderItem={({ item }) => <MediaTile item={item} width={tileWidth} />}
       refreshControl={
         <RefreshControl
           refreshing={list.isRefetching && !list.isFetchingNextPage}

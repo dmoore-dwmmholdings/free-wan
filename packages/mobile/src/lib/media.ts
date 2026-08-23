@@ -2,7 +2,9 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { MediaDetail, MediaListResponse, PlaybackDescriptor } from '@free-wan/shared'
 import { api } from './api'
 
-export function useMediaList(params: { q?: string; liked?: boolean; category?: string | null } = {}) {
+export function useMediaList(
+  params: { q?: string; liked?: boolean; category?: string | null; collection?: string } = {},
+) {
   return useInfiniteQuery({
     queryKey: ['media', params],
     initialPageParam: undefined as string | undefined,
@@ -11,6 +13,7 @@ export function useMediaList(params: { q?: string; liked?: boolean; category?: s
       if (params.q) qs.set('q', params.q)
       if (params.liked) qs.set('liked', 'true')
       if (params.category) qs.set('category', params.category)
+      if (params.collection) qs.set('collection', params.collection)
       if (pageParam) qs.set('cursor', pageParam)
       return api.get<MediaListResponse>(`/api/media?${qs}`)
     },
