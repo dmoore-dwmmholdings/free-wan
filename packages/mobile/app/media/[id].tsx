@@ -12,6 +12,7 @@ import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
 import { cancelDownload, formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
 import { TagList } from '@/components/TagChips'
 import { CaptionOverlay, CaptionPicker } from '@/components/Captions'
+import { PlaybackError } from '@/components/PlaybackError'
 import { resumeSeek, useProgressReporter } from '@/lib/progress'
 import { useToggleLike } from '@/lib/social'
 import { theme } from '@/theme'
@@ -236,19 +237,36 @@ export default function MediaScreen() {
   // Where playback starts. `resumeSeek` holds the rules and why each one is there; all this
   // does is feed it and record that the decision has been made.
   const [ready, setReady] = useState(false)
-  useEventListener(player, 'statusChange', ({ status }) => {
-    if (status === 'readyToPlay') setReady(true)
+  // `error` is the player's own message and is the only clue about why a source was refused,
+  // so it is shown rather than replaced with something friendlier and useless.
+  const [playbackError, setPlaybackError] = useState<string | null>(null)
+  useEventListener(player, 'statusChange', ({ status, error }) => {
+    if (status === 'readyToPlay') {
+      setReady(true)
+      setPlaybackError(null)
+    } else if (status === 'error') {
+      setPlaybackError(error?.message ?? 'The player did not say why.')
+    }
   })
 
   const resumed = useRef(false)
+  // Where a retry after a playback error should pick up. A reloaded source starts at the top,
+  // and the position the server knows is by then both stale and beside the point — what
+  // matters is where the viewer was when it broke.
+  const [retryFrom, setRetryFrom] = useState<number | null>(null)
   const resumeAt = playback.data?.resumeAt ?? null
   useEffect(() => {
     if (!player) return
-    const seek = resumeSeek({ ready, pending: playback.isPending, resumed: resumed.current, resumeAt })
+    const seek = resumeSeek({
+      ready,
+      pending: playback.isPending,
+      resumed: resumed.current,
+      resumeAt: retryFrom ?? resumeAt,
+    })
     if (!seek) return
     resumed.current = true
     if (seek.seekTo) player.currentTime = seek.seekTo
-  }, [player, ready, playback.isPending, resumeAt])
+  }, [player, ready, playback.isPending, resumeAt, retryFrom])
 
   const title = detail.data?.title ?? offlineRecord?.title ?? 'Untitled'
   // A portrait photo in a 16:9 letterbox wastes most of the screen.
@@ -301,6 +319,29 @@ export default function MediaScreen() {
                 path={tracks.find((t) => t.id === captionTrackId)?.url ?? null}
                 timeS={playheadS}
               />
+              {playbackError ? (
+                <PlaybackError
+                  message={playbackError}
+                  onRetry={() => {
+                    let at = 0
+                    try {
+                      at = player.currentTime
+                    } catch {
+                      // Player already released; start from the top.
+                    }
+                    setPlaybackError(null)
+                    // A fresh attempt, so the once-only resume is allowed to run again — this
+                    // time towards where the viewer actually was.
+                    setRetryFrom(at > 0 ? at : null)
+                    resumed.current = false
+                    setReady(false)
+                    void player.replaceAsync(source).catch(() => {
+                      // Whatever went wrong comes back as another status change, which puts
+                      // this overlay back with the player's own account of it.
+                    })
+                  }}
+                />
+              ) : null}
             </>
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>

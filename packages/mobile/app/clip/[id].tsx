@@ -4,6 +4,7 @@ import { Stack, useLocalSearchParams } from 'expo-router'
 import { useEventListener } from 'expo'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import { ErrorState } from '@/components/ErrorState'
+import { PlaybackError } from '@/components/PlaybackError'
 import { apiUrl, authHeaders } from '@/lib/api'
 import { clipCommandFor, useClip, useClipPreview } from '@/lib/clips'
 import { formatDuration } from '@/lib/media'
@@ -46,8 +47,17 @@ export default function ClipScreen() {
     if (player && startS !== undefined) player.currentTime = startS
   }, [player, startS])
 
-  useEventListener(player, 'statusChange', ({ status }) => {
-    if (status !== 'readyToPlay' || sought.current || startS === undefined) return
+  // Same silent failure as the media screen: without this a clip whose source will not load
+  // is a black rectangle that never becomes anything.
+  const [playbackError, setPlaybackError] = useState<string | null>(null)
+  useEventListener(player, 'statusChange', ({ status, error }) => {
+    if (status === 'error') {
+      setPlaybackError(error?.message ?? 'The player did not say why.')
+      return
+    }
+    if (status !== 'readyToPlay') return
+    setPlaybackError(null)
+    if (sought.current || startS === undefined) return
     sought.current = true
     player.currentTime = startS
   })
@@ -97,13 +107,26 @@ export default function ClipScreen() {
       <Stack.Screen options={{ title }} />
       <View style={{ width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000' }}>
         {source ? (
-          <VideoView
-            player={player}
-            style={{ width: '100%', height: '100%' }}
-            allowsFullscreen
-            allowsPictureInPicture
-            contentFit="contain"
-          />
+          <>
+            <VideoView
+              player={player}
+              style={{ width: '100%', height: '100%' }}
+              allowsFullscreen
+              allowsPictureInPicture
+              contentFit="contain"
+            />
+            {playbackError ? (
+              <PlaybackError
+                message={playbackError}
+                onRetry={() => {
+                  setPlaybackError(null)
+                  // A retry starts the clip again from its in-point, so let the seek run.
+                  sought.current = false
+                  void player.replaceAsync(source).catch(() => {})
+                }}
+              />
+            ) : null}
+          </>
         ) : (
           <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
             <ActivityIndicator color={theme.color.muted} />

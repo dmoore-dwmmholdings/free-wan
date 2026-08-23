@@ -1518,3 +1518,29 @@ shared schema test, all green; every phase verified with a live built-server smo
   `packages/web/dist` under a running server, which then served `index.html` for the bundle —
   1174 bytes where the file on disk was 1.37 MB. Restart the API after a rebuild.
   Verified green: typecheck 4/4, `pnpm -r test` **367**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: a video that would not play was a black rectangle and nothing
+  else.** `expo-video` reports the failure through `statusChange` and draws nothing, and both
+  player screens ignored it — so a rejected token, an HLS ladder that was never built, and a
+  server that went away mid-buffer all looked the same as a video taking its time. This app
+  already refuses to let an empty state stand in for an unreachable server; a silent player
+  was the same lie told by a different screen.
+  Both screens now show the player's own message over the frame, with a retry that reloads the
+  source. The message is not replaced with something friendlier: it is the only clue there is.
+  The overlay's colours are fixed rather than themed, like the duration pill and for the same
+  reason — it sits on the black of the video frame, where `theme.color.text` is near-black
+  under any light preset.
+  The first version of the retry restarted an hour-long video from the top. It now takes the
+  position the playhead had reached and feeds it through `resumeSeek`, whose once-only rule
+  applies per attempt: reloading the source is a new attempt, so the screen clears the flag.
+  A clip retries from its in-point instead, which is what a clip is.
+  Written against the real types rather than from memory: `StatusChangeEventPayload` carries
+  `{status, oldStatus?, error?: {message}}` and `replaceAsync` is what reloads a source.
+  Verified only that neither screen regressed — both render, with the buttons and metadata
+  they should have and no overlay where there is no error. The overlay itself cannot be
+  reached in the browser: the web build's video element never issues a request, so it never
+  reports ready and never reports an error either. Pointing it at a URL that does not exist
+  produced no error event at all. It goes on the device list, where it should earn its keep.
+  Two tests were written for the retry path and then deleted rather than kept: they asserted
+  what the existing `resumeSeek` tests already assert, with different numbers.
+  Verified green: typecheck 4/4, `pnpm -r test` **367**, `pnpm -r build`.

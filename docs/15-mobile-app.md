@@ -418,7 +418,9 @@ that left the app on a blank screen.
 ---
 
 What tests cannot cover, and still needs a device: actual playback, real file I/O, and
-secure storage. Resuming is squarely in that group, and further out of reach than the rest:
+secure storage. The message shown when a video will not play is in that group as well — the
+browser cannot produce a player error to show it with. Resuming is squarely in it, and further
+out of reach than the rest:
 the browser harness cannot even load a video, because expo-video's web build never requests
 the stream, so the player never reports itself ready and the seek that resumes never runs.
 Uploading is in that group too. The floating button's placement and its
