@@ -256,7 +256,11 @@ pnpm --filter @free-wan/mobile test
 ```
 
 The unit tests cover the logic that does not need a device: server-address parsing, session
-handling, formatting, the API request layer, and the download manager.
+handling, formatting, the API request layer, the download manager, and the library's
+pagination — that each filter has its own cache key, and that the list stops asking for pages
+once the server says there are none left. Both of those fail silently rather than loudly: a
+shared key shows one filter another's results, and a cursor that never resolves to
+`undefined` refetches the last page forever.
 
 The download tests run against an in-memory filesystem stub that can report progress, hold a
 transfer open midway, fail one, fail a *cancel* midway, and evict a file behind the app's

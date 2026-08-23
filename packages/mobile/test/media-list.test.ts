@@ -1,0 +1,93 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest'
+
+const SERVER = 'https://media.example.com'
+
+function respond(body: unknown) {
+  return {
+    status: 200,
+    ok: true,
+    statusText: '',
+    text: async () => JSON.stringify(body),
+  } as Response
+}
+
+async function fresh() {
+  vi.resetModules()
+  const session = await import('@/lib/session')
+  await session.saveSession(SERVER, 'token-abc')
+  const media = await import('@/lib/media')
+  return { media }
+}
+
+/** Run the options' queryFn against a stubbed fetch and return the URL it asked for. */
+async function urlFor(
+  options: { queryFn: (ctx: { pageParam: string | undefined }) => Promise<unknown> },
+  pageParam?: string,
+) {
+  const fetchMock = vi.fn(async (_url: string) => respond({ data: [], nextCursor: null, total: 0 }))
+  vi.stubGlobal('fetch', fetchMock)
+  await options.queryFn({ pageParam })
+  return new URL(fetchMock.mock.calls[0]![0])
+}
+
+describe('library pagination', () => {
+  beforeEach(() => {
+    vi.resetModules()
+    vi.unstubAllGlobals()
+  })
+
+  it('stops paging when the server reports no next cursor', async () => {
+    const { media } = await fresh()
+    const options = media.mediaListQueryOptions()
+    // Returning null rather than undefined here would leave hasNextPage true, and the list
+    // would keep asking for a page that does not exist.
+    expect(options.getNextPageParam({ data: [], nextCursor: null, total: 0 })).toBeUndefined()
+  })
+
+  it('carries the cursor forward for the next page', async () => {
+    const { media } = await fresh()
+    const options = media.mediaListQueryOptions()
+    expect(options.getNextPageParam({ data: [], nextCursor: 'eyJvIjo0MH0', total: 95 })).toBe(
+      'eyJvIjo0MH0',
+    )
+
+    const url = await urlFor(options, 'eyJvIjo0MH0')
+    expect(url.searchParams.get('cursor')).toBe('eyJvIjo0MH0')
+    expect(url.searchParams.get('limit')).toBe('40')
+  })
+
+  it('asks for the first page without a cursor', async () => {
+    const { media } = await fresh()
+    const url = await urlFor(media.mediaListQueryOptions())
+    expect(url.searchParams.has('cursor')).toBe(false)
+  })
+
+  it('sends repeated tag params so the server ANDs them', async () => {
+    const { media } = await fresh()
+    const url = await urlFor(media.mediaListQueryOptions({ tags: ['a', 'b'] }))
+    expect(url.searchParams.getAll('tag')).toEqual(['a', 'b'])
+  })
+
+  // The failure this guards is silent and severe: two filters sharing a cache key means one
+  // shows the other's results. Every filter has to be part of the key.
+  it.each([
+    ['q', { q: 'holiday' }],
+    ['liked', { liked: true }],
+    ['category', { category: 'cat-1' }],
+    ['collection', { collection: 'col-1' }],
+    ['type', { type: 'video' as const }],
+    ['tags', { tags: ['t-1'] }],
+  ])('gives %s its own cache key', async (_name, params) => {
+    const { media } = await fresh()
+    const base = JSON.stringify(media.mediaListQueryOptions().queryKey)
+    const filtered = JSON.stringify(media.mediaListQueryOptions(params).queryKey)
+    expect(filtered).not.toBe(base)
+  })
+
+  it('does not let one filter value read another’s cached page', async () => {
+    const { media } = await fresh()
+    const a = JSON.stringify(media.mediaListQueryOptions({ category: 'cat-a' }).queryKey)
+    const b = JSON.stringify(media.mediaListQueryOptions({ category: 'cat-b' }).queryKey)
+    expect(a).not.toBe(b)
+  })
+})

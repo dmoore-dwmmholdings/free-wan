@@ -976,3 +976,23 @@ shared schema test, all green; every phase verified with a live built-server smo
   expo-doctor 18/18. **The picker, the which-library sheet and the transfer itself are
   unverified and need a device: `expo-image-picker` opens the platform file dialog and
   `expo-file-system`'s upload task has no web implementation.**
+- **2026-08-23 — Mobile app: pagination exercised for the first time; no defects found.** The
+  API pages at 40 and the sample library holds 15, so `fetchNextPage` had never once run.
+  Built a 95-item library to force three pages and drove it end to end. Everything was
+  already correct: the server returns 95 unique ids across 3 pages with no duplicates or
+  gaps (it orders by a unique id tiebreaker, so its offset cursor is stable); the app
+  accumulates them, exhausts the cursor and renders 95 tiles; changing a filter starts a
+  fresh page-1 query rather than inheriting the spent cursor, and the unfiltered pages stay
+  cached so clearing a search restores instantly.
+  Two limits worth recording. The scroll-driven trigger could only be partly exercised — the
+  harness window will not shrink to phone size, and at 3440px the grid is 15 columns wide, so
+  80 tiles fit on screen and `VirtualizedList` has no scroll events left to re-evaluate. It
+  advanced a page on scroll, and calling `fetchNextPage` directly completed the set, so the
+  data path is proven; the gesture itself still wants a device. This is not reachable on real
+  hardware: columns are `max(2, floor(width / 220))`, so 40 tiles always overflow a phone or
+  tablet screen.
+  Since nothing was broken, the contribution is a regression net rather than a fix.
+  `mediaListQueryOptions` is now separate from the hook so the two silent failure modes can be
+  tested: seven tests fail if the query key stops including the filters, and one fails if a
+  null cursor is not converted to `undefined`. Verified green: typecheck 4/4, `pnpm -r test`
+  **250** (api 180 + mobile 57 + web 11 + shared 2), `pnpm -r build`.
