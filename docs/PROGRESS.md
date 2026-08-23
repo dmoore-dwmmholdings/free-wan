@@ -1916,3 +1916,26 @@ shared schema test, all green; every phase verified with a live built-server smo
   while drilled into a folder and with a media-type filter on top, and the button relabels
   itself to "Sort by, currently Longest".
   Verified green: typecheck 4/4, `pnpm -r test` **387**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: background playback and picture-in-picture were asked for in code
+  and absent from the Android build.** Both player screens set `allowsPictureInPicture`, and
+  both set `staysActiveInBackground` on the player. Neither worked on Android, and nothing said
+  so — the code compiles, the properties are real, and they simply do nothing without the build
+  to back them.
+  `expo-video`'s own type documentation is explicit about the first: "the
+  `supportsBackgroundPlayback` property of the config plugin has to be `true` for background
+  playback to work". `app.json` declared the plugin bare. Reading the plugin settled the rest:
+  given no options it returns without touching anything, and what it would have added is the
+  iOS background mode, and on Android the `ExpoVideoPlaybackService` with a `mediaPlayback`
+  foreground service type, the `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_MEDIA_PLAYBACK`
+  permissions, and `android:supportsPictureInPicture` on the main activity.
+  Checked against the generated `AndroidManifest.xml` rather than inferred: none of the three
+  was there. With the options set and the native project regenerated, all three are.
+  iOS was already declaring `UIBackgroundModes: ["audio"]` by hand in `app.json`, which is why
+  background audio worked there and not on Android. That hand-written entry is now gone and the
+  plugin owns it, so the two platforms are configured from one place instead of one of them
+  being remembered and the other forgotten. Confirmed by introspecting the iOS config, which
+  reports `UIBackgroundModes: ['audio']` among 28 keys — a count worth printing, since an empty
+  introspection would otherwise read exactly like a pass.
+  Both remain device-only to actually watch working, and are on the checklist.
+  Verified green: typecheck 4/4, `pnpm -r test` **387**, `pnpm -r build`, both bundles.

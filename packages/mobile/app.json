@@ -12,9 +12,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.freewan.app",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "audio"
-        ],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
@@ -36,7 +33,13 @@
           "faceIDPermission": false
         }
       ],
-      "expo-video",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ],
       [
         "expo-build-properties",
         {

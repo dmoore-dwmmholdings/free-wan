@@ -25,6 +25,14 @@ Five tabs:
 Opening any item gives a player or a photo, its tags, a like button, a Download button, and
 a subtitles button when the video has caption tracks.
 
+A video keeps playing when you leave the app or lock the phone, and can be put into a
+picture-in-picture window. Both are asked for in the player's own settings, and both also have
+to be granted in the build — `expo-video`'s config plugin adds the iOS background mode, and on
+Android the foreground service, its two permissions and the activity flag that allows PiP. The
+plugin does none of that unless it is given `supportsBackgroundPlayback` and
+`supportsPictureInPicture`, so the options in `app.json` are not decoration: without them the
+code asks for both and neither happens.
+
 Coming back to the app after leaving it refreshes what has gone stale, so media added, liked
 or renamed from the web app in the meantime appears without a pull to refresh. Switching away
 for a moment costs nothing — only data older than thirty seconds is fetched again.
