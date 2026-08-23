@@ -71,6 +71,17 @@ export function useLogin() {
   })
 }
 
+/** Change your own password. The server answers 204, so there is nothing to read back. */
+export function useChangePassword() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (body: { currentPassword: string; newPassword: string }) =>
+      api.post<void>('/api/auth/password', body),
+    // Clearing mustChangePassword is what releases the gate, so re-read who we are.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['me'] }),
+  })
+}
+
 export function useLogout() {
   const qc = useQueryClient()
   return useMutation({

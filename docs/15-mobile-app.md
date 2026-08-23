@@ -89,6 +89,12 @@ cannot mint one without the password. See `resolveSession` in
 
 The token is stored in `expo-secure-store` — the iOS Keychain and the Android Keystore.
 
+If the account still carries the password it was created with, the app asks for a new one
+before it will show anything, the same as the web app does. Changing your own password is the
+only account action here; everything else stays on the web app. If the server cannot be
+reached the flag is unknown and the app carries on, since locking someone out of their
+downloads over a rule the server enforces anyway would help nobody.
+
 ---
 
 ## Offline downloads

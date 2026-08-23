@@ -4,7 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
-import { useStoredSession } from '@/lib/auth'
+import { useMe, useStoredSession } from '@/lib/auth'
 import { theme } from '@/theme'
 
 const queryClient = new QueryClient({
@@ -22,13 +22,29 @@ function Gate() {
   const segments = useSegments()
   const router = useRouter()
 
+  const signedIn = Boolean(server && token)
+  const { data: me } = useMe(ready && signedIn)
+  // Only a positive answer blocks. Offline the flag is unknown, and shutting someone out of
+  // their downloads over a password rule the server will enforce anyway helps nobody.
+  const mustChangePassword = me?.mustChangePassword === true
+
   useEffect(() => {
     if (!ready) return
     const onLogin = segments[0] === 'login'
-    const signedIn = Boolean(server && token)
-    if (!signedIn && !onLogin) router.replace('/login')
-    else if (signedIn && onLogin) router.replace('/')
-  }, [ready, server, token, segments, router])
+    const onChangePassword = segments[0] === 'change-password'
+
+    if (!signedIn) {
+      if (!onLogin) router.replace('/login')
+      return
+    }
+    // The web app blocks every route until the starting password is replaced; this app has
+    // to agree, or the phone is the way around it.
+    if (mustChangePassword) {
+      if (!onChangePassword) router.replace('/change-password')
+      return
+    }
+    if (onLogin || onChangePassword) router.replace('/')
+  }, [ready, signedIn, mustChangePassword, segments, router])
 
   if (!ready) {
     return (
@@ -49,6 +65,7 @@ function Gate() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
+      <Stack.Screen name="change-password" options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name="media/[id]" options={{ title: '', headerTransparent: true }} />
       <Stack.Screen name="collection/[id]" />
       <Stack.Screen name="clip/[id]" />
