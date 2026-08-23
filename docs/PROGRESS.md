@@ -1661,3 +1661,33 @@ shared schema test, all green; every phase verified with a live built-server smo
   `${'x'}`, whose quote the old expression treats as a closing delimiter, so it failed for the
   wrong reason and would have been reported as a passing control that proved nothing.
   Verified green: typecheck 4/4, `pnpm -r test` **375**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: a mutation pass over the logic whose failures are invisible, and
+  one real defect from it.** Last session found a check that did not check what it claimed, so
+  the same question was put to the rest: for each piece of logic, break it deliberately and see
+  whether anything fails. Twenty-odd mutations across the auth gate, the query defaults, the
+  request layer, caption timing, clip boundaries, list paging, the session emitter and the
+  cache patch. All caught, which is the answer worth having about a gate that decides where an
+  unauthenticated user is sent.
+  Two survived, and they are different from each other.
+  The first is an equivalent mutant, not a gap. Deleting the `204` short-circuit in the request
+  layer changes nothing: `res.text()` on a 204 returns an empty string and the parse already
+  answers `undefined`. Checked that the path it stands for *is* covered — making a successful
+  empty body go through `JSON.parse` unconditionally does fail a test, which is the failure
+  that would break changing a password.
+  The second was real. Replacing the WCAG luminance weighting in `isLight` with a plain average
+  of the channels left all 27 palette tests passing — and the two are not close: pure green is
+  0.715 weighted and 0.333 averaged. `isLight` decides the status bar's content colour and the
+  platform colour scheme from the background, so it runs on whatever colour an admin picked.
+  Looking at it properly turned up a second thing wrong with it: the threshold was **0.5**, the
+  midpoint of the scale, where what matters is the midpoint of legibility. Black and white text
+  are equally readable at a luminance of 0.1791 — `sqrt(1.05 x 0.05) - 0.05`. A mid-grey sits
+  at 0.216, where black text reaches 5.3:1 and white 3.9:1, and the old threshold gave it white.
+  Both fixed, with **3 tests**: green light and blue dark together, which no unweighted formula
+  can satisfy; the crossover from both sides; and every shipped preset landing on the mode it
+  declares. Control-tested — the average now fails two of them, and moving the threshold to
+  either 0.5 or 0.02 fails others. Every preset that ships is far from the crossover and none
+  of them change.
+  Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`, both Hermes bundles.
+  The mobile build logged a Metro cache warning again and fell back to a full crawl; the cache
+  in `node_modules/.cache` is stale from the SDK upgrade and rebuilds itself each time.

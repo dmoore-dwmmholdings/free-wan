@@ -151,3 +151,27 @@ describe('reading the radius', () => {
     expect(parseRadius('none')).toEqual({ sm: 9, md: 16 })
   })
 })
+
+describe('deciding whether a background is light', () => {
+  it('weighs the channels the way the eye does', () => {
+    // Green and blue are the same number in a plain average of the channels, and nothing like
+    // each other to look at. Asserting both directions at once is what pins the weighting:
+    // no unweighted formula can call one of these light and the other dark.
+    expect(isLight('#00ff00')).toBe(true)
+    expect(isLight('#0000ff')).toBe(false)
+  })
+
+  it('turns over where black text stops being the more readable of the two', () => {
+    // A mid-grey. Black on it reaches 5.3:1, white 3.9:1, so it wants dark chrome — which the
+    // old midpoint-of-the-scale threshold of 0.5 got backwards.
+    expect(isLight('#808080')).toBe(true)
+    // And well below the crossover it does not.
+    expect(isLight('#3a3a3a')).toBe(false)
+  })
+
+  it('is unambiguous for every background that ships', () => {
+    for (const preset of Object.values(BRANDING_PRESETS)) {
+      expect(isLight(preset.colors.background)).toBe(preset.mode === 'light')
+    }
+  })
+})

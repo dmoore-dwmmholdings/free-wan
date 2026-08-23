@@ -81,6 +81,18 @@ export function withAlpha(color: string, alpha: number): string {
  * luminance the WCAG contrast formula is built on, not a plain average — a saturated yellow
  * and a saturated blue of the same average are nowhere near equally light.
  */
+/**
+ * The luminance at which black text and white text are equally readable on a background:
+ * where 1.05 / (L + 0.05) meets (L + 0.05) / 0.05, which is sqrt(1.05 x 0.05) - 0.05.
+ *
+ * The threshold used to be 0.5, which is the midpoint of the scale rather than the midpoint of
+ * legibility, and the two are nowhere near each other. A mid-grey sits at 0.216: black text on
+ * it reaches 5.3:1 where white manages 3.9:1, so it wants dark chrome, and 0.5 gave it light.
+ * Every preset that ships is far enough from the crossover to be unaffected either way — but
+ * an admin picks these colours, and nothing stops them picking one from the middle.
+ */
+const TEXT_CROSSOVER_LUMINANCE = 0.1791
+
 export function isLight(color: string): boolean {
   const c = parseColor(color)
   if (!c) return false
@@ -88,8 +100,11 @@ export function isLight(color: string): boolean {
     const x = v / 255
     return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
   }
+  // Weighted the way the eye is: green carries most of the sense of brightness and blue
+  // almost none, so #00ff00 reads as a light background and #0000ff as a dark one, though a
+  // plain average of the channels would call them identical.
   const luminance = 0.2126 * channel(c.r) + 0.7152 * channel(c.g) + 0.0722 * channel(c.b)
-  return luminance > 0.5
+  return luminance > TEXT_CROSSOVER_LUMINANCE
 }
 
 export interface Palette {
