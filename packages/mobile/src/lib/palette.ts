@@ -136,9 +136,12 @@ export function derivePalette(colors: Branding['colors']): Palette {
     primaryTint: withAlpha(primary, 0.15),
     accent,
     text,
-    // --fw-muted: 62% text against the background. The web comment records why it is 62% and
-    // not 52%: it is what holds muted text at WCAG AA on both bg and surface.
-    muted: mix(text, bg, 0.62),
+    // --fw-muted: 65% text against the background — the share that holds muted text at WCAG AA
+    // on both bg and surface, for every preset. It was 62%, chosen for that same reason and
+    // wrong about it: `linen` landed at 4.41:1 against its background, under the 4.5:1 that
+    // normal text needs. Kept in step with the web token by hand; the point of this file is
+    // that a preset resolves to the same values in both apps, not merely similar ones.
+    muted: mix(text, bg, 0.65),
     // Fixed in the web tokens too — every preset's primary is dark enough for white on it.
     onPrimary: '#ffffff',
     danger: '#f87171',

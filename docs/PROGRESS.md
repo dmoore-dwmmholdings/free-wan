@@ -1691,3 +1691,31 @@ shared schema test, all green; every phase verified with a live built-server smo
   Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`, both Hermes bundles.
   The mobile build logged a Metro cache warning again and fell back to a full crawl; the cache
   in `node_modules/.cache` is stale from the SDK upgrade and rebuilds itself each time.
+
+- **2026-08-23 — The `linen` preset's muted text now meets WCAG AA, in both apps.** This had
+  been sitting on the open list for several sessions as something to be decided rather than
+  done, on the grounds that the mix is shared with the web app and changing it is a design
+  decision. That was over-cautious. Raising contrast on text that fails AA is not a trade-off
+  against anything; it is the fix, and it belongs in both places at once.
+  Measured across all seven presets: muted against its own background ran 6.1 to 7.1 on the
+  five dark ones, 4.58 on `paper`, and **4.41 on `linen`** — under the 4.5 that normal text
+  needs. The share of text mixed into the background moved from 62% to **65%**, in
+  `packages/web/src/index.css` and `packages/mobile/src/lib/palette.ts` together, which is the
+  whole point of that file: a preset has to resolve to the same values in both apps rather than
+  to similar ones. 63% would have cleared it at 4.54 and is too close to the line to be worth
+  having; 65% puts the tightest preset at 4.83 and moves the colour by about seven parts in
+  255, which is not a visible change to anything that was already passing.
+  Worth saying plainly: 62% was itself chosen to hold AA on both background and surface — the
+  comment in the CSS says so — and did not manage it. This corrects that arithmetic rather than
+  making a new decision about the design.
+  The mobile test suite had recorded the shortfall honestly, exempting `linen` from the AA
+  check with a test that asserted the failure and a note saying that retuning the preset should
+  fail it and prompt the exemption's removal. It did, and it has. Every preset now goes through
+  the same check with no exceptions.
+  One test caught the change and had to be re-derived rather than adjusted: the muted literal
+  for the default preset is pinned to what a browser's `color-mix` produces, so the new value
+  was worked out away from the code — 233 x 0.65 + 11 x 0.35 = 155.30, 238 x 0.65 + 16 x 0.35
+  = 160.30, giving `#9b9ba0`. Control-tested: a one-point change in the mix still fails it.
+  Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`, and `pnpm test:e2e`
+  **18/18**, six of which are axe WCAG A/AA audits of the web app. Those audits run on the
+  default preset, which is why they never saw this one.

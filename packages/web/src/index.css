@@ -23,8 +23,12 @@
   /* Derived — auto-track the base vars. */
   --fw-surface-2: color-mix(in srgb, var(--fw-surface), var(--fw-text) 6%);
   --fw-border: color-mix(in srgb, var(--fw-text) 11%, transparent);
-  /* 62% (not 52%) keeps muted text at WCAG AA 4.5:1 on both bg and surface. */
-  --fw-muted: color-mix(in srgb, var(--fw-text) 62%, var(--fw-bg));
+  /* Enough text mixed in to keep muted at WCAG AA 4.5:1 on both bg and surface, for every
+     preset. It was 62%, which was chosen for exactly that and did not achieve it: `linen`
+     came out at 4.41:1 against its background. 65% clears every preset with room —  the
+     tightest is linen at 4.83:1 — and moves the colour by about 7 parts in 255, which is
+     not a visible change to anything that was already passing. */
+  --fw-muted: color-mix(in srgb, var(--fw-text) 65%, var(--fw-bg));
   /* Primary pushed toward the text color — for text-on-tint uses (active chips) where the
      raw primary lacks AA contrast against its own tint. */
   --fw-primary-strong: color-mix(in srgb, var(--fw-primary) 60%, var(--fw-text));

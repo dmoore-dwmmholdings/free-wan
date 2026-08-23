@@ -71,8 +71,10 @@ describe('deriving the palette', () => {
     const p = derivePalette(DEFAULT_BRANDING.colors)
     expect(p.surface2).toBe(mix(DEFAULT_BRANDING.colors.text, DEFAULT_BRANDING.colors.surface, 0.06))
     expect(p.surface2).toBe('#23232a')
-    expect(p.muted).toBe(mix(DEFAULT_BRANDING.colors.text, DEFAULT_BRANDING.colors.background, 0.62))
-    expect(p.muted).toBe('#95959a')
+    expect(p.muted).toBe(mix(DEFAULT_BRANDING.colors.text, DEFAULT_BRANDING.colors.background, 0.65))
+    // Worked out away from this code, the way the browser would: 233 x 0.65 + 11 x 0.35 is
+    // 155.30, and 238 x 0.65 + 16 x 0.35 is 160.30.
+    expect(p.muted).toBe('#9b9ba0')
   })
 
   it('produces a readable palette for every preset, light ones included', () => {
@@ -104,32 +106,17 @@ function contrast(a: string, b: string): number {
   return (hi! + 0.05) / (lo! + 0.05)
 }
 
-// `linen` does not meet AA for muted text on its own background. This is a property of the
-// shared preset, not of this port: the web app derives muted with the same 62% mix and so
-// carries the same shortfall. Recorded rather than worked around, because bending the
-// formula here would only make the two apps disagree while leaving the palette as it is.
-const MUTED_ON_BG_BELOW_AA = new Set(['linen'])
-
 describe('readability of every preset', () => {
-  // The web comment records that muted is mixed at 62% rather than 52% precisely to hold
-  // WCAG AA on both the background and the surface. Reproducing that arithmetic wrongly here
-  // gives text that still looks fine to me and is too faint for someone else.
-  it.each(Object.keys(BRANDING_PRESETS).filter((n) => !MUTED_ON_BG_BELOW_AA.has(n)))(
-    'keeps muted text readable on %s',
-    (name) => {
-      const p = derivePalette(BRANDING_PRESETS[name]!.colors)
-      expect(contrast(p.muted, p.bg)).toBeGreaterThanOrEqual(4.5)
-      expect(contrast(p.muted, p.surface)).toBeGreaterThanOrEqual(4.5)
-    },
-  )
-
-  it.each([...MUTED_ON_BG_BELOW_AA])('records the known shortfall on %s', (name) => {
+  // No preset is exempt. `linen` used to be: muted against its background came out at 4.41:1,
+  // and the shortfall was recorded here with a test that asserted it, on the grounds that the
+  // mix was shared with the web app and bending it in this file alone would only make the two
+  // disagree. That was the right call at the time and the wrong place to stop — the share was
+  // raised from 62% to 65% in both apps, which is what the 62% had been chosen to do in the
+  // first place, and every preset now clears with room to spare.
+  it.each(Object.keys(BRANDING_PRESETS))('keeps muted text readable on %s', (name) => {
     const p = derivePalette(BRANDING_PRESETS[name]!.colors)
-    // Surface is fine; only the background falls short. If the preset is ever retuned this
-    // fails, which is the prompt to drop it from MUTED_ON_BG_BELOW_AA and delete this test.
+    expect(contrast(p.muted, p.bg)).toBeGreaterThanOrEqual(4.5)
     expect(contrast(p.muted, p.surface)).toBeGreaterThanOrEqual(4.5)
-    expect(contrast(p.muted, p.bg)).toBeLessThan(4.5)
-    expect(contrast(p.muted, p.bg)).toBeGreaterThan(4.3)
   })
 
   it.each(Object.keys(BRANDING_PRESETS))('keeps body text readable on %s', (name) => {
