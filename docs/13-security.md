@@ -50,6 +50,10 @@ backs FR-55.
 - User-owned resources (collections, clips, runs, progress, likes) are scoped to
   `user_id`; one user can never read or mutate another's (FR-61) — enforced in queries, not
   just the UI.
+- **The mobile app's session token is excluded from Android backups.** `expo-secure-store`
+  ships backup rules that exclude its store from both cloud backup and device-to-device
+  transfer, and the generated manifest points at them. A token therefore does not travel to a
+  new phone with a restore; whoever holds the new device has to sign in.
 - **`must_change_password` is a client-side rule, not a server-side one.** It is set for the
   bootstrap admin and for any password an admin resets, reported by `/api/auth/login` and
   `/api/auth/me`, and cleared when the password changes. No route refuses a request because of

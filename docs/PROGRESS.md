@@ -1352,3 +1352,27 @@ shared schema test, all green; every phase verified with a live built-server smo
   JDK is 26, newer than the React Native Gradle plugin supports.** That is now written down
   alongside the build instructions. Verified green: typecheck 4/4, `pnpm -r test` **347**,
   `pnpm -r build`, expo-doctor 18/18.
+- **2026-08-23 — Mobile app: the last unused permission string removed, and an unverified
+  claim made verified.** Last session recorded the iOS half of the camera/microphone change as
+  unverified, because `expo prebuild` had only produced `android/`. Running it with
+  `--platform ios` established why rather than leaving it a guess: Expo refuses to generate
+  iOS project files anywhere but macOS or Linux. `expo config --type introspect` gets there
+  another way — it applies every config plugin and prints the resulting `ios.infoPlist` — and
+  confirms the camera and microphone strings are gone and the photo-library one carries the
+  text written for this app.
+  That introspection turned up one more: `NSFaceIDUsageDescription`, added by
+  `expo-secure-store` because storage *can* be put behind biometrics, carrying the library's
+  stock "Allow FreeWAN to access your Face ID biometric data". This app stores its token
+  plainly — `requireAuthentication` appears nowhere — so the string was both unused and not
+  written for it. Off now; the Info.plist is down to exactly three things, all of which the
+  app does: the photo library, background audio, and local networking.
+  Checked afterwards that the Android side was not disturbed, and did it properly the second
+  time: reading the introspected JSON returned nothing at all, which said nothing, so the real
+  regenerated manifest was read instead. Backup rules, cleartext traffic and the two permission
+  removals are all intact.
+  One security property verified for the first time along the way. The manifest points at
+  `@xml/secure_store_backup_rules`, which is not in the app module — it comes from the library
+  and is merged at build time, so the reference resolves rather than breaking the build. Its
+  contents exclude the secure store from cloud backup and from device-to-device transfer, so a
+  session token does not follow a restore onto a new phone. Recorded in `docs/13-security.md`.
+  Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`, expo-doctor 18/18.

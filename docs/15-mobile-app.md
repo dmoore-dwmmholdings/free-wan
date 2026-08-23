@@ -237,10 +237,26 @@ splash screen, and the Android cleartext-HTTP permission a plain-HTTP server nee
 
 What the app asks your phone for, and what it deliberately does not: internet access, storage
 on Android versions old enough to need it for the picker, and your photo library when you tap
-Upload. It does **not** ask for the camera or the microphone. `expo-image-picker` adds both by
-default, because it can also take a photo — this app only ever opens the library, so both are
-turned off in `app.json` and the generated manifest carries removal directives for them. An
-app for watching your own films has no business asking to hear you.
+Upload. It does **not** ask for the camera, the microphone, or Face ID. Each was being declared by a
+library's defaults rather than by anything the app does: `expo-image-picker` adds the first
+two because it can also take a photo, and `expo-secure-store` adds a Face ID string because
+storage *can* be put behind biometrics. This app only opens the photo library and stores its
+token plainly, so all three are off in `app.json`. An app for watching your own films has no
+business asking to hear you.
+
+On Android the token is also kept out of backups: `expo-secure-store` excludes its store from
+cloud backup and from device-to-device transfer, so signing in on one phone does not carry the
+session to another.
+
+You can see the whole evaluated set without building anything:
+
+```bash
+pnpm --filter @free-wan/mobile exec expo config --type introspect --json
+```
+
+That applies every config plugin and prints the resulting `ios.infoPlist`, which is the only
+way to check the iOS half from Windows — `expo prebuild` refuses to generate `ios/` anywhere
+but macOS or Linux.
 
 Building it also needs things Expo Go does not: the Android SDK, and a JDK the React Native
 Gradle plugin supports — 17 at the time of writing, not whatever is newest.
