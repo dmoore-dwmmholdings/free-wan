@@ -41,7 +41,7 @@ function Row({ label, value }: { label: string; value: string }) {
 
 export default function SettingsScreen() {
   const router = useRouter()
-  const { data: me } = useMe(true)
+  const account = useMe(true)
   const logout = useLogout()
   const { items } = useDownloads()
   const [server, setServer] = useState<string | null>(null)
@@ -67,8 +67,21 @@ export default function SettingsScreen() {
       contentContainerStyle={{ padding: theme.space(4), gap: theme.space(6) }}
     >
       <Section label="Account">
-        <Row label="Signed in as" value={me?.username ?? '—'} />
-        <Row label="Role" value={me?.role ?? '—'} />
+        {account.isError ? (
+          // Who you are is the one thing on this screen that has to be asked for. Offline it
+          // used to show two dashes, which reads as though the account itself had gone —
+          // whereas the server address and the storage figures below are held on the phone
+          // and are as true as ever.
+          <Text style={{ color: theme.color.muted, fontSize: 14, lineHeight: 20 }}>
+            Cannot reach your server, so who you are signed in as cannot be shown. Anything you
+            have downloaded still plays.
+          </Text>
+        ) : (
+          <>
+            <Row label="Signed in as" value={account.data?.username ?? '—'} />
+            <Row label="Role" value={account.data?.role ?? '—'} />
+          </>
+        )}
       </Section>
 
       <Section label="Server">

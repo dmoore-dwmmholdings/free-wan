@@ -1798,3 +1798,26 @@ shared schema test, all green; every phase verified with a live built-server smo
   reaching it means going through `launchImageLibraryAsync`, which on web opens a file dialog
   that would freeze the session. It needs the phone.
   Verified green: typecheck 4/4, `pnpm -r test` **381**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: what the whole app looks like with the server switched off.** Two
+  more states this app had never been in. The first was cheap to arrange and worked exactly as
+  written: a clip whose source video is deleted and the library rescanned. Its row in the Clips
+  tab says "Source video is gone", is dimmed, and is genuinely not a link — it is absent from
+  the list of things a screen reader can activate, while the two healthy clips are there. Its
+  detail screen, still reachable by deep link, explains that the media is no longer in the
+  library and deliberately offers no Try again, since retrying cannot bring a file back.
+  The second needed a small server that serves the built app and destroys the socket for every
+  `/api/` call, which is what an unreachable server actually looks like from a phone that
+  already has the app installed. A cold start against it, on every screen:
+  Browse, Collections, Clips, the media detail of something not downloaded, and a collection's
+  contents all say "Cannot reach your server" and offer to try again. **None of them claims to
+  be empty** — which is the rule this codebase set itself, and the two screens whose comments
+  argue the point at length turn out to be right: the media screen tests `data` rather than
+  `isError` and so avoids rendering an empty shell, and the collection does not say it is empty.
+  Downloads is correct too, showing its own empty state, since that list is held on the phone.
+  One screen fell short. Settings showed "Signed in as —" and "Role —", which reads as though
+  the account had gone, when in fact only the request for it had — the server address and the
+  storage figures on the same screen are held locally and were as true as ever. It now says so
+  in a sentence, and adds that anything downloaded still plays. Checked both ways: offline it
+  explains itself, and with the server back it shows "Signed in as admin / Role admin" again.
+  Verified green: typecheck 4/4, `pnpm -r test` **381**, `pnpm -r build`, both bundles.
