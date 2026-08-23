@@ -45,7 +45,7 @@ free-wan/
 │   ├── repositories.yaml      # user-defined drives/libraries
 │   └── free-wan.example.yaml  # app config template
 ├── packages/
-│   ├── shared/                # types & zod schemas shared by api+web
+│   ├── shared/                # types & zod schemas shared by api+web+mobile
 │   ├── api/                   # Fastify backend
 │   │   ├── src/
 │   │   │   ├── index.ts
@@ -54,6 +54,13 @@ free-wan/
 │   │   │   ├── services/      # scanner, transcoder, thumbnailer, commands…
 │   │   │   ├── workers/       # job queue + handlers
 │   │   │   └── lib/           # auth, config, logging, ffmpeg helpers
+│   │   └── test/
+│   ├── mobile/                # Expo / React Native app (iOS + Android)
+│   │   ├── app/               # expo-router file-based routes
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   ├── lib/           # api client, session, downloads, queries
+│   │   │   └── theme.ts
 │   │   └── test/
 │   └── web/                   # React app
 │       ├── src/
