@@ -29,6 +29,24 @@ describe('session change notification', () => {
     expect(await getToken()).toBeNull()
   })
 
+  // Regression: clearSession awaited the keychain delete unguarded. When that rejected the
+  // in-memory token survived and no subscriber was told, so a 401 left the auth gate holding
+  // a session the server had already refused — and the user on a retry that could not work.
+  it('still ends the session when the keychain refuses to delete', async () => {
+    const store = await import('./stubs/expo-secure-store')
+    await saveSession('https://media.example.com', 'token-abc')
+    calls = 0
+
+    store.__failDeletes(true)
+    try {
+      await expect(clearSession()).resolves.toBeUndefined()
+      expect(await getToken()).toBeNull()
+      expect(calls).toBe(1)
+    } finally {
+      store.__failDeletes(false)
+    }
+  })
+
   it('stops notifying after unsubscribe', async () => {
     unsubscribe()
     await saveSession('https://media.example.com', 'token-xyz')

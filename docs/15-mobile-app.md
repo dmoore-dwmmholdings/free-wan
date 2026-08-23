@@ -194,6 +194,13 @@ running dev server and appended to incrementally, so a route added while it runs
 classified wrongly and files outside `app/` can leak in as routes. Delete `.expo` and restart
 `expo start`. The file is gitignored, and a fresh clone typechecks without it.
 
+**A screen shows neither content, an error, nor a spinner.** This was a real bug and is
+fixed, but the shape is worth recognising. TanStack Query's default `networkMode: 'online'`
+pauses a retry when it believes the device is offline, and a query paused before it ever
+recorded a result stays pending forever — no remount, tab switch or refocus revives it. The
+app now runs with `networkMode: 'always'` (see `src/lib/query.ts`), so a request is attempted
+and a failure is reported as a failure.
+
 **Metro cannot resolve a module.** `metro.config.js` is deliberately minimal and additive.
 Do not set `disableHierarchicalLookup`: it is the usual advice for npm and yarn monorepos,
 but pnpm nests each package's dependencies under `node_modules/.pnpm/<pkg>/node_modules/`,

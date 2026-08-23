@@ -67,7 +67,13 @@ export function useLogin() {
       await saveSession(server, token)
       return user
     },
-    onSuccess: (user) => qc.setQueryData(['me'], user),
+    onSuccess: (user) => {
+      // Logout clears the cache; signing in has to as well. Whatever ran while signed out
+      // answered 401, and those entries outlive the login — the browse screen remounts onto
+      // stale failures rather than fetching as the user who just signed in.
+      qc.clear()
+      qc.setQueryData(['me'], user)
+    },
   })
 }
 

@@ -70,7 +70,16 @@ be discovered.
    `src/theme.ts` instead. Applying live branding means threading a dynamic theme through
    every screen for a cosmetic gain; half-applying it would look broken rather than branded.
 
-10. **`metro.config.js` stays minimal and additive.** It appends the workspace root to
+10. **TanStack Query runs with `networkMode: 'always'`.** The default `'online'` mode gates
+    every fetch and retry on `onlineManager`, which on React Native is only accurate if it is
+    wired to NetInfo. Wiring it would add a native module for the sole purpose of letting the
+    client decide not to try. Worse, a wrong guess is not a delay: the retry is *paused*, and
+    a query paused before it recorded any result stays `pending` indefinitely, rendering as
+    no data, no error and no spinner, with nothing to revive it. Reaching this server depends
+    on the tailnet rather than on internet connectivity, so it is not a thing worth guessing
+    at — the app issues the request and surfaces a failure as a retryable error.
+
+11. **`metro.config.js` stays minimal and additive.** It appends the workspace root to
     `watchFolders` and the root store to `nodeModulesPaths`, and nothing else. In particular
     it must not set `disableHierarchicalLookup`: that is the usual advice for npm and yarn
     monorepos, but pnpm nests each package's dependencies under

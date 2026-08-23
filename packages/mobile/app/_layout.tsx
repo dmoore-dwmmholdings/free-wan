@@ -2,20 +2,13 @@ import { useEffect } from 'react'
 import { ActivityIndicator, View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useMe, useStoredSession } from '@/lib/auth'
+import { createQueryClient } from '@/lib/query'
 import { theme } from '@/theme'
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // A phone drops off the tailnet constantly; serve cached data rather than spinners.
-      staleTime: 30_000,
-      retry: 1,
-    },
-  },
-})
+const queryClient = createQueryClient()
 
 function Gate() {
   const { ready, server, token } = useStoredSession()

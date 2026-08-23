@@ -917,3 +917,26 @@ shared schema test, all green; every phase verified with a live built-server smo
   subtitles need the HLS master to advertise caption tracks (a server change), and live
   branding needs a dynamic theme through every screen. Next agent: run it on a phone via
   Expo Go before adding anything.**
+- **2026-08-23 — Mobile app: three session-handling bugs found and fixed against a nested
+  fixture.** Built a library with real sub-folders (`Movies/Action`, `Movies/Comedy`,
+  `Photos/2024`) to close the gap flagged in `56da14c`: multi-level drill-down had never been
+  exercised, because the sample library is flat. Drilling All → Movies → Action and back out
+  works — the trail shows a back chip, tappable ancestor crumbs and a non-tappable current
+  level, and the grid narrows at each step (4 → 3 → 2). Getting there surfaced three defects,
+  each found by using the app rather than by reading it:
+  (1) `clearSession` awaited `SecureStore.deleteItemAsync` unguarded, so a keychain that
+  refused to delete left the token in memory, told no subscriber, and stranded the user on an
+  error screen whose retry could never succeed;
+  (2) TanStack Query ran with the default `networkMode: 'online'`, which pauses a retry when
+  `onlineManager` believes the device is offline — and `onlineManager` was never wired to
+  NetInfo, so its belief was a guess. A query paused before recording any result stays
+  `pending` forever: after signing in following a 401, the folder chips never came back for
+  the rest of the session, with no error and no spinner to say why. Now `networkMode:
+  'always'`, in `src/lib/query.ts` (extracted from the root layout so it can be tested);
+  (3) signing in did not reset the query cache the way signing out does, so queries that
+  answered 401 while signed out outlived the login.
+  Each fix has a regression test that was control-tested against the unfixed code: the
+  keychain test rejects, and both network-mode tests hang until timeout. Verified green:
+  typecheck 4/4, `pnpm -r test` **231** (api 180 + mobile 38 + web 11 + shared 2),
+  `pnpm -r build`. **Still not verified — needs a device: real playback, real file I/O,
+  secure storage.**

@@ -58,7 +58,15 @@ export async function saveSession(serverUrl: string, token: string): Promise<voi
 
 /** Drop the token but keep the server address — re-login should not retype the host. */
 export async function clearSession(): Promise<void> {
-  await SecureStore.deleteItemAsync(TOKEN_KEY)
+  // Ending the session must not depend on storage cooperating. This runs on every 401, and
+  // if the delete rejects the two lines below are what actually matter — without them the
+  // in-memory token survives, no subscriber is told, and the auth gate leaves the user on a
+  // screen whose retry can never succeed. A stale entry on disk is the lesser problem.
+  try {
+    await SecureStore.deleteItemAsync(TOKEN_KEY)
+  } catch {
+    /* keychain unavailable, or the key was already gone; the session is over either way */
+  }
   tokenCache = null
   emitSessionChange()
 }
