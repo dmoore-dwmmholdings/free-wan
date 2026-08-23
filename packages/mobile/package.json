@@ -9,7 +9,7 @@
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no mobile unit tests yet\" && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@babel/runtime": "^7.26.0",
@@ -36,6 +36,7 @@
   "devDependencies": {
     "@types/react": "19.1.17",
     "metro-runtime": "0.83.3",
+    "vitest": "2.1.8",
     "typescript": "5.9.3"
   }
 }
