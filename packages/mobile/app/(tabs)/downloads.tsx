@@ -44,6 +44,10 @@ function Row({ item }: { item: DownloadRecord }) {
       <Pressable
         onPress={confirmRemove}
         hitSlop={10}
+        accessibilityRole="button"
+        // Icon-only, and it deletes something. Naming the item matters more here than
+        // anywhere else in the app.
+        accessibilityLabel={`Remove download ${item.title}`}
         style={({ pressed }) => ({ padding: theme.space(2), opacity: pressed ? 0.6 : 1 })}
       >
         <Ionicons name="trash-outline" size={20} color={theme.color.muted} />

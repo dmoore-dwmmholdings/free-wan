@@ -160,6 +160,23 @@ Deliberate omissions, since this is a companion to the web app rather than a rep
 - No uploads
 - Tags can be filtered on and are shown per item, but not created or edited
 
+Two things the web app has that this app cannot currently do, both for structural reasons
+rather than choice:
+
+- **Subtitles.** The server keeps captions as separate WebVTT files
+  (`/api/media/:id/captions/:trackId.vtt`), which the browser attaches to its player as
+  `<track>` elements. `expo-video` has no equivalent: its `VideoSource` takes no external
+  subtitle URLs, and `availableSubtitleTracks` only lists tracks carried inside the media
+  itself. The HLS master this server writes is a single rendition with no
+  `EXT-X-MEDIA TYPE=SUBTITLES`, so there is nothing for the player to find. Subtitles here
+  would mean advertising the caption tracks in the HLS master — a server change, not an app
+  one.
+- **Branding.** `/api/branding` serves the site name, colours and radius an admin has chosen,
+  and the web app themes itself from it. This app uses the FreeWAN defaults, mirrored in
+  `src/theme.ts`. Following live branding would mean threading a dynamic theme through every
+  screen; it is cosmetic, so it has been left until someone wants it. The installed app's own
+  name and icon are fixed at build time in `app.json` regardless.
+
 ---
 
 ## Troubleshooting
