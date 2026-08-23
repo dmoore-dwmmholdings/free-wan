@@ -43,6 +43,10 @@ A TypeScript stack end to end: **React + Vite** frontend, **Node.js (Fastify)** 
 Compose** app with a Tailscale sidecar. Full rationale in
 [`docs/02-architecture.md`](docs/02-architecture.md).
 
+There is also a native **iOS/Android app** (`packages/mobile`, Expo + React Native) that
+speaks the same API and can keep media on the device for offline playback — see
+[`docs/15-mobile-app.md`](docs/15-mobile-app.md).
+
 ---
 
 ## Documentation index
@@ -66,6 +70,7 @@ Read in order for a full picture; each doc is self-contained and cross-linked.
 | 12 | [`docs/12-deployment.md`](docs/12-deployment.md) | Docker Compose, volumes for multiple drives, Tailscale Serve/Funnel, configuration & env. |
 | 13 | [`docs/13-security.md`](docs/13-security.md) | Auth model, threat model, and the command-execution sandbox in depth. |
 | 14 | [`docs/14-build-plan.md`](docs/14-build-plan.md) | Phased milestones with acceptance criteria the agent should build to. |
+| 15 | [`docs/15-mobile-app.md`](docs/15-mobile-app.md) | The native iOS/Android app: running it, signing in, offline downloads, and building one you keep. |
 
 ## Quick start (target end state)
 
