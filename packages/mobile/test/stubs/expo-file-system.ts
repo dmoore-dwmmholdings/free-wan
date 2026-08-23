@@ -64,6 +64,11 @@ export const __fs = {
 
 export async function makeDirectoryAsync(): Promise<void> {}
 
+export async function readDirectoryAsync(dirUri: string): Promise<string[]> {
+  const prefix = dirUri.endsWith('/') ? dirUri : `${dirUri}/`
+  return [...files.keys()].filter((k) => k.startsWith(prefix)).map((k) => k.slice(prefix.length))
+}
+
 export async function getInfoAsync(uri: string) {
   const size = files.get(uri)
   return size === undefined ? { exists: false as const } : { exists: true as const, size }

@@ -318,3 +318,57 @@ describe('a cancel that lands during the write that records a finished transfer'
     if (state.status === 'done') expect(fs.__fs.has(state.record.localUri)).toBe(true)
   })
 })
+
+describe('what a transfer the app never came back from leaves behind', () => {
+  it('deletes a partial file that no record points at', async () => {
+    const { fs, storage, downloads } = await fresh()
+    await downloads.startDownload(VIDEO)
+    const persisted = await storage.default.getItem('fw_downloads_v1')
+
+    // A second, larger download that was still running when the app went away: bytes on disk,
+    // and no record, because a record is only written once a transfer finishes.
+    vi.resetModules()
+    const fs2 = await import('./stubs/expo-file-system')
+    const storage2 = await import('./stubs/async-storage')
+    storage2.default.__reset()
+    storage2.default.__seed('fw_downloads_v1', persisted!)
+    const session2 = await import('@/lib/session')
+    await session2.saveSession('https://media.example.com', 'token-abc')
+    const rec = Object.values(JSON.parse(persisted!) as Record<string, { localUri: string }>)[0]!
+    await fs2.downloadAsync('recreate', rec.localUri)
+    await fs2.downloadAsync('half a film', 'file:///doc/downloads/media-2')
+
+    const downloads2 = await import('@/lib/downloads')
+    await downloads2.loadDownloads()
+
+    expect(fs2.__fs.has('file:///doc/downloads/media-2')).toBe(false)
+    // And the one that did finish is untouched.
+    expect(fs2.__fs.has(rec.localUri)).toBe(true)
+    expect(downloads2.getDownloadState(VIDEO.id).status).toBe('done')
+    void fs
+  })
+
+  it('leaves a finished download and its poster alone', async () => {
+    // The sweep runs against every file in the directory, so the thing it must never do is
+    // mistake a poster for an orphan — its name is the id with a suffix, not the id.
+    const { fs, storage, downloads } = await fresh()
+    await downloads.startDownload(VIDEO)
+    const before = fs.__fs.paths().slice().sort()
+    expect(before).toHaveLength(2)
+    const persisted = await storage.default.getItem('fw_downloads_v1')
+
+    vi.resetModules()
+    const fs2 = await import('./stubs/expo-file-system')
+    const storage2 = await import('./stubs/async-storage')
+    storage2.default.__reset()
+    storage2.default.__seed('fw_downloads_v1', persisted!)
+    const session2 = await import('@/lib/session')
+    await session2.saveSession('https://media.example.com', 'token-abc')
+    for (const path of before) await fs2.downloadAsync('recreate', path)
+
+    const downloads2 = await import('@/lib/downloads')
+    await downloads2.loadDownloads()
+
+    expect(fs2.__fs.paths().slice().sort()).toEqual(before)
+  })
+})

@@ -118,6 +118,12 @@ directory, with an index in `AsyncStorage`.
 
 A downloaded item plays entirely from the device: the screen skips the `/playback` request
 and points the player at the local `file://`, so it works with the server switched off.
+A download that never finished — the app was force-quit, or the phone restarted partway
+through — leaves its bytes behind, since the record that would claim them is only written on
+success. Starting the app clears anything in the download folder that no download accounts
+for, which is the only thing that would ever notice: both the Downloads tab and the storage
+figure in Settings count records, not files.
+
 Photos are downloaded at full resolution, not as thumbnails. Viewing one is different: the
 screen asks the server for a copy fitted to the phone rather than the whole original, which for
 a 4032-pixel-wide photo is 54 KB instead of 638 KB. It falls back to the original when that is

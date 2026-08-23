@@ -98,6 +98,28 @@ async function hydrate(): Promise<void> {
   )
   for (const id of missing) if (id) delete index[id]
 
+  // The other half of the same problem: a file with no record. A record is only written once a
+  // transfer finishes, so a download interrupted by the app going away — force-quit, a reboot,
+  // the system reclaiming memory partway through a multi-gigabyte video — leaves everything it
+  // had written behind with nothing pointing at it. Nothing else ever looks at those files: the
+  // Downloads tab and the storage figure in Settings are both built from the index, so the
+  // space is not merely wasted, it is invisible. Sweeping here is safe because hydration
+  // happens once and every transfer waits on it, so nothing in flight can be caught by it.
+  //
+  // Matched on name rather than on URI. The names are ours, built from ids; a `localUri` has
+  // been out to the platform and back, and deleting someone's downloads over a difference in
+  // encoding is not a risk worth taking.
+  const keep = new Set<string>()
+  for (const r of Object.values(index)) {
+    keep.add(r.id)
+    keep.add(`${r.id}.poster.jpg`)
+  }
+  const found = await FileSystem.readDirectoryAsync(DIR).catch(() => [] as string[])
+  for (const name of found) {
+    if (keep.has(name)) continue
+    await FileSystem.deleteAsync(`${DIR}${name}`, { idempotent: true }).catch(() => {})
+  }
+
   loaded = true
   await persist()
   emit()

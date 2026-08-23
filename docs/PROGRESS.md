@@ -1617,3 +1617,25 @@ shared schema test, all green; every phase verified with a live built-server smo
   subtitles, uploading, the keychain, and the screen reader on the password fields. It is the
   work standing between this app and being finished, and it is ten minutes with a phone.
   Verified green: typecheck 4/4, `pnpm -r test` **373**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: a download the app never came back from left its bytes on the
+  phone forever.** A record is only written once a transfer finishes, so a download interrupted
+  by the app going away — force-quit, a reboot, the system reclaiming memory partway through a
+  multi-gigabyte video — left everything it had written with nothing pointing at it. Hydration
+  already drops records whose files have gone; nothing looked the other way, at files no record
+  claims. And because the Downloads tab and the storage figure in Settings are both built from
+  the index, the space was not merely wasted, it was invisible: a phone quietly short several
+  gigabytes with an app reporting a few hundred megabytes.
+  Startup now sweeps the download directory for names no record accounts for. It matches on
+  name rather than on `localUri` — the names are ours, built from ids, while a URI has been out
+  to the platform and back, and deleting someone's downloads over a difference in encoding is
+  not a risk worth running. Safe at that point because hydration happens once and every
+  transfer waits on it, so nothing in flight can be caught by it.
+  **2 tests**, and the second is the one that matters: a poster's name is an id with a suffix,
+  not an id, so a careless sweep would eat every thumbnail it had just kept the file for. Both
+  control-tested — removing the sweep fails the first, dropping posters from the known set
+  fails the second and only the second.
+  Not checked in a browser, for the same reason as the other download work: `expo-file-system`
+  does nothing on web, which is why this manager is exercised against a virtual filesystem.
+  Verified green: typecheck 4/4, `pnpm -r test` **375**, `pnpm -r build` — the mobile build
+  logged a Metro cache warning, fell back to a full crawl, and produced both Hermes bundles.
