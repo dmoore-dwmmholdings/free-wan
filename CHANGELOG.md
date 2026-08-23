@@ -3,6 +3,21 @@
 Notes shown in the in-app Software updates panel. The release packager (`pnpm package`) embeds
 the section whose heading contains the version being built.
 
+## Unreleased
+
+- There is now a native **iOS and Android app** alongside the web app. It browses the same
+  library — search, folders, tags, likes, collections and clips — and can keep videos and
+  photos on the phone to watch with the server switched off entirely. It is not delivered by
+  this update: the app is built from `packages/mobile` and installed yourself, either from a
+  local build or an APK, and [`docs/15-mobile-app.md`](docs/15-mobile-app.md) walks through
+  both.
+- To make that possible the server now accepts a session token as an
+  `Authorization: Bearer` header as well as the usual cookie. The web app is unchanged and
+  still uses its httpOnly cookie; a browser is never handed a token. The bearer form is
+  returned only to a sign-in that asks for it, which sets no cookie in exchange, and both
+  forms expire and are revoked identically. See
+  [`docs/13-security.md`](docs/13-security.md).
+
 ## 0.6.1 - 2026-07-14
 - Folder categories are now matched case-insensitively: `Movies/Action` and `movies/action`
   count as the same category (the first-seen spelling is kept for display). Existing libraries
