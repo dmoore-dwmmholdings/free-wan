@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native'
 import { Link } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import type { MediaCard } from '@free-wan/shared'
 import { AuthImage } from '@/components/AuthImage'
 import { CategoryChips, type Crumb } from '@/components/CategoryChips'
@@ -69,6 +70,7 @@ export default function BrowseScreen() {
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
   const [trail, setTrail] = useState<Crumb[]>([])
+  const [likedOnly, setLikedOnly] = useState(false)
   const currentCategory = trail.length > 0 ? trail[trail.length - 1]!.id : null
 
   // Two columns on a phone, more as the viewport grows (tablet, landscape).
@@ -77,7 +79,10 @@ export default function BrowseScreen() {
 
   const categories = useCategoryChildren(currentCategory)
   const list = useMediaList(
-    useMemo(() => ({ q: query || undefined, category: currentCategory }), [query, currentCategory]),
+    useMemo(
+      () => ({ q: query || undefined, category: currentCategory, liked: likedOnly || undefined }),
+      [query, currentCategory, likedOnly],
+    ),
   )
   const items = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data])
 
@@ -112,27 +117,50 @@ export default function BrowseScreen() {
       }}
       ListHeaderComponent={
         <View>
-        <TextInput
-          value={search}
-          onChangeText={setSearch}
-          onSubmitEditing={() => setQuery(search.trim())}
-          returnKeyType="search"
-          placeholder="Search your library"
-          placeholderTextColor={theme.color.muted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={{
-            backgroundColor: theme.color.surface,
-            borderColor: theme.color.border,
-            borderWidth: 1,
-            borderRadius: theme.radius.full,
-            color: theme.color.text,
-            fontSize: 15,
-            paddingHorizontal: theme.space(4),
-            paddingVertical: theme.space(2.5),
-            marginBottom: theme.space(2),
-          }}
-        />
+        <View style={{ flexDirection: 'row', gap: theme.space(2), marginBottom: theme.space(2) }}>
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            onSubmitEditing={() => setQuery(search.trim())}
+            returnKeyType="search"
+            placeholder="Search your library"
+            placeholderTextColor={theme.color.muted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={{
+              flex: 1,
+              backgroundColor: theme.color.surface,
+              borderColor: theme.color.border,
+              borderWidth: 1,
+              borderRadius: theme.radius.full,
+              color: theme.color.text,
+              fontSize: 15,
+              paddingHorizontal: theme.space(4),
+              paddingVertical: theme.space(2.5),
+            }}
+          />
+          <Pressable
+            accessibilityLabel={likedOnly ? 'Show all media' : 'Show only liked media'}
+            accessibilityRole="button"
+            onPress={() => setLikedOnly((v) => !v)}
+            style={({ pressed }) => ({
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 44,
+              borderRadius: theme.radius.full,
+              borderWidth: 1,
+              borderColor: likedOnly ? theme.color.primary : theme.color.border,
+              backgroundColor: likedOnly ? theme.color.primaryTint : theme.color.surface,
+              opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <Ionicons
+              name={likedOnly ? 'heart' : 'heart-outline'}
+              size={18}
+              color={likedOnly ? theme.color.primary : theme.color.muted}
+            />
+          </Pressable>
+        </View>
         <CategoryChips
           trail={trail}
           options={categories.data?.data ?? []}
@@ -152,7 +180,9 @@ export default function BrowseScreen() {
         <View style={{ paddingTop: theme.space(20), alignItems: 'center', gap: theme.space(2) }}>
           <Text style={{ color: theme.color.text, fontSize: 16, fontWeight: '700' }}>Nothing here</Text>
           <Text style={{ color: theme.color.muted, fontSize: 14, textAlign: 'center' }}>
-            {query
+            {likedOnly
+              ? 'Nothing liked yet. Tap the heart on anything you want to find again.'
+              : query
               ? `No results for "${query}".`
               : currentCategory
                 ? 'This folder has no media directly in it. Try a sub-folder above.'
