@@ -1076,3 +1076,26 @@ shared schema test, all green; every phase verified with a live built-server smo
   screen. Captions re-verified in the browser after the gating change. Verified green:
   typecheck 4/4, `pnpm -r test` **306** (api 180 + mobile 113 + web 11 + shared 2),
   `pnpm -r build`.
+- **2026-08-23 — Mobile app: the auth gate under test, and a documented security claim
+  corrected.** Reviewed the piece that decides which screen you see — security-adjacent, the
+  source of an earlier bug, and until now verified only by clicking through a browser.
+  Checking one of its stated justifications turned up a false claim in this project's own
+  docs. ADR 0015 decision 7 said the app could safely carry on when `mustChangePassword` is
+  unknown "because the server enforces the rule on every request". **It does not.**
+  `authenticate` and `requireAdmin` check the session and the role and nothing else; no route
+  refuses a user who still holds the password they were given. The flag is reported by login
+  and `/api/auth/me` and cleared on change, but it is never a gate — enforcement lives
+  entirely in the two clients, and the web app is in the same position. The offline carry-on
+  is still the right call, but for a different reason than the one recorded, and it is now
+  written down honestly in the ADR, in `docs/15-mobile-app.md`, and in a new note under
+  `docs/13-security.md` §3 that also says what making it a real boundary would take. **Not
+  changed: whether the server should enforce it. That is a server-side security decision for
+  the project, not for this package.**
+  The gate's decision is now `gateRedirect` in `src/lib/gate.ts`, separate from the effect
+  that acts on it, with nine tests. The useful one enumerates all 32 states and checks every
+  destination is a fixed point — a gate that redirects somewhere which redirects again is an
+  app that never settles, which is exactly the shape of the login-bounce bug from the first
+  session. Three control tests: removing the not-ready guard, dropping the already-on-login
+  guard, and checking the password rule before sign-in all fail, and the loop introduced by
+  the second is caught by the fixed-point test on its own. Verified green: typecheck 4/4,
+  `pnpm -r test` **315** (api 180 + mobile 122 + web 11 + shared 2), `pnpm -r build`.

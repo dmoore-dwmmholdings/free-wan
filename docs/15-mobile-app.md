@@ -93,8 +93,11 @@ The token is stored in `expo-secure-store` — the iOS Keychain and the Android 
 If the account still carries the password it was created with, the app asks for a new one
 before it will show anything, the same as the web app does. Changing your own password is the
 only account action here; everything else stays on the web app. If the server cannot be
-reached the flag is unknown and the app carries on, since locking someone out of their
-downloads over a rule the server enforces anyway would help nobody.
+reached the flag is unknown and the app carries on. Worth being plain about what that means:
+the server does not enforce this rule — it reports the flag and clears it, but refuses no
+request because of it — so this app and the web app both honour it by choice. Carrying on
+offline keeps downloads you already hold reachable, and the flag is there to move you off a
+starting password rather than to stop someone who already has valid credentials.
 
 ---
 

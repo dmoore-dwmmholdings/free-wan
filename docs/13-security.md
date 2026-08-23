@@ -50,6 +50,17 @@ backs FR-55.
 - User-owned resources (collections, clips, runs, progress, likes) are scoped to
   `user_id`; one user can never read or mutate another's (FR-61) — enforced in queries, not
   just the UI.
+- **`must_change_password` is a client-side rule, not a server-side one.** It is set for the
+  bootstrap admin and for any password an admin resets, reported by `/api/auth/login` and
+  `/api/auth/me`, and cleared when the password changes. No route refuses a request because of
+  it: `authenticate` and `requireAdmin` check the session and the role and nothing else. The
+  web app and the mobile app each block their own routes until the password is replaced, so a
+  request made outside either client — `curl` with a valid cookie or bearer token — is not
+  blocked. This is adequate for what the flag is for, which is moving someone off a starting
+  password rather than defending against someone who already holds valid credentials. Making
+  it a real boundary means rejecting every request except the ones needed to change the
+  password (`/api/auth/me`, `/api/auth/password`, `/api/auth/logout`, `/api/branding`); that
+  has not been done.
 
 ## 4. Path safety (no traversal) — applies to media *and* commands
 

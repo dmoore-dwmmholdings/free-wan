@@ -8,6 +8,7 @@ import { useMe, useStoredSession } from '@/lib/auth'
 import { createQueryClient } from '@/lib/query'
 import { useBranding } from '@/lib/branding'
 import { isLight } from '@/lib/palette'
+import { gateRedirect } from '@/lib/gate'
 import { theme } from '@/theme'
 
 const queryClient = createQueryClient()
@@ -24,21 +25,8 @@ function Gate() {
   const mustChangePassword = me?.mustChangePassword === true
 
   useEffect(() => {
-    if (!ready) return
-    const onLogin = segments[0] === 'login'
-    const onChangePassword = segments[0] === 'change-password'
-
-    if (!signedIn) {
-      if (!onLogin) router.replace('/login')
-      return
-    }
-    // The web app blocks every route until the starting password is replaced; this app has
-    // to agree, or the phone is the way around it.
-    if (mustChangePassword) {
-      if (!onChangePassword) router.replace('/change-password')
-      return
-    }
-    if (onLogin || onChangePassword) router.replace('/')
+    const to = gateRedirect({ ready, signedIn, mustChangePassword, segment: segments[0] })
+    if (to) router.replace(to)
   }, [ready, signedIn, mustChangePassword, segments, router])
 
   if (!ready) {

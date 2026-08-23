@@ -45,7 +45,7 @@ be discovered.
    browsed and filtered on but not created or edited; repositories, users, branding,
    commands and plugins do not appear at all. Curating is better with a keyboard, and every
    screen added here is a screen to keep in step with the web app. Changing your own
-   password is the exception, because the server forces it (decision 7).
+   password is the exception, because both clients force it (decision 7).
 
    **Uploads are the other exception, added later.** This decision originally covered them,
    and it was wrong to: the reason given was that curating is better with a keyboard, and
@@ -63,9 +63,22 @@ be discovered.
 
 7. **`mustChangePassword` is honoured, but only on a positive answer.** The web app blocks
    every route until the starting password is replaced, and the phone must not be the way
-   around that. When the server cannot be reached the flag is unknown and the app carries
-   on, since locking someone out of their own downloads over a rule the server enforces on
-   every request would help nobody.
+   around that. When the server cannot be reached the flag is unknown and the app carries on.
+
+   This decision previously justified carrying on by saying the server enforces the rule on
+   every request. **It does not.** `authenticate` and `requireAdmin` check the session and the
+   role and nothing else, so no route refuses a user who still has the password they were
+   given; the flag is reported by `/api/auth/me` and by login, and cleared when the password
+   changes, but it is never a gate. Enforcement lives entirely in the clients, and the web app
+   is in the same position — a request made outside either client is not blocked by it.
+
+   So treating an unknown answer as "not blocked" is a real decision rather than a formality.
+   It is still the right one for this app: the flag exists to move someone off a bootstrap
+   password, not to defend against someone holding valid credentials, and refusing to open
+   downloads already on the device because the server is unreachable would trade something
+   real for something notional. Making it a genuine boundary means rejecting requests
+   server-side, which is a server change and a decision for the project rather than for this
+   package. Recorded in `docs/13-security.md`.
 
 8. **Subtitles are drawn by the app, not handed to the player.** `expo-video` accepts no
    external subtitle file — `VideoSource` has no field for one, and `availableSubtitleTracks`
