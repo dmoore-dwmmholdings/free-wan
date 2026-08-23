@@ -23,6 +23,9 @@ function Chip({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      // Same reason as the subtitle rows: without this the back chevron is read out as the
+      // start of the folder's name.
+      accessibilityLabel={label}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

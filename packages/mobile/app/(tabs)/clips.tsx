@@ -56,7 +56,15 @@ function Row({ item }: { item: ClipDto }) {
 
   return (
     <Link href={`/clip/${item.id}`} asChild>
-      <Pressable style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}>{body}</Pressable>
+      <Pressable
+        accessibilityRole="link"
+        // The row carries a poster or a scissors icon and sometimes a loop icon, none of
+        // which read as anything; say what the clip is instead.
+        accessibilityLabel={`${item.name}${item.loop ? ', loops' : ''}`}
+        style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+      >
+        {body}
+      </Pressable>
     </Link>
   )
 }

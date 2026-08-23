@@ -11,6 +11,8 @@ function Row({ item }: { item: CollectionDto }) {
   return (
     <Link href={`/collection/${item.id}`} asChild>
       <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`${item.name}, ${item.itemCount} item${item.itemCount === 1 ? '' : 's'}`}
         style={({ pressed }) => ({
           flexDirection: 'row',
           gap: theme.space(3),

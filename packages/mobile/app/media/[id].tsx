@@ -134,6 +134,9 @@ function DownloadButton({
     <Pressable
       onPress={() => void startDownload({ id, title, type, durationSec })}
       accessibilityRole="button"
+      // Named rather than left to its children: the first of those is an icon, and an icon is
+      // a `Text` holding a private-use character that reads as nothing.
+      accessibilityLabel="Download"
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

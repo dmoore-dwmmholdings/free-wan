@@ -113,6 +113,7 @@ function FailedRow({ item }: { item: FailedDownload }) {
         })
       }
       accessibilityRole="button"
+      accessibilityLabel={`Retry download ${item.title}`}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

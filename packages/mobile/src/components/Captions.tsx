@@ -154,6 +154,10 @@ export function CaptionPicker({
                   onPress={() => choose(id)}
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
+                  // Named explicitly, or the name is built from the children — and the first
+                  // of those is an icon, which is a `Text` holding one character out of a
+                  // private-use area. Nothing sensible is announced for it.
+                  accessibilityLabel={label}
                   style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'center',

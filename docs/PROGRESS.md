@@ -1744,3 +1744,32 @@ shared schema test, all green; every phase verified with a live built-server smo
   `linen` server now gives a tab bar at `rgb(251,248,242)` with its label at `rgb(108,104,96)`,
   and the deep link to an item still lands on the item rather than the library.
   Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: several controls announced an icon before their name.** Two
+  findings from one sweep, and the second came out of a mistake made during the first.
+  The sweep itself was the useful idea: after a first-run sign-in against a `linen` server,
+  walk every screen and flag any element still painted in the palette this app ships with. That
+  is the check that would have caught last session's dark tab bar, written down and run over
+  nine surfaces — the five tabs, a video, a photo, a clip, the subtitle sheet, and the login
+  screen after signing out. All clean. The tab bar was the only stale surface there had been.
+  The second finding came from failing to tap a row in the subtitle sheet. Matching its text
+  against `'fr'` kept missing, and the reason was that the row's text is `\uF2CCfr`: the icon
+  in front of it is a `Text` holding one character from a private-use area, and it is part of
+  what the row is called. `@expo/vector-icons` sets nothing to keep its glyphs out of the
+  accessibility tree — `create-icon-set.js` has no accessibility handling at all — so every
+  control that pairs an icon with a word and does not name itself is announced with an
+  unpronounceable character in front of it.
+  The earlier accessibility sweep asked whether a control had a name. It did not ask whether
+  the name was worth having, and these all had one.
+  Named explicitly now, the way this app already names its filter toggles and its upload rows:
+  the Download button, the subtitle rows, the folder chips, a failed download's retry row, the
+  collection and clip rows, and each of the five tabs — those through React Navigation's
+  `tabBarAccessibilityLabel`, which this version maps straight to the name.
+  Verified by sweeping for private-use characters in every control's accessible name across
+  every screen and the sheet: nothing left. The names now read "Download", "Subtitles off",
+  "Remove from liked", "Off", "en", "fr".
+  The harness library gained a second subtitle track (`feature.fr.vtt`) so the sheet can be
+  opened at all — with one track the button toggles instead, which is why the sheet had never
+  been seen. Incremental scanning meant the video had to be touched before the new sidecar was
+  noticed.
+  Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`, both bundles.
