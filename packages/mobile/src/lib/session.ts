@@ -7,6 +7,22 @@ const SERVER_KEY = 'fw_server'
 let tokenCache: string | null | undefined
 let serverCache: string | null | undefined
 
+// Readers must be told when the session changes. Without this the auth gate keeps the value it
+// read at mount, so a successful login leaves it still holding a null token and it bounces the
+// user straight back to the login screen.
+const listeners = new Set<() => void>()
+
+export function subscribeSession(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => {
+    listeners.delete(listener)
+  }
+}
+
+function emitSessionChange(): void {
+  for (const listener of listeners) listener()
+}
+
 /** Normalise a user-typed server address into an origin with no trailing slash. */
 export function normalizeServerUrl(input: string): string | null {
   const raw = input.trim()
@@ -37,10 +53,12 @@ export async function saveSession(serverUrl: string, token: string): Promise<voi
   await SecureStore.setItemAsync(TOKEN_KEY, token)
   serverCache = serverUrl
   tokenCache = token
+  emitSessionChange()
 }
 
 /** Drop the token but keep the server address — re-login should not retype the host. */
 export async function clearSession(): Promise<void> {
   await SecureStore.deleteItemAsync(TOKEN_KEY)
   tokenCache = null
+  emitSessionChange()
 }

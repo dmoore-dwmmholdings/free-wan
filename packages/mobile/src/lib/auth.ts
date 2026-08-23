@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Me } from '@free-wan/shared'
 import { api, ApiError } from './api'
-import { clearSession, getServerUrl, getToken, normalizeServerUrl, saveSession } from './session'
+import { clearSession, getServerUrl, getToken, normalizeServerUrl, saveSession, subscribeSession } from './session'
 
 /** Resolves once secure storage has been read, so the router can pick a first screen. */
 export function useStoredSession() {
@@ -12,10 +12,18 @@ export function useStoredSession() {
     token: null,
   })
   useEffect(() => {
-    void (async () => {
+    let alive = true
+    const sync = async () => {
       const [server, token] = await Promise.all([getServerUrl(), getToken()])
-      setState({ ready: true, server, token })
-    })()
+      if (alive) setState({ ready: true, server, token })
+    }
+    void sync()
+    // Re-read whenever the session changes, so signing in or out moves the gate immediately.
+    const unsubscribe = subscribeSession(() => void sync())
+    return () => {
+      alive = false
+      unsubscribe()
+    }
   }, [])
   return state
 }
