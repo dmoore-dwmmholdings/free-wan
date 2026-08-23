@@ -22,7 +22,8 @@ Five tabs:
 | **Downloads** | What is saved on the device, what is transferring, and what failed. |
 | **Settings** | Who you are signed in as, which server, how much storage downloads use, and sign out. |
 
-Opening any item gives a player or a photo, its tags, a like button and a Download button.
+Opening any item gives a player or a photo, its tags, a like button, a Download button, and
+a subtitles button when the video has caption tracks.
 
 Filters combine rather than replace each other: a folder, a set of tags and liked-only all
 narrow the same list. Selecting several tags narrows to items carrying *all* of them, which
@@ -156,6 +157,29 @@ A few things worth knowing:
 
 ---
 
+## Subtitles
+
+If a video has caption tracks — a sidecar `.srt` or `.vtt` beside the file, or subtitles
+embedded in the video — a speech-bubble button appears next to Download. One track toggles on
+and off; several open a list with an Off entry. Captions start off.
+
+They are drawn by the app rather than handed to the player, because `expo-video` has no way
+to attach an external subtitle file and this server keeps captions as separate WebVTT. Doing
+it this way also means captions work for files that direct-play, not only ones served over
+HLS.
+
+Two consequences worth knowing:
+
+- A downloaded video has no captions when the server is unreachable. The track is fetched
+  from the server, and it is not saved alongside the media.
+- Captions are styled by the app, so they will not follow the caption size or colour settings
+  configured in iOS or Android.
+
+If a caption file fails to load, the video carries on without it rather than interrupting
+playback.
+
+---
+
 ## Installing it on your phone for real
 
 Expo Go is a development client. It cannot keep the app on your phone, and it will stop
@@ -195,17 +219,8 @@ Deliberate omissions, since this is a companion to the web app rather than a rep
 - Clips play here, looping between their in and out points, but are cut on the web app
 - Tags can be filtered on and are shown per item, but not created or edited
 
-Two things the web app has that this app cannot currently do, both for structural reasons
-rather than choice:
+One thing the web app has that this app does not, for a structural reason rather than choice:
 
-- **Subtitles.** The server keeps captions as separate WebVTT files
-  (`/api/media/:id/captions/:trackId.vtt`), which the browser attaches to its player as
-  `<track>` elements. `expo-video` has no equivalent: its `VideoSource` takes no external
-  subtitle URLs, and `availableSubtitleTracks` only lists tracks carried inside the media
-  itself. The HLS master this server writes is a single rendition with no
-  `EXT-X-MEDIA TYPE=SUBTITLES`, so there is nothing for the player to find. Subtitles here
-  would mean advertising the caption tracks in the HLS master — a server change, not an app
-  one.
 - **Branding.** `/api/branding` serves the site name, colours and radius an admin has chosen,
   and the web app themes itself from it. This app uses the FreeWAN defaults, mirrored in
   `src/theme.ts`. Following live branding would mean threading a dynamic theme through every
@@ -256,7 +271,8 @@ pnpm --filter @free-wan/mobile test
 ```
 
 The unit tests cover the logic that does not need a device: server-address parsing, session
-handling, formatting, the API request layer, the download manager, and the library's
+handling, formatting, the API request layer, the download manager, WebVTT parsing and cue
+timing, and the library's
 pagination — that each filter has its own cache key, and that the list stops asking for pages
 once the server says there are none left. Both of those fail silently rather than loudly: a
 shared key shows one filter another's results, and a cursor that never resolves to

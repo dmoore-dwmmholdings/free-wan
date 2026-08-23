@@ -67,11 +67,22 @@ be discovered.
    on, since locking someone out of their own downloads over a rule the server enforces on
    every request would help nobody.
 
-8. **Subtitles are not supported.** Captions are separate WebVTT files that a browser
-   attaches as `<track>` elements. `expo-video` accepts no external subtitle URLs, and this
-   server's HLS master is a single rendition with no `EXT-X-MEDIA TYPE=SUBTITLES`, so a
-   native player has nothing to find. Supporting them means advertising the caption tracks
-   in the HLS master — a server change, not an app one, and not made here.
+8. **Subtitles are drawn by the app, not handed to the player.** `expo-video` accepts no
+   external subtitle file — `VideoSource` has no field for one, and `availableSubtitleTracks`
+   only reports tracks carried inside the media — while this server keeps captions as
+   separate WebVTT. This decision previously read "subtitles are not supported", on the
+   grounds that the fix was to advertise the tracks in the HLS master. That would have been
+   the wrong fix twice over: it is a server change that risks the web player for no gain
+   there, and it only covers `hls` playback. Items that direct-play would still have had no
+   captions — and the first captioned file tested came back as `mode: "direct"`, so that is
+   not a corner case.
+
+   So the app fetches the WebVTT itself, parses it, and draws the active cue over the video.
+   The cost is that captions are ours to style and position rather than the platform's, and
+   that a downloaded item has no captions offline, since the track is fetched from the
+   server. The gain is that it works for both playback modes, touches no server code, and
+   the parsing and cue-selection are pure functions — which matters for a package whose
+   playback cannot otherwise be tested without a device.
 
 9. **Branding is not followed.** `/api/branding` carries the site name, colours and radius an
    admin chose, and the web app themes itself from them. The app mirrors the defaults in

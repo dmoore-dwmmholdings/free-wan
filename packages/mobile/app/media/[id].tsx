@@ -11,9 +11,14 @@ import { apiUrl, authHeaders } from '@/lib/api'
 import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
 import { cancelDownload, formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
 import { TagList } from '@/components/TagChips'
+import { CaptionOverlay, CaptionPicker } from '@/components/Captions'
 import { useProgressReporter } from '@/lib/progress'
 import { useToggleLike } from '@/lib/social'
 import { theme } from '@/theme'
+
+/** How often the player reports its position for caption timing. Fine enough that a cue
+ * appears on the right word, coarse enough not to re-render the screen continuously. */
+const CAPTION_TICK_S = 0.25
 
 /** Resolved video source: a local file when downloaded, otherwise the authenticated server URL. */
 function useVideoSource(
@@ -201,6 +206,23 @@ export default function MediaScreen() {
 
   useProgressReporter(id, player, detail.data?.durationS ?? null)
 
+  // expo-video cannot attach an external subtitle file (VideoSource has no field for one)
+  // and this server keeps captions as separate WebVTT, so they are drawn over the video
+  // here. That needs a much finer time signal than the 10s progress reporter uses.
+  const tracks = playback.data?.captions ?? []
+  const [captionTrackId, setCaptionTrackId] = useState<string | null>(null)
+  const [captionPickerOpen, setCaptionPickerOpen] = useState(false)
+  const [playheadS, setPlayheadS] = useState(0)
+
+  useEffect(() => {
+    if (player) player.timeUpdateEventInterval = CAPTION_TICK_S
+  }, [player])
+
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    setPlayheadS(currentTime)
+  })
+
+
   // Resuming has the same hazard as a clip's in-point: a seek issued before the source has
   // loaded can be discarded, so repeat it once the player reports itself ready. The ref stops
   // a later re-buffer from dragging the viewer back to where they resumed from.
@@ -255,13 +277,19 @@ export default function MediaScreen() {
       <View style={{ width: '100%', aspectRatio: mediaAspect, backgroundColor: '#000' }}>
         {isVideo ? (
           source ? (
-            <VideoView
-              player={player}
-              style={{ width: '100%', height: '100%' }}
-              allowsFullscreen
-              allowsPictureInPicture
-              contentFit="contain"
-            />
+            <>
+              <VideoView
+                player={player}
+                style={{ width: '100%', height: '100%' }}
+                allowsFullscreen
+                allowsPictureInPicture
+                contentFit="contain"
+              />
+              <CaptionOverlay
+                path={tracks.find((t) => t.id === captionTrackId)?.url ?? null}
+                timeS={playheadS}
+              />
+            </>
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <ActivityIndicator color={theme.color.muted} />
@@ -299,6 +327,13 @@ export default function MediaScreen() {
               durationSec={detail.data?.durationS ?? null}
             />
           </View>
+          <CaptionPicker
+            tracks={tracks}
+            selectedId={captionTrackId}
+            onSelect={setCaptionTrackId}
+            open={captionPickerOpen}
+            onOpenChange={setCaptionPickerOpen}
+          />
           {detail.data ? (
             <LikeButton id={id} liked={detail.data.liked} likeCount={detail.data.likeCount} />
           ) : null}

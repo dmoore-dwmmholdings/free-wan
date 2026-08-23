@@ -996,3 +996,30 @@ shared schema test, all green; every phase verified with a live built-server smo
   tested: seven tests fail if the query key stops including the filters, and one fails if a
   null cursor is not converted to `undefined`. Verified green: typecheck 4/4, `pnpm -r test`
   **250** (api 180 + mobile 57 + web 11 + shared 2), `pnpm -r build`.
+- **2026-08-23 — Mobile app: subtitles, drawn by the app.** The last functional gap, deferred
+  three times as "a server change, not an app one". That framing was wrong, and ADR 0015
+  decision 8 has been rewritten to say so: advertising caption tracks in the HLS master would
+  have risked the web player for no benefit there, and would only have covered `hls`
+  playback. The first captioned file tested came back as `mode: "direct"`, so items with no
+  captions at all would have been the common case, not a corner one.
+  Instead the app fetches the WebVTT, parses it and draws the active cue over the video. A
+  speech-bubble button appears only when a video has tracks; one track toggles, several open
+  a list with an Off entry; captions start off. Costs recorded in the ADR and the docs:
+  captions are styled by the app rather than by the platform's accessibility settings, and a
+  downloaded video has none offline because the track is fetched from the server.
+  The parser is the risk, so it carries 20 tests: the long and short timestamp forms, comma
+  decimal marks, fractions that must not be read as milliseconds, BOM and CRLF, cue
+  identifiers, NOTE/STYLE/REGION blocks, inline markup and entities, cue settings after the
+  end time, unsorted files, malformed blocks that must cost only themselves, and cue
+  selection across gaps, boundaries and overlaps. Three control tests: reading ".5" as 5ms
+  and preferring the first overlapping cue both fail as they should. The third found a bad
+  test of mine — "end time is exclusive" passed against deliberately broken code, because the
+  latest-wins rule masked the boundary; rewritten against a cue with nothing after it, it now
+  fails properly.
+  Verified in the browser against a server-served sidecar: the track is discovered and
+  labelled, the button toggles and fetches the VTT, and the cue renders with `<v>` and `<i>`
+  markup stripped. The button correctly stays hidden for a photo and for a video without
+  captions. Verified green: typecheck 4/4, `pnpm -r test` **270** (api 180 + mobile 77 +
+  web 11 + shared 2), `pnpm -r build`. **Cue changes over time are unverified: a browser
+  cannot load the video at all, because a plain `<video>` element cannot carry the auth
+  header `VideoSource` uses on native. Needs a device.**
