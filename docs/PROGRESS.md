@@ -1202,3 +1202,25 @@ shared schema test, all green; every phase verified with a live built-server smo
   asked to be, so posters are not announced redundantly; and the caption overlay is left
   readable, since a cue changes only when the cue changes. Verified green: typecheck 4/4,
   `pnpm -r test` **341**, `pnpm -r build`, `expo prebuild`.
+- **2026-08-23 — Mobile app: one like no longer refetches the whole library.** Audited
+  subscription cleanup first and found it correct everywhere — `useDownloadState`,
+  `useDownloads` and `useStoredSession` all unsubscribe, and the last guards its async setState
+  with an `alive` flag. The real find was next door. Toggling a like ended with
+  `invalidateQueries({ queryKey: ['media'], exact: false })`, and the library is an *infinite*
+  query: invalidating one refetches **every page already loaded**. Someone who had scrolled to
+  95 items paid three list requests per like, to be told what the mutation response had
+  already returned. Liking a handful of things in a row over a slow tailnet meant a dozen
+  refetches of the whole library. Invisible in a desktop harness, unpleasant on a phone.
+  The response carries the authoritative `liked` and `likeCount`, so it is now written
+  straight into every cached page — all filters, not just the visible one, since the grid, the
+  liked-only view and a folder view are separate cache entries and a like has to be true in
+  all of them. Five tests, both control-tested: patching only the first page fails three (an
+  implementation that would look right in any hand test, because nobody scrolls in a hand
+  test), and dropping the guard that skips the detail query fails the one that matters most —
+  `['media']` also matches `['media', id]`, which is not paged, and treating it as paged would
+  replace the detail with a malformed object and render an empty screen.
+  One behaviour changed on purpose and is documented: unliking while the liked-only filter is
+  on now leaves the item on screen with an empty heart instead of snatching it away mid-tap,
+  which makes a mistap undoable. The query is marked stale without refetching, so the list
+  corrects itself next time it is opened. Verified green: typecheck 4/4, `pnpm -r test`
+  **346**, `pnpm -r build`.

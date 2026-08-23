@@ -25,6 +25,12 @@ Five tabs:
 Opening any item gives a player or a photo, its tags, a like button, a Download button, and
 a subtitles button when the video has caption tracks.
 
+Liking something updates every view it appears in without going back to the server — the
+response already says what the new count is. One consequence is deliberate: unliking while the
+liked-only filter is on leaves the item on screen with an empty heart rather than snatching it
+away under your finger, so a mistap can be undone. The list puts itself right next time it is
+opened.
+
 Filters combine rather than replace each other: a folder, a set of tags and liked-only all
 narrow the same list. Selecting several tags narrows to items carrying *all* of them, which
 is how the API combines them. Videos-only and photos-only are one choice, not two switches.
