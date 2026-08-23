@@ -6,7 +6,15 @@
     "types": ["vite/client"],
     "noEmit": true,
     "paths": {
-      "@free-wan/shared": ["../shared/src/index.ts"]
+      "@free-wan/shared": ["../shared/src/index.ts"],
+      // packages/mobile pulls in @types/react 19, which lands in pnpm's shared hoist
+      // directory (node_modules/.pnpm/node_modules). Library .d.ts files resolve React
+      // types from there by walking up, so react-router-dom was compiling against 19
+      // while this app compiles against 18 — two ReactNode types in one program.
+      // Pin every `react` import in the program, library declarations included, to the
+      // copy this package depends on. Typecheck-only: Vite resolves modules itself.
+      "react": ["./node_modules/@types/react"],
+      "react-dom": ["./node_modules/@types/react-dom"]
     }
   },
   "include": ["src", "vite.config.ts", "tailwind.config.ts", "postcss.config.js"]

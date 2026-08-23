@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import * as FileSystem from 'expo-file-system'
+// SDK 54 replaced this module's API with File/Directory, but the new download call takes no
+// progress callback — and a multi-gigabyte video needs a progress bar. `expo-file-system/legacy`
+// is the supported entry point for exactly this case; revisit when the new API reports progress.
+import * as FileSystem from 'expo-file-system/legacy'
 import type { MediaCard } from '@free-wan/shared'
 import { apiUrl, authHeaders } from './api'
 
