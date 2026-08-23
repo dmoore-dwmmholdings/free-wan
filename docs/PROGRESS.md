@@ -897,3 +897,23 @@ shared schema test, all green; every phase verified with a live built-server smo
   GalleryViewer). Verified green: typecheck 3/3, build, `pnpm -r test` now **117** (web 11 +
   api 104 + shared 2). Decisions in ADR 0014. **Next agent: Playwright e2e is the top
   remaining polish item; then PWA + accessibility.**
+- **2026-08-23 — Native mobile app built; verified as far as a browser can reach.** Added
+  `packages/mobile`, an Expo/React Native client (SDK 54) over the same API, sharing types
+  through `@free-wan/shared`. Browse with search, folder drill-down, tag filters (AND-combined),
+  liked-only and video/photo toggles; collections and clips read-only; detail with playback,
+  likes and tags; offline downloads of video and photos with progress, failure-with-retry, and
+  pruning of files the OS reclaims; forced password change; and error states that say the
+  server is unreachable rather than showing an empty library. Server side, `resolveSession`
+  now also accepts `Authorization: Bearer` — the app cannot use a cookie, because
+  `expo-file-system` and `expo-video` request outside the JS layer — returned only to a
+  `client: "native"` login, which sets no cookie. Verified green: typecheck 4/4,
+  `pnpm -r test` **228** (api 180 + mobile 35 + web 11 + shared 2), `pnpm -r build` (which now
+  bundles the app through Metro for both platforms — `tsc` cannot see resolution failures),
+  expo-doctor 18/18, `expo prebuild`, and a live browser run of the app served same-origin from
+  the API: sign-in, gate, browse, search 15→6→15, categories 15→4, tags 15→5→4, likes persisted
+  server-side, collections, clips opening at their in-point. Decisions and the four departures
+  from AGENTS.md in ADR 0015; usage in `docs/15-mobile-app.md`. **Not verified — needs a
+  device: real playback, real file I/O, secure storage. Known gaps with reasons recorded:
+  subtitles need the HLS master to advertise caption tracks (a server change), and live
+  branding needs a dynamic theme through every screen. Next agent: run it on a phone via
+  Expo Go before adding anything.**
