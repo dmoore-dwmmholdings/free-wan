@@ -1141,3 +1141,24 @@ shared schema test, all green; every phase verified with a live built-server smo
   microtask, since the URL and headers come from memory after the first call). Verified green:
   typecheck 4/4, `pnpm -r test` **341** (api 180 + mobile 148 + web 11 + shared 2),
   `pnpm -r build`.
+- **2026-08-23 — Mobile app: the QR path itself verified, and a stale dev server replaced.**
+  No source changes. Several sessions of work have asked for a device run without anyone
+  checking that the dev server still worked after the SDK 54 upgrade and everything since —
+  which would have wasted the tester's time rather than mine.
+  It did not. An `expo start` from earlier in the day was still holding port 8081, had drifted
+  to resolving from the workspace root instead of `packages/mobile`, and answered bundle
+  requests with `Unable to resolve module ./index`. Worse in principle: Metro serves the
+  working tree live, so during the stretches when the browser harness had `session.ts`
+  patched, that server was serving patched code to anything that connected. Killed and
+  replaced with a clean one.
+  The replacement is verified end to end rather than assumed: the manifest reports
+  `exposdk:54.0.0`, matching what the phone expects; the launch asset builds (7.2 MB, HTTP
+  200) so Metro compiles the whole app; the served bundle carries no harness marker; and the
+  strings for uploads, subtitles, download failure, the forced password change and offline
+  playback are all present in it, so what a phone receives is this session's work. Reachable
+  on both `192.168.1.211:8081` and the tailnet at `100.81.57.116:8081`.
+  Also checked and deliberately not changed: the Settings storage total sums media bytes but
+  not cached posters, so it understates — by a few hundred KB against multi-gigabyte video,
+  which is not worth the churn to fix.
+  **The dev server is left running for a device test.** Documented the stale-server trap under
+  Troubleshooting, since Metro serving live source is exactly what makes it confusing.
