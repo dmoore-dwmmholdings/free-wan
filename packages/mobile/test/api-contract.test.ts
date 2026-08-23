@@ -43,6 +43,48 @@ function registeredRoutes(): string[] {
 }
 
 /**
+ * Read one path literal out of `src`, starting at the `/api/` at `start`, and stop at the
+ * quote or backtick that closes it. Each `${...}` hole becomes the marker `${}`.
+ *
+ * This is a scan rather than a regular expression because a hole can contain anything —
+ * including a space, and including a nested template literal with backticks of its own:
+ *
+ *     `/api/media/${id}/raw${w ? `?w=${w}` : ''}`
+ *
+ * The expression this replaced stopped at the first space or backtick, so a path written that
+ * way matched nothing at all and was passed over in silence. That is the one outcome this
+ * whole test exists to prevent, and it had already happened once before anyone noticed.
+ */
+function readPathLiteral(src: string, start: number): string {
+  let out = ''
+  let i = start
+  while (i < src.length) {
+    const ch = src[i]!
+    if (ch === '$' && src[i + 1] === '{') {
+      // Walk to the brace that closes the hole, counting depth so a nested template inside it
+      // cannot end it early.
+      let depth = 0
+      let j = i + 1
+      for (; j < src.length; j += 1) {
+        if (src[j] === '{') depth += 1
+        else if (src[j] === '}') {
+          depth -= 1
+          if (depth === 0) break
+        }
+      }
+      out += '${}'
+      i = j + 1
+      continue
+    }
+    // A path literal never runs past the line it starts on, so a newline ends it too.
+    if (/[`'"\n]/.test(ch)) break
+    out += ch
+    i += 1
+  }
+  return out
+}
+
+/**
  * Paths this app requests. A `${...}` hole is a path parameter when it follows a slash, and a
  * query string when it does not — `/api/categories${qs}` builds `/api/categories?parent=…`.
  */
@@ -51,9 +93,9 @@ function requestedPaths(): Map<string, string> {
   for (const root of MOBILE) {
     for (const file of sourceFiles(root)) {
       const src = readFileSync(file, 'utf8')
-      for (const m of src.matchAll(/[`'](\/api\/[^`'\s]*)[`']/g)) {
-        const raw = m[1]!
-        let path = raw.replace(/\/\$\{[^}]*\}/g, '/:param').replace(/\$\{[^}]*\}$/, '')
+      for (const m of src.matchAll(/[`'"](?=\/api\/)/g)) {
+        const raw = readPathLiteral(src, m.index + 1)
+        let path = raw.replace(/\/\$\{\}/g, '/:param').replace(/\$\{\}$/, '')
         path = path.split('?')[0]!.replace(/\/$/, '')
         // Anything still carrying a hole is built in a way this check cannot read; that is a
         // reason to fail rather than to skip, so it is left in and will not match.

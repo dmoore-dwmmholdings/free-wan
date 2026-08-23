@@ -1639,3 +1639,25 @@ shared schema test, all green; every phase verified with a live built-server smo
   does nothing on web, which is why this manager is exercised against a virtual filesystem.
   Verified green: typecheck 4/4, `pnpm -r test` **375**, `pnpm -r build` — the mobile build
   logged a Metro cache warning, fell back to a full crawl, and produced both Hermes bundles.
+
+- **2026-08-23 — Mobile app: the check that reads both sides of the API contract had a blind
+  spot, and my own last change had walked into it.** That test pulls every `/api/...` path out
+  of this package's source and fails if the server registers no route for it. It exists because
+  an early version called an endpoint that was never written and nothing noticed until a screen
+  404'd on a device.
+  It extracted paths with an expression that stopped at the first backtick or space. The photo
+  path added an hour earlier is
+  `` `/api/media/${id}/raw${photoWidth ? `?w=${photoWidth}` : ''}` `` — a hole containing both.
+  It matched nothing at all, and the path was passed over in silence. The test's own comment
+  says an unreadable path "is a reason to fail rather than to skip"; that was not true of a
+  path shaped like this one.
+  Coverage did not actually lapse, and only by luck: `downloads.ts` asks for
+  `/api/media/${id}/raw` as a plain literal, so the route stayed covered by a different call
+  site. The count of checked paths is identical before and after — 21 either way.
+  Replaced with a scan that walks each `${...}` hole to its closing brace, counting depth so a
+  nested template cannot end it early. Control-tested with a call to an endpoint that does not
+  exist, written in exactly that shape: the old expression **passes silently**, the scan fails
+  and names the path. The first probe written for that control was not faithful — it used
+  `${'x'}`, whose quote the old expression treats as a closing delimiter, so it failed for the
+  wrong reason and would have been reported as a passing control that proved nothing.
+  Verified green: typecheck 4/4, `pnpm -r test` **375**, `pnpm -r build`.
