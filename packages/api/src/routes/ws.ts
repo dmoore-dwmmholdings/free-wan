@@ -16,7 +16,8 @@ function topicAllowed(topic: string): boolean {
 }
 
 /**
- * GET /api/ws — one authenticated socket per client. Cookie-authenticated on upgrade;
+ * GET /api/ws — one authenticated socket per client. Authenticated on upgrade through the
+ * same resolveSession as every other route, so a session cookie or a bearer token both work;
  * the client sends `{type:'subscribe',topic}` and the server pushes hub events.
  */
 export async function wsRoutes(app: FastifyInstance): Promise<void> {

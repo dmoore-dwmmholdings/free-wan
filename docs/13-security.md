@@ -25,11 +25,22 @@ backs FR-55.
   an **httpOnly, Secure, SameSite=Lax** cookie. Sessions expire (sliding/absolute) and are
   individually revocable (logout, admin disable). Prefer opaque server sessions over
   stateless JWT so revocation is immediate.
+- The same token is also accepted as **`Authorization: Bearer <token>`**. The mobile app
+  needs this: it hands URLs to `expo-video` and `expo-file-system`, which request outside the
+  JavaScript layer and carry headers, not cookies. The header is not unsigned or verified
+  differently — it *is* the session id, and the cookie's signature is tamper/CSRF defence for
+  browsers rather than a secret. Revocation, expiry and the disabled-user check apply
+  identically, because both paths go through the same `resolveSession`.
+- A browser never receives the token. It is returned only for a login that opts in with
+  `client: "native"`, which sets no cookie in exchange — so script running in the web app
+  cannot lift a bearer token, and cannot mint one without the password.
 - **Login rate-limiting** and generic failure messages (no user-enumeration). Lock/backoff
   after repeated failures from an IP/identity.
 - CSRF: cookie auth + state-changing routes require either `SameSite=Lax` + a custom
   header the browser only sends same-origin, or a CSRF token. Media `<video>`/`<img>` GETs
-  are same-origin and safe.
+  are same-origin and safe. The bearer path does not widen this: a cross-origin page cannot
+  set an `Authorization` header on a request the browser sends automatically, so a bearer
+  session is not reachable by CSRF at all.
 
 ## 3. Authorization
 

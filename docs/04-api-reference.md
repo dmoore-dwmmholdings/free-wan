@@ -7,10 +7,13 @@ from `/`. URLs are **relative** so the app works unchanged behind Tailscale Serv
 ## 1. Conventions
 
 - **Base path:** `/api`. **Content type:** `application/json` unless streaming bytes.
-- **Auth:** a signed, httpOnly session cookie (`fw_session`) set on login. Every endpoint
-  requires a valid session **except** `POST /api/auth/login`, `GET /api/branding`, and
-  `GET /api/health`. Admin-only endpoints live under `/api/admin` and require
-  `role = admin`.
+- **Auth:** a signed, httpOnly session cookie (`fw_session`) set on login, **or** the same
+  session token sent as `Authorization: Bearer <token>`. Both resolve through the same
+  `resolveSession`, so either authenticates any endpoint, including the WebSocket upgrade.
+  The bearer form exists for the mobile app, which cannot use a cookie jar — see
+  [`docs/15-mobile-app.md`](15-mobile-app.md). Every endpoint requires a valid session
+  **except** `POST /api/auth/login`, `GET /api/branding`, and `GET /api/health`. Admin-only
+  endpoints live under `/api/admin` and require `role = admin`.
 - **Validation:** request bodies and query params are validated with zod (shared schemas).
   Invalid input → `422`.
 - **IDs:** opaque strings (UUIDv7). Media is always addressed by `id`, never by path.
@@ -28,7 +31,7 @@ from `/`. URLs are **relative** so the app works unchanged behind Tailscale Serv
 
 | Method | Path | Body / Query | Returns |
 |--------|------|--------------|---------|
-| POST | `/api/auth/login` | `{ username, password }` | `200` sets `fw_session` cookie, `{ user }`; `401` on bad creds. Rate-limited. |
+| POST | `/api/auth/login` | `{ username, password, client? }` | `200` sets `fw_session` cookie, `{ user }`; `401` on bad creds. Rate-limited. With `client: "native"` the response is `{ user, token }` and **no cookie is set** — the caller sends the token as a bearer header. Browsers omit `client` and never receive the token. |
 | POST | `/api/auth/logout` | — | `204`; revokes the session. |
 | GET | `/api/auth/me` | — | `{ user: { id, username, role, canRunCommands } }`. |
 | POST | `/api/auth/password` | `{ currentPassword, newPassword }` | `204`. |
@@ -180,7 +183,8 @@ Argument validation, the no-shell guarantee, and execution limits are specified 
 
 ## 13. WebSocket — `/api/ws`
 
-One authenticated socket per client (cookie-authenticated on upgrade). The client sends
+One authenticated socket per client (authenticated on upgrade by session cookie or bearer
+token, through the same `resolveSession` as the REST routes). The client sends
 `{"type":"subscribe","topic":"…"}`; the server pushes events. Topics:
 
 - `scan:{repositoryId}` → `{ type:"scan", repositoryId, status, progress, found, indexed, failed }` (FR-14).
