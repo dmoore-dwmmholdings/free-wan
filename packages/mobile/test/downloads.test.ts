@@ -263,3 +263,58 @@ describe('the state the Downloads tab reads', () => {
     expect(fs.__fs.has(`file:///doc/downloads/${VIDEO.id}`)).toBe(true)
   })
 })
+
+describe('a cancel that lands on an all-but-finished transfer', () => {
+  it('does not publish a record for a file it has just deleted', async () => {
+    const { fs, downloads } = await fresh()
+    // The Stop control is on screen until the in-flight entry is retired, and that does not
+    // happen until the poster has been fetched — which is a separate request, over the same
+    // connection that may be the reason the user is reaching for Stop.
+    const releasePoster = fs.__fs.holdNextPoster()
+    const started = downloads.startDownload(VIDEO)
+    await new Promise((r) => setTimeout(r, 0))
+
+    await downloads.cancelDownload(VIDEO.id)
+    releasePoster()
+    await started
+
+    const state = downloads.getDownloadState(VIDEO.id)
+    expect(state.status).not.toBe('done')
+    expect(fs.__fs.paths()).toEqual([])
+  })
+
+  it('leaves nothing behind for the Downloads tab to list', async () => {
+    const { fs, downloads } = await fresh()
+    const releasePoster = fs.__fs.holdNextPoster()
+    const started = downloads.startDownload(VIDEO)
+    await new Promise((r) => setTimeout(r, 0))
+    await downloads.cancelDownload(VIDEO.id)
+    releasePoster()
+    await started
+
+    // Not a failure either: the user asked for this.
+    expect(downloads.__test.snapshot()).toEqual({ activeIds: [], doneIds: [] })
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('none')
+  })
+})
+
+describe('a cancel that lands during the write that records a finished transfer', () => {
+  it('leaves the completed download alone rather than deleting its file', async () => {
+    const { fs, storage, downloads } = await fresh()
+    // Armed after hydration, whose own write would otherwise absorb the hold.
+    await downloads.loadDownloads()
+    const releaseWrite = storage.default.__holdNextWrite()
+    const started = downloads.startDownload(VIDEO)
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Nothing left to stop: every byte is on disk and the record is being written. The file
+    // has to survive, or the Downloads tab lists something that will not play.
+    await downloads.cancelDownload(VIDEO.id)
+    releaseWrite()
+    await started
+
+    const state = downloads.getDownloadState(VIDEO.id)
+    expect(state.status).toBe('done')
+    if (state.status === 'done') expect(fs.__fs.has(state.record.localUri)).toBe(true)
+  })
+})

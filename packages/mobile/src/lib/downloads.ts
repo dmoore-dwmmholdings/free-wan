@@ -165,7 +165,19 @@ export async function startDownload(item: {
       posterUri = null
     }
 
+    // Stop is still on screen at this point. The in-flight entry is not retired until the
+    // line below, and fetching the poster is a second request over the same connection that
+    // may well be the reason the user is reaching for Stop. A cancel landing in that gap has
+    // already deleted both files, so publishing a record now would leave the Downloads tab
+    // offering an item whose file is gone — it plays nowhere, and nothing notices until the
+    // next cold start prunes it.
     const info = await FileSystem.getInfoAsync(result.uri)
+    if (cancelled.has(item.id)) {
+      if (posterUri) await FileSystem.deleteAsync(posterUri, { idempotent: true }).catch(() => {})
+      await FileSystem.deleteAsync(result.uri, { idempotent: true }).catch(() => {})
+      return
+    }
+
     index[item.id] = {
       id: item.id,
       title: item.title,
@@ -212,7 +224,12 @@ export async function startDownload(item: {
  */
 export async function cancelDownload(id: string): Promise<void> {
   const task = tasks[id]
-  if (!task) return
+  // `active` is cleared a moment before the finished record is written, while the task itself
+  // lives until the storage write lands. A cancel arriving in that gap is aimed at a transfer
+  // that no longer exists: the file is complete and about to be listed, and deleting it would
+  // publish a record pointing at nothing. The transfer is over, so there is nothing to stop —
+  // the item can be removed from the Downloads tab like any other.
+  if (!task || !active[id]) return
 
   // Marked before the await: cancelling makes the download reject, and the catch above runs
   // as soon as it does. Setting this afterwards would race, and the item would be reported

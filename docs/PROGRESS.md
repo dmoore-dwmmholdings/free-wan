@@ -1472,3 +1472,25 @@ shared schema test, all green; every phase verified with a live built-server smo
   is never requested at all, because expo-video's web build does not start loading, so
   `readyToPlay` never fires. Both fixes are on the device list.
   Verified green: typecheck 4/4, `pnpm -r test` **361**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: stopping a download at the wrong moment left an item that could
+  not be played.** Found by reading the download manager rather than by hitting it. The Stop
+  control stays on screen until the in-flight entry is retired, and that does not happen until
+  the poster has been fetched — a second request, over the same connection that is quite
+  possibly the reason the user is reaching for Stop. A cancel landing in that gap deletes both
+  files, and the transfer then carries on and writes its record anyway. The Downloads tab
+  listed an item of 0 KB whose file was gone; opening it gave the player a dead `file://` URI,
+  and nothing noticed until the next cold start pruned it.
+  Written as a failing test first, which is the order this should always have been in: it
+  reported `expected 'done' not to be 'done'`, with the file already deleted.
+  Fixed by checking for a cancel before publishing the record, and cleaning up if one arrived.
+  A second, much narrower gap sits between clearing the in-flight entry and the storage write
+  that follows it — the task is still cancellable there, but the transfer is over and every
+  byte is on disk, so a cancel is now a no-op rather than a deletion. Two guards, **3 new
+  tests**, each control-tested: removing the first fails both of its tests, removing the second
+  fails only its own. The filesystem stub gained a hold on the poster fetch, since that gap is
+  the only place a cancel can land on a transfer that has otherwise finished.
+  Not checked in the browser, and it would not have been worth it: neither guard touches
+  rendering, and `expo-file-system` does nothing on web, which is why the download manager is
+  exercised against a virtual filesystem in the first place.
+  Verified green: typecheck 4/4, `pnpm -r test` **364**, `pnpm -r build`.

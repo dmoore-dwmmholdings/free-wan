@@ -368,8 +368,10 @@ shared key shows one filter another's results, and a cursor that never resolves 
 `undefined` refetches the last page forever.
 
 The download tests run against an in-memory filesystem stub that can report progress, hold a
-transfer open midway, fail one, fail a *cancel* midway, and evict a file behind the app's
-back, so the manager's real behaviour is exercised without a phone. The branding tests drive
+transfer open midway, hold the poster fetch that follows it, fail a transfer, fail a *cancel*
+midway, and evict a file behind the app's back, so the manager's real behaviour is exercised
+without a phone. Holding the poster is what makes the awkward case reachable: a cancel that
+arrives when the media file is already written and the record is not. The branding tests drive
 `startBranding` with a fake session and a fake server, because every defect this feature has
 produced has been in *when* things happen rather than in any single line: a first launch with
 no server stored, a sign-in that creates one, a move to a different server, a fetch that

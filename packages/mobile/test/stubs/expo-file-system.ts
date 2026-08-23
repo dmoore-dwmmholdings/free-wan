@@ -10,6 +10,7 @@ let downloadedBytes = 123_456
 let hold: Promise<void> | null = null
 let pendingRelease: (() => void) | null = null
 let failNextCancel = false
+let posterHold: Promise<void> | null = null
 
 export const __fs = {
   reset() {
@@ -19,6 +20,7 @@ export const __fs = {
     hold = null
     pendingRelease = null
     failNextCancel = false
+    posterHold = null
   },
   /** Simulate the OS reclaiming a file behind the app's back. */
   evict(uri: string) {
@@ -36,6 +38,18 @@ export const __fs = {
   },
   setDownloadSize(bytes: number) {
     downloadedBytes = bytes
+  },
+  /**
+   * Pause the poster fetch, which happens after the media file is already written. That gap
+   * is the only place a cancel can land on a transfer that has in every other sense finished.
+   * Returns a release fn.
+   */
+  holdNextPoster() {
+    let release!: () => void
+    posterHold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    return release
   },
   /** Pause the next transfer midway so in-flight state can be inspected. Returns a release fn. */
   holdNextDownload() {
@@ -56,6 +70,11 @@ export async function getInfoAsync(uri: string) {
 }
 
 export async function downloadAsync(_url: string, target: string) {
+  if (posterHold) {
+    const pending = posterHold
+    posterHold = null
+    await pending
+  }
   files.set(target, 2_048)
   return { uri: target, status: 200 }
 }
