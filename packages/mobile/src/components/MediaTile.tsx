@@ -27,13 +27,18 @@ export function MediaTile({ item, width }: { item: MediaCard; width: number }) {
                 position: 'absolute',
                 right: 6,
                 bottom: 6,
-                backgroundColor: 'rgba(11,11,16,0.82)',
+                // Fixed dark rather than a theme token: this pill sits over arbitrary poster
+                // artwork, so it has to stay readable independently of the palette. Its text
+                // is fixed light for the same reason — using theme.color.text here put
+                // near-black text on a near-black pill under the light presets, at a contrast
+                // ratio of 1.2:1.
+                backgroundColor: 'rgba(0,0,0,0.72)',
                 borderRadius: 5,
                 paddingHorizontal: 6,
                 paddingVertical: 2,
               }}
             >
-              <Text style={{ color: theme.color.text, fontSize: 11, fontVariant: ['tabular-nums'] }}>
+              <Text style={{ color: '#fff', fontSize: 11, fontVariant: ['tabular-nums'] }}>
                 {duration}
               </Text>
             </View>

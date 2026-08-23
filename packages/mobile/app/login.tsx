@@ -98,7 +98,7 @@ export default function LoginScreen() {
       >
         <View style={{ gap: theme.space(2), marginBottom: theme.space(2) }}>
           <Text style={{ color: theme.color.text, fontSize: 32, fontWeight: '800', letterSpacing: -0.5 }}>
-            FreeWAN
+            {theme.siteName}
           </Text>
           <Text style={{ color: theme.color.muted, fontSize: 15, lineHeight: 21 }}>
             Connect to your server to browse and download your library.

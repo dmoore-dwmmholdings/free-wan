@@ -6,6 +6,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useMe, useStoredSession } from '@/lib/auth'
 import { createQueryClient } from '@/lib/query'
+import { useBranding } from '@/lib/branding'
+import { isLight } from '@/lib/palette'
 import { theme } from '@/theme'
 
 const queryClient = createQueryClient()
@@ -67,10 +69,14 @@ function Gate() {
 }
 
 export default function RootLayout() {
+  // Keying the tree on this remounts it once branding has retuned the tokens. Cheap, because
+  // it happens at most once per launch, and it is what makes the mutated tokens take effect.
+  const brandingVersion = useBranding()
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider key={brandingVersion}>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="light" />
+        {/* A light preset (paper, linen) needs dark status-bar icons or they vanish. */}
+        <StatusBar style={isLight(theme.color.bg) ? 'dark' : 'light'} />
         <Gate />
       </QueryClientProvider>
     </SafeAreaProvider>

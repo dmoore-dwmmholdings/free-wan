@@ -1023,3 +1023,31 @@ shared schema test, all green; every phase verified with a live built-server smo
   web 11 + shared 2), `pnpm -r build`. **Cue changes over time are unverified: a browser
   cannot load the video at all, because a plain `<video>` element cannot carry the auth
   header `VideoSource` uses on native. Needs a device.**
+- **2026-08-23 — Mobile app: branding followed; a light-preset contrast bug found and fixed.**
+  The last deliberate omission. ADR 0015 decision 9 said branding was not followed because
+  applying it meant threading a theme through every screen — avoidable, as it turned out:
+  this package has no `StyleSheet.create` anywhere, so every style object is built during
+  render, the tokens in `src/theme.ts` can be mutated in place, and keying the root makes one
+  render happen. That is why ~300 `theme.` reads across 19 files did not have to change. The
+  note in `theme.ts` records the condition this depends on.
+  `src/lib/palette.ts` reproduces the web's `color-mix` derivations with the same percentages
+  so both apps land on the same values. Doing so revealed the literals the theme used to
+  carry (`#1f1f27`, `#9a9aa6`) were eyeballed and had drifted from what the web computes
+  (`#23232a`, `#95959a`); they now agree.
+  The old warning that half-applied branding "would look broken" was right, and applying a
+  light preset proved it: the duration badge on a tile paired a hardcoded dark background
+  with `theme.color.text`, which is near-black under a light preset — **contrast 1.2:1, the
+  text invisible**. Now a fixed dark pill with fixed white text at 21:1, since it sits over
+  arbitrary poster art and should not follow the palette. An audit of every other hardcoded
+  colour found the rest correct: video letterbox, subtitle plate, modal scrims and shadows
+  are all deliberately palette-independent.
+  Also recorded, not worked around: the shared **`linen` preset fails WCAG AA** for muted
+  text on its own background (4.41:1, needs 4.5). This is a property of the preset, not of
+  this port — the web app derives muted with the same 62% mix and carries the same shortfall,
+  against the intent its own comment states. A test pins the measured value and fails if the
+  preset is ever retuned, which is the prompt to remove the exception.
+  Verified in the browser end to end with the light `linen` preset applied and a custom site
+  name: login screen branded before sign-in, palette, primary, derived border and radius all
+  correct, then reverted to `midnight` and confirmed it follows back. Verified green:
+  typecheck 4/4, `pnpm -r test` **297** (api 180 + mobile 104 + web 11 + shared 2),
+  `pnpm -r build`.

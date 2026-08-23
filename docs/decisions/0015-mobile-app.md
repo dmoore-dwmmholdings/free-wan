@@ -84,10 +84,30 @@ be discovered.
    the parsing and cue-selection are pure functions — which matters for a package whose
    playback cannot otherwise be tested without a device.
 
-9. **Branding is not followed.** `/api/branding` carries the site name, colours and radius an
-   admin chose, and the web app themes itself from them. The app mirrors the defaults in
-   `src/theme.ts` instead. Applying live branding means threading a dynamic theme through
-   every screen for a cosmetic gain; half-applying it would look broken rather than branded.
+9. **Branding is followed, through a mutable token singleton rather than a context.**
+   `/api/branding` carries the site name, colours and radius an admin chose. This decision
+   previously said branding was not followed, because applying it meant threading a theme
+   through every screen. That turned out to be avoidable: this package has no
+   `StyleSheet.create` anywhere, so every style object is built during render. The tokens in
+   `src/theme.ts` can therefore be mutated in place and take effect on the next render, and
+   the root is keyed so one happens. That is why ~300 `theme.` reads across 19 files did not
+   have to change. If `StyleSheet.create` is ever introduced those styles will freeze at
+   creation and this stops working — the note in `theme.ts` says so.
+
+   `src/lib/palette.ts` reproduces the web's `color-mix` derivations (surface-2, border,
+   muted, tints) with the same percentages, so a preset retunes both apps to the same values
+   rather than to merely similar ones. Deriving them exposed that the literals this file used
+   to carry were eyeballed and had drifted from what the web actually computes; they now
+   agree.
+
+   The old warning that half-applying branding "would look broken" was well founded. Applying
+   a light preset immediately showed it: the duration badge on a tile paired a hardcoded dark
+   background with `theme.color.text`, which is near-black under a light preset — a contrast
+   ratio of 1.2:1. It is now a fixed dark pill with fixed white text, since it sits over
+   arbitrary poster art and should not follow the palette at all.
+
+   Not followed: fonts, which would mean loading remote font files at runtime, and the
+   `mode` flag, which is redundant here because the palette's own colours already carry it.
 
 10. **TanStack Query runs with `networkMode: 'always'`.** The default `'online'` mode gates
     every fetch and retry on `onlineManager`, which on React Native is only accurate if it is

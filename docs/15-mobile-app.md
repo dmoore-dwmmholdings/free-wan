@@ -180,6 +180,23 @@ playback.
 
 ---
 
+## Branding
+
+The app takes its name and colours from your server. Whatever an admin picks in the web app's
+Branding studio — one of the presets, or a custom palette — the app retunes to match, light
+presets included, and the login screen is already branded before you sign in.
+
+Colours the server does not send are worked out the same way the web app works them out, so
+the two match rather than merely resemble each other. Two things are deliberately left alone:
+subtitles stay white-on-black and the duration badge on a thumbnail stays a dark pill, because
+both sit over arbitrary artwork and have to stay readable whatever the palette is.
+
+Not followed: the fonts an admin picks, which would mean fetching font files at runtime, and
+the installed app's own name and icon, which are fixed at build time in `app.json`. If the
+server cannot be reached, the built-in palette is used and the app carries on.
+
+---
+
 ## Installing it on your phone for real
 
 Expo Go is a development client. It cannot keep the app on your phone, and it will stop
@@ -218,14 +235,6 @@ Deliberate omissions, since this is a companion to the web app rather than a rep
 - Collections are read-only — you can browse them but not create or edit them
 - Clips play here, looping between their in and out points, but are cut on the web app
 - Tags can be filtered on and are shown per item, but not created or edited
-
-One thing the web app has that this app does not, for a structural reason rather than choice:
-
-- **Branding.** `/api/branding` serves the site name, colours and radius an admin has chosen,
-  and the web app themes itself from it. This app uses the FreeWAN defaults, mirrored in
-  `src/theme.ts`. Following live branding would mean threading a dynamic theme through every
-  screen; it is cosmetic, so it has been left until someone wants it. The installed app's own
-  name and icon are fixed at build time in `app.json` regardless.
 
 ---
 
@@ -272,8 +281,8 @@ pnpm --filter @free-wan/mobile test
 
 The unit tests cover the logic that does not need a device: server-address parsing, session
 handling, formatting, the API request layer, the download manager, WebVTT parsing and cue
-timing, and the library's
-pagination — that each filter has its own cache key, and that the list stops asking for pages
+timing, the branding colour arithmetic — including a contrast check on every preset — and the
+library's pagination — that each filter has its own cache key, and that the list stops asking for pages
 once the server says there are none left. Both of those fail silently rather than loudly: a
 shared key shows one filter another's results, and a cursor that never resolves to
 `undefined` refetches the last page forever.
