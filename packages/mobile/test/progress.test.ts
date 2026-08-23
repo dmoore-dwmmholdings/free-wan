@@ -6,6 +6,7 @@ const state = (over: Partial<Parameters<typeof resumeSeek>[0]> = {}) => ({
   pending: false,
   resumed: false,
   resumeAt: 300 as number | null,
+  playedTo: 0,
   ...over,
 })
 
@@ -43,5 +44,23 @@ describe('resumeSeek', () => {
 
   it('treats a position of zero as nothing to resume', () => {
     expect(resumeSeek(state({ resumeAt: 0 }))).toEqual({ seekTo: null })
+  })
+})
+
+describe('resumeSeek once the viewer is already watching', () => {
+  it('leaves someone who has started watching where they are', () => {
+    // A downloaded file plays before a slow server answers. When the answer finally lands,
+    // the viewer is a few seconds in and did not ask to go anywhere.
+    expect(resumeSeek(state({ playedTo: 12 }))).toEqual({ seekTo: null })
+  })
+
+  it('still decides, so a later answer cannot try again', () => {
+    // The screen records the decision, and the rule that it is made once does the rest.
+    expect(resumeSeek(state({ playedTo: 12 }))).not.toBeNull()
+  })
+
+  it('still resumes when playback has barely begun', () => {
+    // A healthy server answers in a fraction of a second, which is the ordinary case.
+    expect(resumeSeek(state({ playedTo: 0.3 }))).toEqual({ seekTo: 300 })
   })
 })

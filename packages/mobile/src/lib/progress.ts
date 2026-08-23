@@ -48,6 +48,12 @@ export function useProgressReporter(id: string, player: VideoPlayer | null, dura
 }
 
 /**
+ * How far into a video someone can be before resuming stops being a favour and starts being
+ * an interruption.
+ */
+const RESUME_GRACE_S = 5
+
+/**
  * Whether to seek the player to the position the server remembers, and where to.
  *
  * `null` means do nothing yet. An action means the resume has been decided, and the caller
@@ -72,7 +78,15 @@ export function resumeSeek(state: {
   pending: boolean
   resumed: boolean
   resumeAt: number | null
+  /** Where the playhead has got to already, in seconds. */
+  playedTo: number
 }): { seekTo: number | null } | null {
   if (state.resumed || !state.ready || state.pending) return null
+  // Waiting for the server has no time limit, and a downloaded file is ready to play long
+  // before a slow one answers — so by the time the position arrives the viewer can already be
+  // watching. Moving them then is worse than not resuming at all: they did not ask to go
+  // anywhere, and whatever they were watching is what they chose. The decision is still made,
+  // so a later answer cannot come back and try again.
+  if (state.playedTo > RESUME_GRACE_S) return { seekTo: null }
   return { seekTo: state.resumeAt && state.resumeAt > 0 ? state.resumeAt : null }
 }

@@ -1986,3 +1986,21 @@ shared schema test, all green; every phase verified with a live built-server smo
   renumbered the digits inside the text it had just inserted, and the second cut the list short
   by treating its own preamble as the end of it. Both were visible immediately in the output —
   a list running 7, 14, 15, 16, 8 — which is the only reason they did not survive.
+
+- **2026-08-23 — Mobile app: a slow server could yank a viewer out of a video they had already
+  started.** Found by reading back the media screen as a whole rather than as a diff, which is
+  something none of this session's changes had had done to them.
+  The flaw was one I put there myself. `resumeSeek` waits for the playback query before
+  deciding where to start, which is right — a downloaded file is ready to play before the
+  server answers, and deciding early would mean never resuming a download. But the wait had no
+  end. On a server that is slow rather than unreachable, the local video starts at zero, the
+  viewer watches, and ten or twenty seconds later the answer arrives and the playhead jumps to
+  wherever they had got to last time. Before downloads were given a resume position at all,
+  two sessions ago, this could not happen; giving them one is what opened it.
+  The rule now expires: past five seconds of actual playback, the decision is still made — so a
+  later answer cannot come back and try again — but nothing moves. Whatever they were watching
+  is what they chose, and they did not ask to go anywhere.
+  **3 tests**, control-tested three ways: removing the grace period fails the case it exists
+  for, returning "undecided" instead of "decided, do nothing" fails two, and a grace of zero
+  blocks the ordinary resume that a healthy server answers in a fraction of a second.
+  Verified green: typecheck 4/4, `pnpm -r test` **390**, `pnpm -r build`, both bundles.

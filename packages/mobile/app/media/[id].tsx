@@ -261,11 +261,18 @@ export default function MediaScreen() {
   const resumeAt = playback.data?.resumeAt ?? null
   useEffect(() => {
     if (!player) return
+    let playedTo = 0
+    try {
+      playedTo = player.currentTime
+    } catch {
+      // Released mid-decision; nothing has been watched that could be interrupted.
+    }
     const seek = resumeSeek({
       ready,
       pending: playback.isPending,
       resumed: resumed.current,
       resumeAt: retryFrom ?? resumeAt,
+      playedTo,
     })
     if (!seek) return
     resumed.current = true
