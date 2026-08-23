@@ -1842,3 +1842,27 @@ shared schema test, all green; every phase verified with a live built-server smo
   silently. And a hook installed over `console.warn` from the page covers that gap, but only
   once a probe has shown it is live; the zero above is from a hook proved live first.
   Both are written into the mobile doc, since the trap is one anybody would fall into twice.
+
+- **2026-08-23 — Mobile app: any exception while rendering took the whole app to a blank
+  screen.** Expo Router wraps a route in an error boundary only when that route exports one —
+  `useScreens` reads `if (ErrorBoundary)` and skips the wrapper otherwise — and this app
+  exported none. So an exception thrown during render had nothing to catch it, React unmounted
+  the tree, and what was left was an empty root: no message, no way back short of force-quitting.
+  Not hypothetical. A version of this app shipped exactly that failure earlier in its life, and
+  it was reproduced here from the outside, with no source patched: a proxy in front of the API
+  that strips `data` out of the media list, which is a shape a server one version out of step
+  could plausibly return. Signing in through it gave `rootChildren: 0` and not one character of
+  text. The app trusts every response it gets — nothing validates them at runtime — so it takes
+  very little.
+  The root layout now exports an `ErrorBoundary`. The same corrupted feed produces "Something in
+  the app went wrong", the exception's own message — `Cannot read properties of undefined
+  (reading 'id')` — and a Try again. The message is shown rather than something reassuring
+  because whoever runs this app also runs the server it talks to, and it is the only thing that
+  says which of the two to go and look at. Checked that a healthy server still renders normally
+  with the boundary in place: five tiles, no boundary in sight.
+  Worth naming as a separate question rather than pretending this settles it: the app validates
+  nothing it receives. A boundary means a bad response is survivable instead of fatal, which is
+  the right floor, but parsing responses against the schemas `@free-wan/shared` already defines
+  would turn "the app crashed" into "the server said something unexpected". That is a larger
+  change and a real design decision, so it is left alone.
+  Verified green: typecheck 4/4, `pnpm -r test` **381**, `pnpm -r build`, both bundles.

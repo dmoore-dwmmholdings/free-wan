@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { ActivityIndicator, View } from 'react-native'
+import { ActivityIndicator, Pressable, Text, View } from 'react-native'
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { QueryClientProvider } from '@tanstack/react-query'
@@ -11,6 +11,8 @@ import { useRefetchOnForeground } from '@/lib/focus'
 import { isLight } from '@/lib/palette'
 import { gateRedirect } from '@/lib/gate'
 import { theme } from '@/theme'
+import Ionicons from '@expo/vector-icons/Ionicons'
+import type { ErrorBoundaryProps } from 'expo-router'
 
 const queryClient = createQueryClient()
 
@@ -54,6 +56,64 @@ function Gate() {
       <Stack.Screen name="collection/[id]" />
       <Stack.Screen name="clip/[id]" />
     </Stack>
+  )
+}
+
+/**
+ * The last thing between a bug and a blank screen.
+ *
+ * Expo Router only wraps a route when that route exports one of these — `useScreens` reads
+ * `if (ErrorBoundary)` and skips the wrapper otherwise — so without this, an exception thrown
+ * while rendering unmounts the entire tree and leaves the app showing nothing at all. Not a
+ * hypothetical: a version of this app shipped a crash that did exactly that, and it has been
+ * reproduced since by serving a media list with its `data` array missing, which is enough to
+ * take every screen down to an empty root.
+ *
+ * Exported from the root layout, so it covers everything below it.
+ *
+ * It shows the message rather than something reassuring and useless. Whoever runs this app
+ * also runs the server it talks to, and the message is the only thing that says which of the
+ * two to go and look at.
+ */
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.color.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: theme.space(8),
+        gap: theme.space(3),
+      }}
+    >
+      <Ionicons name="alert-circle-outline" size={40} color={theme.color.danger} />
+      <Text style={{ color: theme.color.text, fontSize: 17, fontWeight: '700', textAlign: 'center' }}>
+        Something in the app went wrong
+      </Text>
+      <Text
+        numberOfLines={4}
+        style={{ color: theme.color.muted, fontSize: 13, lineHeight: 19, textAlign: 'center' }}
+      >
+        {error.message}
+      </Text>
+      <Pressable
+        onPress={() => void retry()}
+        accessibilityRole="button"
+        accessibilityLabel="Try again"
+        style={({ pressed }) => ({
+          marginTop: theme.space(2),
+          borderColor: theme.color.border,
+          borderWidth: 1,
+          borderRadius: theme.radius.sm,
+          paddingVertical: theme.space(3),
+          paddingHorizontal: theme.space(6),
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Text style={{ color: theme.color.text, fontSize: 14, fontWeight: '700' }}>Try again</Text>
+      </Pressable>
+    </View>
   )
 }
 
