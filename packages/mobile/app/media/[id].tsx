@@ -8,6 +8,8 @@ import { AuthImage } from '@/components/AuthImage'
 import { apiUrl, authHeaders } from '@/lib/api'
 import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
 import { formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
+import { useProgressReporter } from '@/lib/progress'
+import { useToggleLike } from '@/lib/social'
 import { theme } from '@/theme'
 
 /** Resolved video source: a local file when downloaded, otherwise the authenticated server URL. */
@@ -94,14 +96,46 @@ function DownloadButton({
   )
 }
 
+function LikeButton({ id, liked, likeCount }: { id: string; liked: boolean; likeCount: number }) {
+  const toggle = useToggleLike(id)
+  return (
+    <Pressable
+      onPress={() => toggle.mutate(liked)}
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: theme.space(2),
+        borderColor: theme.color.border,
+        borderWidth: 1,
+        borderRadius: theme.radius.sm,
+        paddingVertical: theme.space(3),
+        paddingHorizontal: theme.space(4),
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      <Ionicons
+        name={liked ? 'heart' : 'heart-outline'}
+        size={18}
+        color={liked ? theme.color.primary : theme.color.muted}
+      />
+      {likeCount > 0 ? (
+        <Text style={{ color: theme.color.muted, fontSize: 14, fontWeight: '600' }}>{likeCount}</Text>
+      ) : null}
+    </Pressable>
+  )
+}
+
 export default function MediaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const insets = useSafeAreaInsets()
   const detail = useMediaDetail(id)
   const download = useDownloadState(id)
-  const downloadedUri = download.status === 'done' ? download.record.localUri : null
+  // Offline the detail fetch fails, so fall back to what was captured at download time.
+  const offlineRecord = download.status === 'done' ? download.record : null
+  const downloadedUri = offlineRecord?.localUri ?? null
 
-  const isVideo = detail.data?.type === 'video'
+  const isVideo = (detail.data?.type ?? offlineRecord?.type) === 'video'
   // With a local copy there is nothing to ask the server for, so skip the playback call —
   // that is what makes the screen work with no connection.
   const playback = usePlayback(id, isVideo && !downloadedUri)
@@ -112,14 +146,19 @@ export default function MediaScreen() {
     p.staysActiveInBackground = true
   })
 
+  useProgressReporter(id, player, detail.data?.durationS ?? null)
+
   useEffect(() => {
     const resumeAt = playback.data?.resumeAt
     if (player && resumeAt && !downloadedUri) player.currentTime = resumeAt
   }, [player, playback.data?.resumeAt, downloadedUri])
 
-  // Offline, the detail fetch fails — fall back to the title captured at download time.
-  const offlineRecord = download.status === 'done' ? download.record : null
   const title = detail.data?.title ?? offlineRecord?.title ?? 'Untitled'
+  // A portrait photo in a 16:9 letterbox wastes most of the screen.
+  const mediaAspect =
+    !isVideo && detail.data?.width && detail.data?.height
+      ? detail.data.width / detail.data.height
+      : 16 / 9
   const duration = useMemo(
     () => formatDuration(detail.data?.durationS ?? offlineRecord?.durationSec ?? null),
     [detail.data?.durationS, offlineRecord],
@@ -138,8 +177,8 @@ export default function MediaScreen() {
       style={{ backgroundColor: theme.color.bg }}
       contentContainerStyle={{ paddingBottom: insets.bottom + theme.space(10) }}
     >
-      <View style={{ width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000' }}>
-        {isVideo || downloadedUri ? (
+      <View style={{ width: '100%', aspectRatio: mediaAspect, backgroundColor: '#000' }}>
+        {isVideo ? (
           source ? (
             <VideoView
               player={player}
@@ -154,7 +193,13 @@ export default function MediaScreen() {
             </View>
           )
         ) : (
-          <AuthImage path={detail.data?.posterUrl} style={{ width: '100%', height: '100%' }} />
+          // Photos deserve the original file, not the grid thumbnail.
+          <AuthImage
+            path={`/api/media/${id}/raw`}
+            localUri={downloadedUri}
+            contentFit="contain"
+            style={{ width: '100%', height: '100%' }}
+          />
         )}
       </View>
 
@@ -170,12 +215,19 @@ export default function MediaScreen() {
           ) : null}
         </View>
 
-        <DownloadButton
-          id={id}
-          title={title}
-          type={detail.data?.type ?? 'video'}
-          durationSec={detail.data?.durationS ?? null}
-        />
+        <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: theme.space(3) }}>
+          <View style={{ flex: 1 }}>
+            <DownloadButton
+              id={id}
+              title={title}
+              type={detail.data?.type ?? 'video'}
+              durationSec={detail.data?.durationS ?? null}
+            />
+          </View>
+          {detail.data ? (
+            <LikeButton id={id} liked={detail.data.liked} likeCount={detail.data.likeCount} />
+          ) : null}
+        </View>
 
         {downloadedUri ? (
           <Text style={{ color: theme.color.muted, fontSize: 12, lineHeight: 18 }}>

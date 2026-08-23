@@ -12,12 +12,15 @@ export function AuthImage({
   path,
   localUri,
   style,
+  contentFit = 'cover',
 }: {
   /** Server path, e.g. `/api/media/:id/poster`. Ignored when `localUri` is set. */
   path?: string
   /** Downloaded file:// poster — used offline, needs no auth. */
   localUri?: string | null
   style?: StyleProp<ImageStyle>
+  /** 'cover' crops to fill (grid tiles); 'contain' shows the whole frame (photo viewer). */
+  contentFit?: 'cover' | 'contain'
 }) {
   const [source, setSource] = useState<{ uri: string; headers?: Record<string, string> } | null>(
     localUri ? { uri: localUri } : null,
@@ -40,5 +43,5 @@ export function AuthImage({
   }, [path, localUri])
 
   if (!source) return <View style={[{ backgroundColor: theme.color.surface2 }, style]} />
-  return <Image source={source} style={style} resizeMode="cover" />
+  return <Image source={source} style={style} resizeMode={contentFit} />
 }
