@@ -7,6 +7,7 @@ import {
   fileNameFor,
   MAX_FILES_PER_BATCH,
   uploadFile,
+  uploadBlocker,
   useUploadTargets,
   type UploadOutcome,
   type UploadTarget,
@@ -122,8 +123,16 @@ export function UploadButton() {
   }
 
   function start(): void {
-    if (targets.isLoading) return
-    if (available.length === 0) {
+    const blocked = uploadBlocker({ loading: targets.isLoading, targets: targets.data?.data ?? null })
+    if (blocked === 'loading') return
+    if (blocked === 'unreachable') {
+      Alert.alert(
+        'Cannot reach your server',
+        'Check that it is running and that this phone is on the same network or tailnet.',
+      )
+      return
+    }
+    if (blocked === 'no-targets') {
       Alert.alert(
         'Nowhere to upload',
         'No library on your server accepts uploads. A library has to be writable and hold images or video.',

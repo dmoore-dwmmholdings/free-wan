@@ -89,14 +89,12 @@ export default function BrowseScreen() {
   )
   const items = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data])
 
-  if (list.isLoading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: theme.color.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator color={theme.color.primary} />
-      </View>
-    )
-  }
-
+  // Deliberately no early return for the loading state. Every filter, folder and search term
+  // is a query key of its own, so each one starts with nothing cached and reports as loading —
+  // and a screen-filling spinner takes the search box, the three toggles and the folder chips
+  // away with it. Tapping "liked only" made the control that was just tapped disappear until
+  // the server answered. The spinner belongs in the list, where the results it is waiting for
+  // will go.
   return (
     <View style={{ flex: 1 }}>
     <FlatList
@@ -191,12 +189,16 @@ export default function BrowseScreen() {
         ) : null
       }
       ListEmptyComponent={
-        list.isError || !list.data ? (
+        list.isLoading ? (
+          <View style={{ paddingTop: theme.space(20), alignItems: 'center' }}>
+            <ActivityIndicator color={theme.color.primary} />
+          </View>
+        ) : list.isError || !list.data ? (
           <ErrorState
             onRetry={() => void list.refetch()}
             hint={
               downloaded.length > 0
-                ? `Check that it is running and that this phone is on the same network or tailnet. ${downloaded.length} download${downloaded.length === 1 ? '' : 's'} are still playable from the Downloads tab.`
+                ? `Check that it is running and that this phone is on the same network or tailnet. ${downloaded.length === 1 ? '1 download is' : `${downloaded.length} downloads are`} still playable from the Downloads tab.`
                 : undefined
             }
           />

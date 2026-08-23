@@ -60,6 +60,26 @@ function extensionFor(asset: NameableAsset): string {
   return asset.type === 'video' || asset.type === 'pairedVideo' ? 'mp4' : 'jpg'
 }
 
+/**
+ * Why the upload button cannot open the picker, if it cannot.
+ *
+ * `no-targets` and `unreachable` are the two that matter, and telling them apart is the whole
+ * point. A server that was never reached has said nothing about which of its libraries accept
+ * uploads, and answering a tap with "no library on your server accepts uploads" states as fact
+ * something that was never learned — the same lie an empty state tells when it stands in for
+ * a failed request, which is why `ErrorState` exists.
+ */
+export type UploadBlock = 'loading' | 'unreachable' | 'no-targets' | null
+
+export function uploadBlocker(state: {
+  loading: boolean
+  targets: UploadTarget[] | null
+}): UploadBlock {
+  if (state.loading) return 'loading'
+  if (state.targets === null) return 'unreachable'
+  return state.targets.length === 0 ? 'no-targets' : null
+}
+
 export function useUploadTargets() {
   return useQuery({
     queryKey: ['upload-targets'],

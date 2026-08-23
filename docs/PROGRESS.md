@@ -1494,3 +1494,27 @@ shared schema test, all green; every phase verified with a live built-server smo
   rendering, and `expo-file-system` does nothing on web, which is why the download manager is
   exercised against a virtual filesystem in the first place.
   Verified green: typecheck 4/4, `pnpm -r test` **364**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: every filter tap took the filters off the screen.** The library
+  screen returned a full-screen spinner while its query loaded, and every filter, folder and
+  search term is a query key of its own — so each one starts with nothing cached and reports as
+  loading. Tapping "liked only" therefore removed the control that had just been tapped, along
+  with the search box, the other two toggles and the folder chips, until the server answered.
+  Proved before touching anything, with a proxy in front of the API that holds `/api/media`
+  back by 1.5s: sampling the DOM after the tap caught `search: false, toggles: 0` mid-fetch.
+  After the fix the same measurement reads `S3` at every sample through the whole 2s — the
+  controls never leave. Submitting a search keeps the box and its text as the results narrow,
+  and a query with no matches still lands on "No results" rather than a spinner that stays.
+  The spinner now sits in the list, where the results it is waiting for will go.
+  Two smaller things in the same pass. The upload button answered a tap with "No library on
+  your server accepts uploads" whenever the request for those libraries had *failed* — a claim
+  about the server on the strength of an answer that never arrived, which is the same lie an
+  empty state tells when it stands in for an unreachable server, and the reason `ErrorState`
+  exists. It now separates the two; `uploadBlocker` holds the decision, with **3 tests** and a
+  control that fails the one that matters. And the offline hint on the library read "1 download
+  are still playable".
+  A note on the harness rather than the app: the first run after rebuilding produced a blank
+  page and no API calls at all. The cause was `harness-up.sh` deleting and recreating
+  `packages/web/dist` under a running server, which then served `index.html` for the bundle —
+  1174 bytes where the file on disk was 1.37 MB. Restart the API after a rebuild.
+  Verified green: typecheck 4/4, `pnpm -r test` **367**, `pnpm -r build`.

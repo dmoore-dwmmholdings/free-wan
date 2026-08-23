@@ -404,6 +404,10 @@ which is most of the app. `src/lib/secure-store.web.ts` is what makes it reachab
 login screen, since there is no keychain in a browser; `localStorage` is not one either, and
 would not be acceptable in anything shipped to a browser.
 
+Restart the API after a rebuild. The script deletes and recreates `packages/web/dist`, and a
+server that was already serving that directory then answers every asset with `index.html` —
+which looks exactly like the app crashing on load, a blank page with no requests behind it.
+
 It is safe to do this while `expo start` is running. It was not always: the web session used
 to be arranged by editing `src/lib/session.ts` before a browser run and putting it back
 afterwards, and because Metro serves the working tree live, a phone connected to the dev

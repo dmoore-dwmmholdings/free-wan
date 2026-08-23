@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { __test, fileNameFor } from '@/lib/uploads'
+import { __test, fileNameFor, uploadBlocker } from '@/lib/uploads'
 
 const { outcomeFor } = __test
 
@@ -88,5 +88,25 @@ describe('naming a file the picker returned', () => {
     // Sharing a name would make the outcome summary undercount.
     const names = [0, 1, 2].map((i) => fileNameFor({ uri: 'content://x/1' }, i))
     expect(new Set(names).size).toBe(3)
+  })
+})
+
+describe('what stops the upload button opening the picker', () => {
+  const target = { id: 'r1', name: 'Family video', type: 'video' as const }
+
+  it('says nothing while the answer is still coming', () => {
+    expect(uploadBlocker({ loading: true, targets: null })).toBe('loading')
+  })
+
+  it('separates a server that did not answer from one with nowhere to put files', () => {
+    // The distinction is the point. "No library on your server accepts uploads" is a claim
+    // about the server, and a request that failed supports no claim about it at all — the
+    // same lie an empty state tells when it stands in for an unreachable server.
+    expect(uploadBlocker({ loading: false, targets: null })).toBe('unreachable')
+    expect(uploadBlocker({ loading: false, targets: [] })).toBe('no-targets')
+  })
+
+  it('lets the picker open when there is somewhere to put things', () => {
+    expect(uploadBlocker({ loading: false, targets: [target] })).toBeNull()
   })
 })
