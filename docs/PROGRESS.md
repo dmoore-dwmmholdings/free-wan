@@ -1939,3 +1939,30 @@ shared schema test, all green; every phase verified with a live built-server smo
   introspection would otherwise read exactly like a pass.
   Both remain device-only to actually watch working, and are on the checklist.
   Verified green: typecheck 4/4, `pnpm -r test` **387**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: the rest of the build configuration audited, and one security note
+  that was missing.** Last session found two capabilities the code asked for and the build never
+  granted, so the same question was put to everything else in `app.json` and the generated
+  manifest.
+  What holds: the `freewan://` deep link is declared with the VIEW, DEFAULT and BROWSABLE
+  filter it needs. The now-playing notification turns out to have been broken on Android for
+  the same reason picture-in-picture was, and the same fix covers it — its documentation says
+  it too needs `supportsBackgroundPlayback`. It does not need `POST_NOTIFICATIONS`: media
+  session notifications are exempt from Android 13's runtime permission, which is why Expo's
+  own plugin adds only the two foreground-service permissions.
+  A claim in `docs/13-security.md` was checked rather than trusted, since the manifest had just
+  been regenerated: the session token is excluded from Android backups. It is, and by more than
+  the manifest pointing at rule files — `expo-secure-store` ships both, and they exclude its
+  store from cloud backup *and* device-to-device transfer. The app's own module has no
+  `res/xml` at all, which looks like the claim failing until you notice the resources merge in
+  from the library.
+  What was missing from that document is now in it: Android permits cleartext, so the bearer
+  token can travel in a header over a plain LAN. Over a tailnet this costs nothing, since the
+  wire is encrypted whatever the scheme says, and the documented deployment terminates a real
+  `https://` anyway. iOS will not do the same thing — its local-networking exception covers
+  private LAN ranges, and Tailscale's addresses are not among them — so a plain-HTTP tailnet
+  server an Android phone reaches would be refused by an iPhone. Recorded, not tested.
+  Noticed and left alone: `expo-font` is declared as a plugin with nothing to embed and does
+  nothing at build time. The package itself has to stay — `@expo/vector-icons` loads its icon
+  fonts through it. And the splash screen's colour is baked into the build, so it cannot follow
+  a server's branding; a light preset flashes dark for as long as the splash lasts.

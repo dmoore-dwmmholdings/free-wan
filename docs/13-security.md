@@ -54,6 +54,17 @@ backs FR-55.
   ships backup rules that exclude its store from both cloud backup and device-to-device
   transfer, and the generated manifest points at them. A token therefore does not travel to a
   new phone with a restore; whoever holds the new device has to sign in.
+- **The mobile app permits cleartext HTTP on Android, and the token travels in a header.**
+  `usesCleartextTraffic` is set, so `http://192.168.x.x:8080` works from an Android phone. Over
+  a tailnet this costs nothing — Tailscale encrypts the wire whatever the URL scheme says — but
+  on a plain LAN the `Authorization` header is readable by anything else on that network, and
+  it is a session token. The documented deployment avoids this: Tailscale Serve terminates a
+  browser-trusted `https://`, which is what the login screen assumes when a scheme is left off.
+  iOS is stricter and cannot be talked round in the same way: `NSAllowsLocalNetworking` covers
+  private LAN ranges and `.local` names, and Tailscale's addresses are in neither, so a plain
+  `http://100.x.x.x` server that an Android phone reaches will be refused by an iPhone. Not
+  tested here — no device has run this app yet — but worth knowing before it is read as a bug
+  in the app.
 - **`must_change_password` is a client-side rule, not a server-side one.** It is set for the
   bootstrap admin and for any password an admin resets, reported by `/api/auth/login` and
   `/api/auth/me`, and cleared when the password changes. No route refuses a request because of
