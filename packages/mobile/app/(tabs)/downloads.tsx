@@ -2,7 +2,13 @@ import { Alert, FlatList, Pressable, Text, View } from 'react-native'
 import { Link } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { AuthImage } from '@/components/AuthImage'
-import { formatBytes, removeDownload, useDownloads, type DownloadRecord } from '@/lib/downloads'
+import {
+  formatBytes,
+  removeDownload,
+  useDownloads,
+  type ActiveDownload,
+  type DownloadRecord,
+} from '@/lib/downloads'
 import { formatDuration } from '@/lib/media'
 import { theme } from '@/theme'
 
@@ -44,17 +50,53 @@ function Row({ item }: { item: DownloadRecord }) {
   )
 }
 
+/** A transfer still running. No poster yet, so the tile shows progress instead. */
+function ActiveRow({ item }: { item: ActiveDownload }) {
+  const pct = Math.round(item.progress * 100)
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space(3) }}>
+      <View
+        style={{
+          width: 108,
+          aspectRatio: 16 / 10,
+          borderRadius: theme.radius.sm,
+          backgroundColor: theme.color.surface2,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Ionicons name="arrow-down-circle-outline" size={20} color={theme.color.primary} />
+      </View>
+      <View style={{ flex: 1, justifyContent: 'center', gap: theme.space(2) }}>
+        <Text numberOfLines={2} style={{ color: theme.color.text, fontSize: 14, fontWeight: '600' }}>
+          {item.title}
+        </Text>
+        <View style={{ height: 4, borderRadius: 2, backgroundColor: theme.color.surface2, overflow: 'hidden' }}>
+          <View style={{ width: `${pct}%`, height: '100%', backgroundColor: theme.color.primary }} />
+        </View>
+        <Text style={{ color: theme.color.muted, fontSize: 12 }}>
+          {pct > 0 ? `Downloading… ${pct}%` : 'Starting…'}
+        </Text>
+      </View>
+    </View>
+  )
+}
+
 export default function DownloadsScreen() {
-  const { items } = useDownloads()
+  const { items, active } = useDownloads()
   const totalBytes = items.reduce((sum, i) => sum + i.bytes, 0)
+  // In-flight transfers sit above finished ones so progress is the first thing seen.
+  const rows: Array<ActiveDownload | DownloadRecord> = [...active, ...items]
 
   return (
     <FlatList
       style={{ backgroundColor: theme.color.bg }}
-      data={items}
-      keyExtractor={(i) => i.id}
+      data={rows}
+      keyExtractor={(r) => r.id}
       contentContainerStyle={{ padding: theme.space(3), gap: theme.space(4) }}
-      renderItem={({ item }) => <Row item={item} />}
+      renderItem={({ item }) =>
+        'localUri' in item ? <Row item={item} /> : <ActiveRow item={item} />
+      }
       ListHeaderComponent={
         items.length > 0 ? (
           <Text style={{ color: theme.color.muted, fontSize: 12, letterSpacing: 1, fontWeight: '700' }}>

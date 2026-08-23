@@ -7,12 +7,14 @@ export const documentDirectory = 'file:///doc/'
 const files = new Map<string, number>()
 let failNextDownload = false
 let downloadedBytes = 123_456
+let hold: Promise<void> | null = null
 
 export const __fs = {
   reset() {
     files.clear()
     failNextDownload = false
     downloadedBytes = 123_456
+    hold = null
   },
   /** Simulate the OS reclaiming a file behind the app's back. */
   evict(uri: string) {
@@ -26,6 +28,14 @@ export const __fs = {
   },
   setDownloadSize(bytes: number) {
     downloadedBytes = bytes
+  },
+  /** Pause the next transfer midway so in-flight state can be inspected. Returns a release fn. */
+  holdNextDownload() {
+    let release!: () => void
+    hold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    return release
   },
 }
 
@@ -56,6 +66,11 @@ export function createDownloadResumable(
         throw new Error('simulated network failure')
       }
       onProgress?.({ totalBytesWritten: 512, totalBytesExpectedToWrite: 1024 })
+      if (hold) {
+        const pending = hold
+        hold = null
+        await pending
+      }
       onProgress?.({ totalBytesWritten: 1024, totalBytesExpectedToWrite: 1024 })
       files.set(target, downloadedBytes)
       return { uri: target }

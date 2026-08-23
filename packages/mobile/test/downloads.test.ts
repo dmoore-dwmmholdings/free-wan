@@ -36,6 +36,31 @@ describe('offline download manager', () => {
     })
   })
 
+  it('reports progress while the transfer is still running', async () => {
+    const { fs, downloads } = await fresh()
+    const release = fs.__fs.holdNextDownload()
+
+    const pending = downloads.startDownload(VIDEO)
+    // startDownload first hydrates the index and resolves auth headers; give it real time.
+    await new Promise((r) => setTimeout(r, 20))
+
+    const midFlight = downloads.getDownloadState(VIDEO.id)
+    expect(midFlight.status).toBe('downloading')
+    if (midFlight.status === 'downloading') expect(midFlight.progress).toBeCloseTo(0.5)
+
+    release()
+    await pending
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
+  })
+
+  it('clears the in-flight entry when a transfer fails', async () => {
+    const { fs, downloads } = await fresh()
+    fs.__fs.failNext()
+    await expect(downloads.startDownload(VIDEO)).rejects.toThrow()
+    // Neither downloading nor done: a stuck progress row would never clear.
+    expect(downloads.getDownloadState(VIDEO.id)).toEqual({ status: 'none' })
+  })
+
   it('is a no-op for something already downloaded', async () => {
     const { fs, downloads } = await fresh()
     await downloads.startDownload(VIDEO)

@@ -23,6 +23,16 @@ export interface DownloadRecord {
   completedAt: number
 }
 
+/** A transfer in flight. Carries enough to render a row before the file exists. */
+export interface ActiveDownload {
+  id: string
+  title: string
+  type: MediaCard['type']
+  durationSec: number | null
+  /** 0..1, or 0 while the server has not reported a total size yet. */
+  progress: number
+}
+
 export type DownloadState =
   | { status: 'none' }
   | { status: 'downloading'; progress: number }
@@ -31,7 +41,7 @@ export type DownloadState =
 // ---- in-memory store, persisted to AsyncStorage -----------------------------
 
 let index: Record<string, DownloadRecord> = {}
-let active: Record<string, number> = {}
+let active: Record<string, ActiveDownload> = {}
 let loaded = false
 const listeners = new Set<() => void>()
 
@@ -77,7 +87,13 @@ export async function startDownload(item: {
   await loadDownloads()
   if (index[item.id] || item.id in active) return
 
-  active[item.id] = 0
+  active[item.id] = {
+    id: item.id,
+    title: item.title,
+    type: item.type,
+    durationSec: item.durationSec ?? null,
+    progress: 0,
+  }
   emit()
 
   const headers = await authHeaders()
@@ -90,11 +106,14 @@ export async function startDownload(item: {
       target,
       { headers },
       (p) => {
-        active[item.id] =
-          p.totalBytesExpectedToWrite > 0
-            ? p.totalBytesWritten / p.totalBytesExpectedToWrite
-            : 0
-        emit()
+        const entry = active[item.id]
+        if (entry) {
+          entry.progress =
+            p.totalBytesExpectedToWrite > 0
+              ? p.totalBytesWritten / p.totalBytesExpectedToWrite
+              : 0
+          emit()
+        }
       },
     )
     const result = await task.downloadAsync()
@@ -148,7 +167,8 @@ export async function removeDownload(id: string): Promise<void> {
 /** Current state for one item, without subscribing. */
 export function getDownloadState(id: string): DownloadState {
   if (index[id]) return { status: 'done', record: index[id] }
-  if (id in active) return { status: 'downloading', progress: active[id] }
+  const running = active[id]
+  if (running) return { status: 'downloading', progress: running.progress }
   return { status: 'none' }
 }
 
@@ -166,12 +186,22 @@ export function useDownloadState(id: string): DownloadState {
   return state
 }
 
-/** Subscribe to the full offline library, newest first. */
-export function useDownloads(): { items: DownloadRecord[]; ready: boolean } {
+/**
+ * The offline library: completed downloads newest first, plus anything still transferring.
+ * In-flight items belong here — starting a large download and switching to this tab must not
+ * look like nothing happened.
+ */
+export function useDownloads(): {
+  items: DownloadRecord[]
+  active: ActiveDownload[]
+  ready: boolean
+} {
   const [items, setItems] = useState<DownloadRecord[]>([])
+  const [active_, setActive] = useState<ActiveDownload[]>([])
   const [ready, setReady] = useState(loaded)
   const sync = useCallback(() => {
     setItems(Object.values(index).sort((a, b) => b.completedAt - a.completedAt))
+    setActive(Object.values(active).map((a) => ({ ...a })))
     setReady(true)
   }, [])
   useEffect(() => {
@@ -181,7 +211,7 @@ export function useDownloads(): { items: DownloadRecord[]; ready: boolean } {
       listeners.delete(sync)
     }
   }, [sync])
-  return { items, ready }
+  return { items, active: active_, ready }
 }
 
 export function formatBytes(bytes: number): string {
