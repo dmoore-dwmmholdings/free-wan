@@ -33,6 +33,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="clips"
+        options={{
+          title: 'Clips',
+          tabBarIcon: ({ color, size }) => <Ionicons name="cut-outline" color={color} size={size} />,
+        }}
+      />
+      <Tabs.Screen
         name="downloads"
         options={{
           title: 'Downloads',

@@ -51,6 +51,7 @@ function Gate() {
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="media/[id]" options={{ title: '', headerTransparent: true }} />
       <Stack.Screen name="collection/[id]" />
+      <Stack.Screen name="clip/[id]" />
     </Stack>
   )
 }
