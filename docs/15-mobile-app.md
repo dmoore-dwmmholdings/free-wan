@@ -18,7 +18,7 @@ Five tabs:
 |---|---|
 | **Browse** | The library. Search, folder navigation, tag filters, and toggles for liked-only, videos-only and photos-only. The button in the corner uploads photos and video from this phone. |
 | **Collections** | Collections made on the web app; open one to see its contents. |
-| **Clips** | Clips cut on the web app; open one to play its segment, looping if that is how it was saved. |
+| **Clips** | Clips cut on the web app; open one to play its segment. A clip saved to loop repeats; one saved not to stops at its out-point and rewinds, so it is ready to play again. |
 | **Downloads** | What is saved on the device, what is transferring, and what failed. |
 | **Settings** | Who you are signed in as, which server, how much storage downloads use, and sign out. |
 
@@ -288,8 +288,9 @@ pnpm --filter @free-wan/mobile test
 
 The unit tests cover the logic that does not need a device: server-address parsing, session
 handling, formatting, the API request layer, the download manager, WebVTT parsing and cue
-timing, the branding colour arithmetic — including a contrast check on every preset — and the
-library's pagination — that each filter has its own cache key, and that the list stops asking for pages
+timing, the branding colour arithmetic — including a contrast check on every preset — where
+the auth gate sends someone, how a clip behaves at its out-point, and the library's
+pagination — that each filter has its own cache key, and that the list stops asking for pages
 once the server says there are none left. Both of those fail silently rather than loudly: a
 shared key shows one filter another's results, and a cursor that never resolves to
 `undefined` refetches the last page forever.

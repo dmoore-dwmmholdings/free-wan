@@ -1099,3 +1099,25 @@ shared schema test, all green; every phase verified with a live built-server smo
   guard, and checking the password rule before sign-in all fail, and the loop introduced by
   the second is caught by the fixed-point test on its own. Verified green: typecheck 4/4,
   `pnpm -r test` **315** (api 180 + mobile 122 + web 11 + shared 2), `pnpm -r build`.
+- **2026-08-23 — Mobile app: a clip could be watched once and then not again.** Reviewed the
+  clip player, the least-examined screen and the last one holding real timing logic. A clip
+  saved without looping paused at its out-point and left the playhead there, so the next press
+  of play met another pause within a quarter of a second — the sampling interval. The only way
+  back was to find the in-point by hand on a scrubber spanning the whole source video. Both
+  outcomes now rewind: looping keeps playing, stopping pauses at the in-point ready to go
+  again.
+  The decision is `clipCommandFor` in `src/lib/clips.ts`, with seven tests. The one that
+  matters checks the command is a fixed point — that acting on it does not immediately produce
+  another command — which is the same property that caught the redirect loop in the auth gate,
+  and it catches this bug on its own without being aimed at it. Control-tested: the original
+  pause-without-rewind fails two tests.
+  Two things checked and deliberately left alone. `useEventListener` keeps a ref to the latest
+  listener, so the handler is not reading a stale `preview.data` — a real hazard with that
+  shape, but not present. And the server validates `endS > startS` on both create and update,
+  so no guard against a degenerate range was added; defending against it would be error
+  handling for something that cannot arrive.
+  Verified in the browser as far as it reaches: the screen renders, the clip's title and Loops
+  badge show, and the playhead opens at the in-point. The looping itself is unverifiable
+  there, for the same reason as subtitle timing — the browser cannot load the video at all,
+  since a plain `<video>` element cannot carry the auth header. Verified green: typecheck 4/4,
+  `pnpm -r test` **321** (api 180 + mobile 128 + web 11 + shared 2), `pnpm -r build`.

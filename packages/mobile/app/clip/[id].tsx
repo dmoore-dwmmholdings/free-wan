@@ -5,7 +5,7 @@ import { useEventListener } from 'expo'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import { ErrorState } from '@/components/ErrorState'
 import { apiUrl, authHeaders } from '@/lib/api'
-import { useClip, useClipPreview } from '@/lib/clips'
+import { clipCommandFor, useClip, useClipPreview } from '@/lib/clips'
 import { formatDuration } from '@/lib/media'
 import { theme } from '@/theme'
 
@@ -54,12 +54,11 @@ export default function ClipScreen() {
 
   // The player has no notion of an out-point: hold the window here, looping or stopping at it.
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    const data = preview.data
-    if (!data) return
-    if (currentTime >= data.endS) {
-      if (data.loop) player.currentTime = data.startS
-      else player.pause()
-    }
+    if (!preview.data) return
+    const command = clipCommandFor(currentTime, preview.data)
+    if (!command) return
+    if (command.pause) player.pause()
+    player.currentTime = command.seekTo
   })
 
   const title = clip?.name ?? 'Clip'
