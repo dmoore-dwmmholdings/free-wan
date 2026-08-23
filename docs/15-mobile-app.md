@@ -350,6 +350,31 @@ a device. The request-layer tests drive a stubbed `fetch`,
 covering the cases a proxy in front of the server produces — an HTML error page, a 401 that
 is not JSON — which are the ones that used to be mishandled.
 
+### Looking at it in a browser
+
+The app also builds for web, which nothing ships — it is how the screens get looked at while
+they are being changed:
+
+```bash
+pnpm --filter @free-wan/mobile exec expo export --platform web --output-dir <dir>
+```
+
+`expo-video` cannot play here and `expo-file-system` does nothing, so playback, downloads and
+uploads are all out of reach. Everything else behaves as it does on a phone: layout,
+navigation, the auth gate, branding, filters, pagination and every empty and error state,
+which is most of the app. `src/lib/secure-store.web.ts` is what makes it reachable past the
+login screen, since there is no keychain in a browser; `localStorage` is not one either, and
+would not be acceptable in anything shipped to a browser.
+
+It is safe to do this while `expo start` is running. It was not always: the web session used
+to be arranged by editing `src/lib/session.ts` before a browser run and putting it back
+afterwards, and because Metro serves the working tree live, a phone connected to the dev
+server was running the edit. Worse, it made checking a change and leaving something scannable
+mutually exclusive — and a change that skipped the browser for that reason shipped a crash
+that left the app on a blank screen.
+
+---
+
 What tests cannot cover, and still needs a device: actual playback, real file I/O, and
 secure storage. Uploading is in that group too. The floating button's placement and its
 pass-through behaviour were checked in the browser harness, but the picker, the

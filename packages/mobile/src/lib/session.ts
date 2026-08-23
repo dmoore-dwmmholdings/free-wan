@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store'
+import { readItem, removeItem, writeItem } from './secure-store'
 
 const TOKEN_KEY = 'fw_token'
 const SERVER_KEY = 'fw_server'
@@ -39,18 +39,18 @@ export function normalizeServerUrl(input: string): string | null {
 }
 
 export async function getServerUrl(): Promise<string | null> {
-  if (serverCache === undefined) serverCache = await SecureStore.getItemAsync(SERVER_KEY)
+  if (serverCache === undefined) serverCache = await readItem(SERVER_KEY)
   return serverCache
 }
 
 export async function getToken(): Promise<string | null> {
-  if (tokenCache === undefined) tokenCache = await SecureStore.getItemAsync(TOKEN_KEY)
+  if (tokenCache === undefined) tokenCache = await readItem(TOKEN_KEY)
   return tokenCache
 }
 
 export async function saveSession(serverUrl: string, token: string): Promise<void> {
-  await SecureStore.setItemAsync(SERVER_KEY, serverUrl)
-  await SecureStore.setItemAsync(TOKEN_KEY, token)
+  await writeItem(SERVER_KEY, serverUrl)
+  await writeItem(TOKEN_KEY, token)
   serverCache = serverUrl
   tokenCache = token
   emitSessionChange()
@@ -63,7 +63,7 @@ export async function clearSession(): Promise<void> {
   // in-memory token survives, no subscriber is told, and the auth gate leaves the user on a
   // screen whose retry can never succeed. A stale entry on disk is the lesser problem.
   try {
-    await SecureStore.deleteItemAsync(TOKEN_KEY)
+    await removeItem(TOKEN_KEY)
   } catch {
     /* keychain unavailable, or the key was already gone; the session is over either way */
   }

@@ -1290,3 +1290,21 @@ shared schema test, all green; every phase verified with a live built-server smo
   Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`. Dev server stopped
   for the harness and restored afterwards, reachable again on `192.168.1.211:8081` and
   `100.81.57.116:8081`.
+- **2026-08-23 — Mobile app: browser checks no longer require editing source.** Last session
+  shipped a crash because verifying a change and leaving a scannable dev server were mutually
+  exclusive: the browser build needed `src/lib/session.ts` patched to give web somewhere to
+  keep a session, Metro serves the working tree live, so the patch would reach any connected
+  phone. Faced with that choice the check was skipped, and an unguarded platform call took the
+  app down to a blank screen.
+  Fixed at the cause rather than by being more careful. The storage call is now behind a seam,
+  `src/lib/secure-store.ts`, with a web variant beside it that Metro picks automatically when
+  bundling for web. No patching, so the two can run at once — demonstrated by exporting for
+  web with `expo start` up and signing in through the browser afterwards, session and all.
+  Verified the seam did not leak the wrong way: the Android Hermes bundle contains the
+  SecureStore path and neither `localStorage` nor the web file's comment. That check was
+  vacuous on the first attempt — the glob matched an empty directory, so "clean" meant nothing
+  — and now carries a positive control that greps for a known app string first.
+  `react-native-web` and `react-dom` move to devDependencies, since web is now an
+  acknowledged development target rather than something assembled by hand each time.
+  Documented under Testing, including what the browser cannot reach. Verified green: typecheck
+  4/4, `pnpm -r test` **347**, `pnpm -r build`. Dev server stayed up throughout.
