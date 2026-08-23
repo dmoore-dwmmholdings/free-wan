@@ -1267,3 +1267,26 @@ shared schema test, all green; every phase verified with a live built-server smo
   Reviewed and left alone: the collections list screen, and `useCollection`, which fetches
   rather than assuming the list is already cached. Verified green: typecheck 4/4,
   `pnpm -r test` **347**, `pnpm -r build`.
+- **2026-08-23 — Mobile app: a blank-screen crash shipped last session, found by accident.**
+  The intended work was wiring `focusManager` to `AppState`. TanStack's `refetchOnWindowFocus`
+  is on by default but inert on React Native, since nothing reports a focus change without
+  that wiring — so returning to the app showed whatever it last held, and media added, liked
+  or scanned from the web app stayed invisible until something was pulled to refresh. Wired,
+  and verified in the harness: one request, still one after 32 seconds idle while hidden, two
+  the moment the app is made visible. No spurious refetch while backgrounded, exactly one on
+  return.
+  Setting that up surfaced something worse. **The app did not render at all** — empty body,
+  zero requests — because of last session's change: `Appearance.setColorScheme` is typed by
+  React Native as always present, but react-native-web does not implement it and the platform
+  docs put it at iOS 13+ / Android 10+. Called unguarded during the root's first render, it
+  threw and took the whole app down to a blank screen, with no error state, because the
+  component that would draw one never mounted. Now guarded.
+  Worth recording why it was missed: last session deliberately skipped harness verification —
+  the dev server was up and patching `session.ts` for the harness would have served that patch
+  to a phone — and settled for typecheck, the Metro bundle and `expo prebuild`. All three pass
+  straight through a runtime throw in a `useEffect`. The right move was to stop the dev server
+  and verify, which is what was done this time. A troubleshooting note now records the
+  signature, since a blank screen is indistinguishable from a hung network by eye.
+  Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`. Dev server stopped
+  for the harness and restored afterwards, reachable again on `192.168.1.211:8081` and
+  `100.81.57.116:8081`.

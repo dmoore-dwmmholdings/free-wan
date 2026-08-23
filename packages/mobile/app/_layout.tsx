@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useMe, useStoredSession } from '@/lib/auth'
 import { createQueryClient } from '@/lib/query'
 import { useBranding } from '@/lib/branding'
+import { useRefetchOnForeground } from '@/lib/focus'
 import { isLight } from '@/lib/palette'
 import { gateRedirect } from '@/lib/gate'
 import { theme } from '@/theme'
@@ -60,6 +61,7 @@ export default function RootLayout() {
   // Keying the tree on this remounts it once branding has retuned the tokens. Cheap, because
   // it happens at most once per launch, and it is what makes the mutated tokens take effect.
   const brandingVersion = useBranding()
+  useRefetchOnForeground()
   return (
     <SafeAreaProvider key={brandingVersion}>
       <QueryClientProvider client={queryClient}>

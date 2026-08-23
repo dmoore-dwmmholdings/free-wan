@@ -25,6 +25,10 @@ Five tabs:
 Opening any item gives a player or a photo, its tags, a like button, a Download button, and
 a subtitles button when the video has caption tracks.
 
+Coming back to the app after leaving it refreshes what has gone stale, so media added, liked
+or renamed from the web app in the meantime appears without a pull to refresh. Switching away
+for a moment costs nothing — only data older than thirty seconds is fetched again.
+
 Liking something updates every view it appears in without going back to the server — the
 response already says what the new count is. One consequence is deliberate: unliking while the
 liked-only filter is on leaves the item on screen with an empty heart rather than snatching it
@@ -281,6 +285,13 @@ SDK. Either install an Expo Go matching SDK 54, or upgrade the project with
 **The app cannot reach the server.** Check the address in Settings. On Android a plain-HTTP
 server needs the cleartext permission, which `expo-build-properties` sets in `app.json` —
 this only applies to a real build, not to Expo Go.
+
+**A blank screen with nothing in it at all.** Not the error screen — genuinely nothing. That
+means the root threw before anything mounted, so the component that would draw an error never
+got the chance. It happened once here: a platform call that React Native types as always
+present is not implemented on every platform, and calling it during the first render took the
+whole app down. If a change touches the root layout, check it renders somewhere before
+trusting a green build; `tsc` and a successful bundle both pass straight through this.
 
 **Expo Go loads, but not the app you think.** Metro serves your working tree as it is at the
 moment of the request, not a build. A dev server left running picks up every edit in between,

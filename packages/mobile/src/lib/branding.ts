@@ -16,6 +16,12 @@ import { getServerUrl } from './session'
  * `userInterfaceStyle: "automatic"` so this call is what decides it.
  */
 function syncColorScheme(): void {
+  // Guarded because this is not implemented everywhere. React Native types it as always
+  // present, but react-native-web has no such function and the platform docs put it at
+  // iOS 13+ / Android 10+. Calling it blind throws during the first render of the root, which
+  // takes the whole app down to a blank screen — no error state, because the thing that would
+  // draw one never mounts. Chrome is decoration; it is not worth the app.
+  if (typeof Appearance.setColorScheme !== 'function') return
   Appearance.setColorScheme(isLight(theme.color.bg) ? 'light' : 'dark')
 }
 
