@@ -97,8 +97,15 @@ export function startBranding(onSettled: () => void): () => void {
   // server to ask — this settles the chrome on the built-in palette rather than the phone's.
   syncColorScheme()
 
+  // Two things race to release the app — the cap, and the first fetch finishing — and either
+  // may get there first. Whichever does, the other must not repeat it: the caller is told this
+  // happens once, and something that hides a splash screen or records a first paint would
+  // otherwise do it twice.
+  let settled = false
   const release = () => {
-    if (!cancelled) onSettled()
+    if (cancelled || settled) return
+    settled = true
+    onSettled()
   }
   const cap = setTimeout(release, BRANDING_WAIT_MS)
 

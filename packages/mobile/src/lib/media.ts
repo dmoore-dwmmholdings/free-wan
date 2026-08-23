@@ -46,8 +46,14 @@ export interface MediaListParams {
  * another's cached results, and a `getNextPageParam` that does not stop would page forever.
  */
 export function mediaListQueryOptions(params: MediaListParams = {}) {
+  // Tags are sorted before they reach the key. The screen holds them in the order they were
+  // tapped, and the key is hashed from the object as given — so the same two tags picked in
+  // the other order are a different key and a second trip for results already held. Toggling
+  // one off and back on is enough to do it, since that moves it to the end of the list.
+  const tags = params.tags && params.tags.length > 0 ? [...params.tags].sort() : params.tags
+  const keyed = { ...params, ...(tags ? { tags } : {}) }
   return {
-    queryKey: ['media', params] as const,
+    queryKey: ['media', keyed] as const,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }: { pageParam: string | undefined }) => {
       const qs = new URLSearchParams({ limit: '40' })

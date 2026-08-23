@@ -2028,3 +2028,23 @@ shared schema test, all green; every phase verified with a live built-server smo
   reported `doneIds: ["media-1"]` alongside `failedIds: ["media-1"]`. The invariant it guards
   is now the real one: an item appears in exactly one of the three lists.
   Verified green: typecheck 4/4, `pnpm -r test` **391**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: two smaller things from reading `branding.ts` and the Browse
+  screen whole.** Both were found the same way as the last two sessions' defects — by reading a
+  file as it now stands rather than as the diffs that got it there — and both are smaller than
+  what that turned up before, which is itself worth recording.
+  The first is a contract that was not true. `startBranding` says its `onSettled` "fires once",
+  and two things race to call it: the two-second cap, and the first fetch finishing. Whichever
+  arrives second called it again. Harmless today, because the only caller sets a boolean React
+  already ignores when unchanged — but the sentence was in the docstring, and the next caller
+  might hide a splash screen or record a first paint with it. No test covered the case: the one
+  that exercises the cap uses a fetch that never resolves, so the second call could not happen.
+  A test for the sequence that does it — a server answering *after* the cap — failed against the
+  old code with "expected 1 times, but got 2", and the fix is a flag.
+  The second is waste rather than error. Tags are held in the order they were tapped and go
+  into the cache key as given, so the same two tags chosen in the other order are a different
+  key and a second trip for results already held. Toggling one off and back on is enough, since
+  that moves it to the end. They are sorted before they reach the key now, which is exactly the
+  argument made for patching likes into the cache instead of refetching: a phone's link to its
+  own server is not free. **5 tests** across the two, both control-tested.
+  Verified green: typecheck 4/4, `pnpm -r test` **395**, `pnpm -r build`, both bundles.

@@ -125,3 +125,28 @@ describe('ordering the library', () => {
     expect(media.DEFAULT_SORT.id).toBe('added:desc')
   })
 })
+
+describe('the cache key for a set of tags', () => {
+  it('does not depend on the order they were tapped in', async () => {
+    // The screen appends each tag as it is chosen, so the same pair reached two ways is two
+    // orders. Left alone that is two cache entries and two trips for the same results.
+    const { media } = await fresh()
+    const oneWay = JSON.stringify(media.mediaListQueryOptions({ tags: ['b', 'a'] }).queryKey)
+    const other = JSON.stringify(media.mediaListQueryOptions({ tags: ['a', 'b'] }).queryKey)
+    expect(oneWay).toBe(other)
+  })
+
+  it('still tells different sets of tags apart', async () => {
+    const { media } = await fresh()
+    const ab = JSON.stringify(media.mediaListQueryOptions({ tags: ['a', 'b'] }).queryKey)
+    const ac = JSON.stringify(media.mediaListQueryOptions({ tags: ['a', 'c'] }).queryKey)
+    const a = JSON.stringify(media.mediaListQueryOptions({ tags: ['a'] }).queryKey)
+    expect(new Set([ab, ac, a]).size).toBe(3)
+  })
+
+  it('still asks the server for every tag', async () => {
+    const { media } = await fresh()
+    const url = await urlFor(media.mediaListQueryOptions({ tags: ['b', 'a'] }))
+    expect(url.searchParams.getAll('tag').sort()).toEqual(['a', 'b'])
+  })
+})

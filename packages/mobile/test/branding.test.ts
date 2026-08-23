@@ -168,6 +168,28 @@ describe('startBranding', () => {
     stop()
   })
 
+  it('does not settle twice when the answer arrives after the cap', async () => {
+    // The cap releases the app, and then the server answers anyway. Both paths call the same
+    // release, and the caller was told this fires once — something that hides a splash screen
+    // or logs a first paint would be doing it twice.
+    mockServer = async () => 'https://late.example.net'
+    let answer!: (b: Branding) => void
+    mockFetch = () => new Promise<Branding>((resolve) => { answer = resolve })
+    const settled = vi.fn()
+    const stop = startBranding(settled)
+    await settle()
+
+    vi.advanceTimersByTime(2000)
+    expect(settled).toHaveBeenCalledTimes(1)
+
+    answer(LINEN)
+    await settle()
+
+    expect(settled).toHaveBeenCalledTimes(1)
+    expect(theme.color.bg).toBe(LINEN.colors.background)
+    stop()
+  })
+
   it('stops listening once torn down', async () => {
     const heard = vi.fn()
     const unsubscribe = __test.subscribeVersion(heard)
