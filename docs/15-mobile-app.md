@@ -224,3 +224,13 @@ is not JSON — which are the ones that used to be mishandled.
 
 What tests cannot cover, and still needs a device: actual playback, real file I/O, and
 secure storage.
+
+```bash
+pnpm --filter @free-wan/mobile build
+```
+
+bundles the app for both platforms through Metro, writing to `dist/`. This is what catches
+module-resolution problems, which `tsc` cannot see: pnpm's layout, a missing peer, a bad
+`metro.config.js`. CI already runs `pnpm -r build`, so it is covered there — before this
+script existed the mobile package had no build step and Metro was never exercised on CI at
+all.

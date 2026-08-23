@@ -8,6 +8,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "prebuild": "expo prebuild",
+    "build": "expo export --platform ios --output-dir dist/ios && expo export --platform android --output-dir dist/android",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
