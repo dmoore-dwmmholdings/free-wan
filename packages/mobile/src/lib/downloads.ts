@@ -43,7 +43,8 @@ async function persist() {
   await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(index))
 }
 
-async function load() {
+/** Hydrate the index from storage, dropping records whose files no longer exist. */
+export async function loadDownloads(): Promise<void> {
   if (loaded) return
   const raw = await AsyncStorage.getItem(INDEX_KEY)
   index = raw ? (JSON.parse(raw) as Record<string, DownloadRecord>) : {}
@@ -73,7 +74,7 @@ export async function startDownload(item: {
   type: MediaCard['type']
   durationSec?: number | null
 }): Promise<void> {
-  await load()
+  await loadDownloads()
   if (index[item.id] || item.id in active) return
 
   active[item.id] = 0
@@ -132,7 +133,7 @@ export async function startDownload(item: {
 
 /** Remove a downloaded item and its files. */
 export async function removeDownload(id: string): Promise<void> {
-  await load()
+  await loadDownloads()
   const record = index[id]
   if (!record) return
   await FileSystem.deleteAsync(record.localUri, { idempotent: true }).catch(() => {})
@@ -144,7 +145,8 @@ export async function removeDownload(id: string): Promise<void> {
   emit()
 }
 
-function snapshot(id: string): DownloadState {
+/** Current state for one item, without subscribing. */
+export function getDownloadState(id: string): DownloadState {
   if (index[id]) return { status: 'done', record: index[id] }
   if (id in active) return { status: 'downloading', progress: active[id] }
   return { status: 'none' }
@@ -152,11 +154,11 @@ function snapshot(id: string): DownloadState {
 
 /** Subscribe to one item's download state. */
 export function useDownloadState(id: string): DownloadState {
-  const [state, setState] = useState<DownloadState>(() => snapshot(id))
+  const [state, setState] = useState<DownloadState>(() => getDownloadState(id))
   useEffect(() => {
-    const sync = () => setState(snapshot(id))
+    const sync = () => setState(getDownloadState(id))
     listeners.add(sync)
-    void load().then(sync)
+    void loadDownloads().then(sync)
     return () => {
       listeners.delete(sync)
     }
@@ -174,7 +176,7 @@ export function useDownloads(): { items: DownloadRecord[]; ready: boolean } {
   }, [])
   useEffect(() => {
     listeners.add(sync)
-    void load().then(sync)
+    void loadDownloads().then(sync)
     return () => {
       listeners.delete(sync)
     }
