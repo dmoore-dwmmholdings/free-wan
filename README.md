@@ -44,8 +44,9 @@ Compose** app with a Tailscale sidecar. Full rationale in
 [`docs/02-architecture.md`](docs/02-architecture.md).
 
 There is also a native **iOS/Android app** (`packages/mobile`, Expo + React Native) that
-speaks the same API and can keep media on the device for offline playback — see
-[`docs/15-mobile-app.md`](docs/15-mobile-app.md).
+speaks the same API. It keeps media on the device for offline playback, uploads photos and
+video from the phone, shows subtitles, and takes its name and colours from your server's
+branding — see [`docs/15-mobile-app.md`](docs/15-mobile-app.md).
 
 ---
 
@@ -106,8 +107,8 @@ docker compose up -d            # starts app + Tailscale sidecar
 > accessibility audits of every major page (zero violations)** — all in a real browser.
 > Remaining refinements are tracked under "post-v1" in
 > [`docs/PROGRESS.md`](docs/PROGRESS.md) (read this first if you are the build agent), with
-> the roadmap in [`docs/14-build-plan.md`](docs/14-build-plan.md). **186 unit/integration
-> tests (173 backend + 11 web + 2 shared) + 18 e2e flows, all green.**
+> the roadmap in [`docs/14-build-plan.md`](docs/14-build-plan.md). **347 unit/integration
+> tests (180 backend + 154 mobile + 11 web + 2 shared) + 18 e2e flows, all green.**
 
 ## License
 

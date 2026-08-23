@@ -1376,3 +1376,22 @@ shared schema test, all green; every phase verified with a live built-server smo
   contents exclude the secure store from cloud backup and from device-to-device transfer, so a
   session token does not follow a restore onto a new phone. Recorded in `docs/13-security.md`.
   Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`, expo-doctor 18/18.
+- **2026-08-23 — Whole pipeline run locally; the README was out of date.** No behaviour
+  changed. Sessions have been ending by asking for 50-odd commits to be pushed without anyone
+  establishing that CI would survive them, so the whole workflow was run as CI runs it:
+  `pnpm install --frozen-lockfile` (in sync — worth checking, since dependencies moved twice
+  this week), `pnpm -r typecheck`, `pnpm -r build`, `pnpm -r test` (**347**), and
+  `pnpm test:e2e`, which had not been run once this session. **All 18 Playwright flows pass**,
+  including the axe WCAG audits of every major web page. Pushing is safe.
+  Housekeeping found nothing wrong. The production bundle is 3.0 MB of Hermes bytecode per
+  platform, 3.5 MB exported, with the 384 KB Ionicons font the largest asset — subsetting it
+  for the dozen or so glyphs used would save around a tenth of the app for a build-step
+  complication, and has not been done. Five declared dependencies are never imported —
+  `@babel/runtime`, `expo-constants`, `expo-linking`, `expo-system-ui`, `react-native-screens`
+  — all of them peer requirements of expo-router and React Navigation that Expo's own docs say
+  to declare, and none of which affect bundle size, since what ships is what is imported.
+  `packages/web/dist` holds the real web app rather than a leftover mobile export.
+  The README was wrong in two ways and is fixed: it claimed **186 tests (173 backend + 11 web
+  + 2 shared)**, which predates both the mobile package and 7 API tests, and its one-line
+  description of the app still described only offline playback — uploads, subtitles and
+  branding have all landed since.
