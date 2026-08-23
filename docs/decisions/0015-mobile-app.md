@@ -107,6 +107,14 @@ be discovered.
    have to change. If `StyleSheet.create` is ever introduced those styles will freeze at
    creation and this stops working — the note in `theme.ts` says so.
 
+   The app is held back until branding has settled, so the tree mounts once already wearing
+   the right colours. It first did this by keying the root on a version number and letting
+   the change remount everything — which worked for colour and broke navigation: a remount
+   resets the router, so a link straight to an item opened the library instead. The wait is
+   capped at two seconds, because `fetch` has no timeout of its own here and a server that
+   accepts a connection then says nothing would otherwise hold the app on a blank screen for
+   as long as the platform allows.
+
    `src/lib/palette.ts` reproduces the web's `color-mix` derivations (surface-2, border,
    muted, tints) with the same percentages, so a preset retunes both apps to the same values
    rather than to merely similar ones. Deriving them exposed that the literals this file used

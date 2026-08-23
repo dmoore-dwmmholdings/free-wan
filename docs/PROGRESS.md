@@ -1395,3 +1395,24 @@ shared schema test, all green; every phase verified with a live built-server smo
   + 2 shared)**, which predates both the mobile package and 7 API tests, and its one-line
   description of the app still described only offline playback — uploads, subtitles and
   branding have all landed since.
+- **2026-08-23 — Mobile app: deep links opened the library instead of the item.** Chased a
+  bounce noticed in passing several sessions ago and never followed up. A link straight to
+  `/media/<id>` — which is what the `freewan://` intent filter in the Android manifest exists
+  to receive — landed on the library. The API log settled what was happening: the item's
+  detail *was* fetched, so the screen mounted, and then the library's queries followed. The
+  app arrived and left again.
+  The cause was the branding work. Applying branding mutates a token singleton, which does not
+  re-render anything, so the root was keyed on a version number to force it — and a key change
+  remounts, and a remount resets the router, discarding the route it had just resolved.
+  Confirmed by disabling the version bump and watching the deep link land.
+  Fixed by not remounting at all: the app is held back until branding has settled, so the tree
+  mounts once already wearing the right colours. Verified both halves together — the deep link
+  lands, and a light `linen` preset still applies through it, background, text and primary.
+  The wait is capped at two seconds, since `fetch` has no timeout here and a server that
+  accepts a connection then says nothing would hold the app on a blank screen for as long as
+  the platform allows. Proving the cap took three attempts: absolute timings in a backgrounded
+  browser tab are worthless, because throttling put first render at 8.7s even against a
+  *healthy* server. The measurement that works compares rather than times — a server that
+  stalls `/api/branding` for thirty seconds, and the app renders with that request still
+  outstanding.
+  Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`.

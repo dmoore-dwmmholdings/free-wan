@@ -25,19 +25,29 @@ function syncColorScheme(): void {
   Appearance.setColorScheme(isLight(theme.color.bg) ? 'light' : 'dark')
 }
 
+/** How long the app will wait for branding before showing itself anyway. */
+const BRANDING_WAIT_MS = 2000
+
 /**
- * Apply the server's branding to the app's tokens.
+ * Apply the server's branding to the app's tokens, and report when that has settled.
  *
  * Not a TanStack query: it runs above the QueryClientProvider so the whole tree, login screen
- * included, is already branded on first paint rather than repainting a moment later.
- * `/api/branding` is public for the same reason on the web.
+ * included, is branded on first paint. `/api/branding` is public for the same reason on web.
  *
- * Returns a version number that changes once branding has been applied. The root renders with
- * it as a key, which is what makes the mutated tokens in `theme` take effect — see the note
- * there about why the tokens are a mutable singleton.
+ * The caller holds the app back until this returns true, so the tree mounts once with the
+ * right colours. An earlier version rendered immediately and forced the new tokens in by
+ * keying the root on a version number — which remounted everything, and remounting resets
+ * navigation: a link straight to an item opened the library instead, because the deep link
+ * was discarded a moment after it arrived. Waiting costs a moment on a screen that is a
+ * single colour anyway.
+ *
+ * The wait is capped. `fetch` has no timeout of its own here, so a server that accepts the
+ * connection and then says nothing would otherwise hold the app on a blank screen for as long
+ * as the platform allows — a minute on iOS. Past the cap the built-in palette is used;
+ * branding that turns up later is still applied, and is picked up by whatever renders next.
  */
-export function useBranding(): number {
-  const [version, setVersion] = useState(0)
+export function useBranding(): boolean {
+  const [settled, setSettled] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -45,24 +55,34 @@ export function useBranding(): number {
     // server to ask — this settles the chrome on the built-in palette rather than the phone's.
     syncColorScheme()
 
+    const release = () => {
+      if (!cancelled) setSettled(true)
+    }
+    const cap = setTimeout(release, BRANDING_WAIT_MS)
+
     void (async () => {
-      // Before a server is chosen there is nothing to ask, and the defaults are already right.
-      if (!(await getServerUrl())) return
       try {
+        // Before a server is chosen there is nothing to ask, and the defaults are already right.
+        const server = await getServerUrl()
+        if (!server) return
         const branding = await api.get<Branding>('/api/branding')
         if (cancelled) return
         applyBranding(branding)
         syncColorScheme()
-        setVersion((v) => v + 1)
       } catch {
         // An unreachable or older server leaves the built-in palette in place. Branding is
         // decoration; failing to fetch it must not keep anyone out of their library.
+      } finally {
+        clearTimeout(cap)
+        release()
       }
     })()
+
     return () => {
       cancelled = true
+      clearTimeout(cap)
     }
   }, [])
 
-  return version
+  return settled
 }

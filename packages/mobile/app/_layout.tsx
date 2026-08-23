@@ -58,12 +58,19 @@ function Gate() {
 }
 
 export default function RootLayout() {
-  // Keying the tree on this remounts it once branding has retuned the tokens. Cheap, because
-  // it happens at most once per launch, and it is what makes the mutated tokens take effect.
-  const brandingVersion = useBranding()
+  // Held back until branding has settled, so the tree mounts once already wearing the right
+  // colours. Keying it on a version instead would remount everything, and a remount resets
+  // navigation — which threw away a deep link to an item and opened the library instead.
+  const brandingSettled = useBranding()
   useRefetchOnForeground()
+
+  if (!brandingSettled) {
+    // A single flat colour, so there is nothing to correct once the palette arrives.
+    return <View style={{ flex: 1, backgroundColor: theme.color.bg }} />
+  }
+
   return (
-    <SafeAreaProvider key={brandingVersion}>
+    <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         {/* A light preset (paper, linen) needs dark status-bar icons or they vanish. */}
         <StatusBar style={isLight(theme.color.bg) ? 'dark' : 'light'} />
