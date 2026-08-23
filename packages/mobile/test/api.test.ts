@@ -83,3 +83,41 @@ describe('API request layer', () => {
     await expect(api.api.get('/api/media')).rejects.toMatchObject({ code: 'bad_response' })
   })
 })
+
+describe('a server that accepts the connection and then says nothing', () => {
+  it('gives up rather than waiting for the platform to', async () => {
+    // `fetch` has no timeout of its own, so without one of ours this never settles and the
+    // screen keeps its spinner until iOS or Android decides the socket is dead — a minute,
+    // with nothing to press in the meantime.
+    const { api } = await fresh()
+    vi.useFakeTimers()
+    const hung = vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+        }),
+    )
+    vi.stubGlobal('fetch', hung)
+
+    const pending = api.api.get('/api/media')
+    const settled = pending.then(
+      () => ({ ok: true as const }),
+      (e: unknown) => ({ ok: false as const, error: e as InstanceType<typeof api.ApiError> }),
+    )
+    await vi.advanceTimersByTimeAsync(20_000)
+    const outcome = await settled
+
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) {
+      expect(outcome.error).toBeInstanceOf(api.ApiError)
+      expect(outcome.error.code).toBe('timeout')
+    }
+    vi.useRealTimers()
+  })
+
+  it('lets an answer that arrives in time through untouched', async () => {
+    const { api } = await fresh()
+    vi.stubGlobal('fetch', vi.fn(async () => respond(200, '{"ok":true}')))
+    await expect(api.api.get('/api/media')).resolves.toEqual({ ok: true })
+  })
+})

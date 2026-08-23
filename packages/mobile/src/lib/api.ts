@@ -28,16 +28,47 @@ export async function authHeaders(): Promise<Record<string, string>> {
   return token ? { authorization: `Bearer ${token}` } : {}
 }
 
+/**
+ * How long to wait for the server before giving up on a request.
+ *
+ * `fetch` has none of its own, so without this a phone that drifts off the tailnet mid-request
+ * sits on a spinner until the platform's own socket timeout runs out — up to a minute on iOS,
+ * with no error, no retry and nothing to press. The app already knows how to show a server it
+ * cannot reach; this is what lets it.
+ *
+ * Everything that goes through here is a database read on the server's side. The two things
+ * that are genuinely slow — extracting a caption track with ffmpeg, and moving a file — do not:
+ * captions are fetched directly in `captions.ts`, and transfers are handled by
+ * `expo-file-system`, which has its own progress and its own cancel.
+ */
+const REQUEST_TIMEOUT_MS = 20_000
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const url = await apiUrl(path)
   const headers: Record<string, string> = { ...(await authHeaders()) }
   if (body !== undefined) headers['content-type'] = 'application/json'
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  // Built by hand rather than with `AbortSignal.timeout`, which Hermes does not have.
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    })
+  } catch (err) {
+    // An abort arrives here as an ordinary rejection, indistinguishable from the connection
+    // failing, so the signal is what tells the two apart.
+    if (controller.signal.aborted) {
+      throw new ApiError(0, 'timeout', 'The server did not answer in time')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 
   if (res.status === 204) return undefined as T
   const text = await res.text()

@@ -1866,3 +1866,29 @@ shared schema test, all green; every phase verified with a live built-server smo
   would turn "the app crashed" into "the server said something unexpected". That is a larger
   change and a real design decision, so it is left alone.
   Verified green: typecheck 4/4, `pnpm -r test` **381**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: a request that hangs now gives up rather than waiting for the
+  platform to.** `fetch` has no timeout of its own, so a phone that drifted off the tailnet
+  mid-request sat on a spinner until iOS or Android decided the socket was dead — up to a
+  minute, with no error, no retry and nothing to press. The app already knows how to say it
+  cannot reach a server; there was simply no way for it to find out. Twenty seconds now, with
+  the abort reported as its own error code rather than as an ordinary connection failure.
+  Everything that goes through this layer is a database read on the server's side. The two
+  things that are genuinely slow do not go through it, which is what makes a cap safe:
+  extracting a caption track with ffmpeg is fetched directly in `captions.ts`, and transfers
+  are `expo-file-system`'s, with their own progress and their own cancel. Built with an
+  `AbortController` by hand, since Hermes has no `AbortSignal.timeout`.
+  **2 tests**, control-tested three ways: not aborting, reporting the abort as an ordinary
+  failure, and setting the cap so high it could not help all fail. Smoke-checked in the browser
+  too, because this is the request layer every screen uses and a signal that misbehaved would
+  break all of them — sign-in, five tiles, collections, clips and settings all normal.
+  Not checked end to end in the browser: hidden-tab timer throttling makes a twenty-second
+  wall-clock measurement worthless, and the path from an `ApiError` to the "cannot reach your
+  server" screen was already proved last session against a server refusing connections.
+  A test of mine also got through `vitest` while failing `tsc`, which only the workspace
+  typecheck caught: a discriminated union whose `ok` had widened to `boolean`.
+  Also settled: whether this app should validate what the server sends it. It should not, or
+  at least not alone — the web app casts its responses exactly the same way, so trusting the
+  server is a decision the product has already made, consistently, and the error boundary added
+  last session is the floor that makes it survivable.
+  Verified green: typecheck 4/4, `pnpm -r test` **383**, `pnpm -r build`, both bundles.
