@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
+import { useEventListener } from 'expo'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons'
 import { VideoView, useVideoPlayer } from 'expo-video'
@@ -161,10 +162,20 @@ export default function MediaScreen() {
 
   useProgressReporter(id, player, detail.data?.durationS ?? null)
 
+  // Resuming has the same hazard as a clip's in-point: a seek issued before the source has
+  // loaded can be discarded, so repeat it once the player reports itself ready. The ref stops
+  // a later re-buffer from dragging the viewer back to where they resumed from.
+  const resumeAt = playback.data?.resumeAt
+  const resumed = useRef(false)
   useEffect(() => {
-    const resumeAt = playback.data?.resumeAt
     if (player && resumeAt && !downloadedUri) player.currentTime = resumeAt
-  }, [player, playback.data?.resumeAt, downloadedUri])
+  }, [player, resumeAt, downloadedUri])
+
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status !== 'readyToPlay' || resumed.current || !resumeAt || downloadedUri) return
+    resumed.current = true
+    player.currentTime = resumeAt
+  })
 
   const title = detail.data?.title ?? offlineRecord?.title ?? 'Untitled'
   // A portrait photo in a 16:9 letterbox wastes most of the screen.

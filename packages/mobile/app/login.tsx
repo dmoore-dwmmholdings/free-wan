@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,6 +12,7 @@ import {
 import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLogin } from '@/lib/auth'
+import { getServerUrl } from '@/lib/session'
 import { theme } from '@/theme'
 
 function Field(props: {
@@ -61,6 +62,14 @@ export default function LoginScreen() {
   const [server, setServer] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+
+  // Signing out keeps the server address on purpose. Fill it back in, or the promise that you
+  // will not have to retype your host is one the app never keeps.
+  useEffect(() => {
+    void getServerUrl().then((saved) => {
+      if (saved) setServer((current) => current || saved)
+    })
+  }, [])
 
   const canSubmit = server.trim() && username.trim() && password && !login.isPending
 

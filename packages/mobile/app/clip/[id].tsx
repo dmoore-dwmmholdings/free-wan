@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ActivityIndicator, Text, View } from 'react-native'
 import { Stack, useLocalSearchParams } from 'expo-router'
 import { useEventListener } from 'expo'
@@ -37,10 +37,20 @@ export default function ClipScreen() {
   })
 
   // A clip is a window onto a longer video, so start at the in-point rather than at zero.
+  // Seek twice on purpose: once now, which is enough if the source is already buffered, and
+  // again when the player reports itself ready, because a seek issued before the source has
+  // loaded can be discarded. The ref keeps a later re-buffer from yanking playback back.
   const startS = preview.data?.startS
+  const sought = useRef(false)
   useEffect(() => {
     if (player && startS !== undefined) player.currentTime = startS
   }, [player, startS])
+
+  useEventListener(player, 'statusChange', ({ status }) => {
+    if (status !== 'readyToPlay' || sought.current || startS === undefined) return
+    sought.current = true
+    player.currentTime = startS
+  })
 
   // The player has no notion of an out-point: hold the window here, looping or stopping at it.
   useEventListener(player, 'timeUpdate', ({ currentTime }) => {
