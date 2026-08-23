@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native'
+import { ActivityIndicator, PixelRatio, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native'
 import { useLocalSearchParams } from 'expo-router'
 import { useEventListener } from 'expo'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
@@ -8,7 +8,7 @@ import { VideoView, useVideoPlayer } from 'expo-video'
 import { AuthImage } from '@/components/AuthImage'
 import { ErrorState } from '@/components/ErrorState'
 import { apiUrl, authHeaders } from '@/lib/api'
-import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
+import { displayWidthFor, formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
 import { cancelDownload, formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
 import { TagList } from '@/components/TagChips'
 import { CaptionOverlay, CaptionPicker } from '@/components/Captions'
@@ -190,6 +190,7 @@ function LikeButton({ id, liked, likeCount }: { id: string; liked: boolean; like
 export default function MediaScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const insets = useSafeAreaInsets()
+  const { width: screenWidth } = useWindowDimensions()
   const detail = useMediaDetail(id)
   const download = useDownloadState(id)
   // Offline the detail fetch fails, so fall back to what was captured at download time.
@@ -278,6 +279,11 @@ export default function MediaScreen() {
     () => formatDuration(detail.data?.durationS ?? offlineRecord?.durationSec ?? null),
     [detail.data?.durationS, offlineRecord],
   )
+  const photoWidth = displayWidthFor({
+    screenWidth,
+    pixelRatio: PixelRatio.get(),
+    sourceWidth: detail.data?.width ?? null,
+  })
 
   if (detail.isLoading && !offlineRecord) {
     return (
@@ -349,9 +355,11 @@ export default function MediaScreen() {
             </View>
           )
         ) : (
-          // Photos deserve the original file, not the grid thumbnail.
+          // Photos deserve better than the grid thumbnail, but not the whole original: see
+          // `displayWidthFor` for what is asked for instead, and why it sometimes is the
+          // original after all. A downloaded copy is used as-is and asks for nothing.
           <AuthImage
-            path={`/api/media/${id}/raw`}
+            path={`/api/media/${id}/raw${photoWidth ? `?w=${photoWidth}` : ''}`}
             localUri={downloadedUri}
             contentFit="contain"
             style={{ width: '100%', height: '100%' }}

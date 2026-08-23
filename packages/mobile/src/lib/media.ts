@@ -67,3 +67,39 @@ export function formatDuration(seconds: number | null): string | null {
   const mm = h > 0 ? String(m).padStart(2, '0') : String(m)
   return `${h > 0 ? `${h}:` : ''}${mm}:${String(s).padStart(2, '0')}`
 }
+
+/** Requested widths are rounded up to a multiple of this, so the server caches a handful of
+ *  variants rather than one per phone model. */
+const WIDTH_STEP = 320
+
+/** Above this a photo is not visibly better on a phone, and every pixel still costs. */
+const MAX_WIDTH = 2560
+
+/**
+ * The width to ask `/api/media/:id/raw` for when showing a photo, or null to take the original.
+ *
+ * Without this the app asks for the original every time — the full 12-megapixel file off
+ * someone's camera, downloaded over a tailnet and decoded into a phone's memory to be drawn
+ * at a fraction of its size. The web app has always asked for a fitted size; the phone, which
+ * is the device that actually pays for the difference, was asking for the largest thing on
+ * offer. Measured against a 4032x3024 photo: 638 KB whole, 54 KB at 1280.
+ *
+ * Null rather than a width in two cases. When the source width is unknown there is no way to
+ * tell whether a request would be a downscale or an upscale. And when it is known to be no
+ * larger than what would be asked for, the original *is* the smaller file: the server resizes
+ * with `scale=w:-2`, which enlarges just as happily as it shrinks, and would answer with a
+ * bigger, softer image than the one it started from.
+ */
+export function displayWidthFor(input: {
+  /** Screen width in density-independent points. */
+  screenWidth: number
+  pixelRatio: number
+  sourceWidth: number | null
+}): number | null {
+  const { screenWidth, pixelRatio, sourceWidth } = input
+  if (!sourceWidth || sourceWidth <= 0) return null
+  const devicePixels = Math.max(1, screenWidth * pixelRatio)
+  const bucketed = Math.ceil(devicePixels / WIDTH_STEP) * WIDTH_STEP
+  const width = Math.min(MAX_WIDTH, bucketed)
+  return width >= sourceWidth ? null : width
+}

@@ -1568,3 +1568,28 @@ shared schema test, all green; every phase verified with a live built-server smo
   not have, and the browser probe above is the verification; a test asserting the string is
   passed to the prop would only restate the diff.
   Verified green: typecheck 4/4, `pnpm -r test` **367**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: opening a photo downloaded the whole original, every time.** The
+  detail screen asked `/api/media/:id/raw` with no width, which is the full file off someone's
+  camera — pulled over a tailnet and decoded into a phone's memory to be drawn at a fraction of
+  its size. The web app has always asked for a size fitted to its viewport. The phone, which is
+  the device that actually pays for the difference in data and in memory, was asking for the
+  largest thing on offer.
+  Measured against a 4032x3024 photo added to the harness library for the purpose: **638 KB
+  whole, 54 KB at `w=1280`** — the width a mid-sized phone would ask for. Roughly twelve to
+  one, and the server keeps each variant on disk, so the second request for one took 4.8ms.
+  `displayWidthFor` decides the width, with **6 tests**, each control-tested. It rounds up to a
+  multiple of 320 rather than asking for the exact pixel width, because every distinct width is
+  a JPEG the server renders and stores, and the few points between one handset and the next are
+  not worth a file each. It stops at 2560. And it asks for nothing at all when the photo is
+  already no larger than the request would be: the resizer runs `scale=w:-2`, which enlarges as
+  readily as it shrinks, so asking for more than the source holds returns a *bigger*, softer
+  file than the original.
+  Verified end to end in the browser by watching what the app actually requests: the 4032-wide
+  photo asks for `raw?w=2560` in a 3440px window — the ceiling doing its job — the 1600-wide
+  one asks for `raw` with no width at all, and the video screen asks for `/raw` never.
+  One thing that surfaced while measuring, pre-existing and web-only: React Native's `Image`
+  does not send the header the source carries when it runs on react-native-web, so every
+  authenticated image 401s in the harness. It is why photos and posters have never drawn there.
+  Downloads still take the original: an offline copy should be the photo, not a view of it.
+  Verified green: typecheck 4/4, `pnpm -r test` **373**, `pnpm -r build`.

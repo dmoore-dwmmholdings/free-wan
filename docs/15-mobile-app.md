@@ -118,7 +118,10 @@ directory, with an index in `AsyncStorage`.
 
 A downloaded item plays entirely from the device: the screen skips the `/playback` request
 and points the player at the local `file://`, so it works with the server switched off.
-Photos are downloaded at full resolution, not as thumbnails.
+Photos are downloaded at full resolution, not as thumbnails. Viewing one is different: the
+screen asks the server for a copy fitted to the phone rather than the whole original, which for
+a 4032-pixel-wide photo is 54 KB instead of 638 KB. It falls back to the original when that is
+already the smaller file, since the server's resizer will happily enlarge one.
 
 Three behaviours worth knowing:
 
