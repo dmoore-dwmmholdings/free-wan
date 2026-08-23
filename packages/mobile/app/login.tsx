@@ -135,6 +135,9 @@ export default function LoginScreen() {
         <Pressable
           onPress={submit}
           disabled={!canSubmit}
+          accessibilityRole="button"
+          // Announces itself as unavailable rather than just failing to respond.
+          accessibilityState={{ disabled: !canSubmit }}
           style={({ pressed }) => ({
             backgroundColor: canSubmit ? theme.color.primary : theme.color.surface2,
             borderRadius: theme.radius.sm,

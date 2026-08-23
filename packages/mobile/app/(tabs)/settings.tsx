@@ -82,6 +82,7 @@ export default function SettingsScreen() {
 
       <Pressable
         onPress={confirmSignOut}
+        accessibilityRole="button"
         style={({ pressed }) => ({
           borderColor: 'rgba(248,113,113,0.4)',
           borderWidth: 1,

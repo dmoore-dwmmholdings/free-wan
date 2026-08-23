@@ -112,6 +112,7 @@ function FailedRow({ item }: { item: FailedDownload }) {
           durationSec: item.durationSec,
         })
       }
+      accessibilityRole="button"
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

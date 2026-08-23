@@ -250,6 +250,22 @@ Deliberate omissions, since this is a companion to the web app rather than a rep
 
 ---
 
+## Screen readers
+
+Every control the app draws carries a name and announces itself as a button, and the two
+things that are only icons — the cross that stops a transfer and the speech bubble that turns
+subtitles on — say what they do and what state they are in rather than reading as a picture.
+Tiles and rows that open something are links rather than buttons, which is what they are.
+
+The bottom sheets need a note, because React Native's default works against them. A
+`Pressable` is an accessibility element unless it is told not to be, and an element hides its
+own children, so the two sheets — choosing a library to upload to, choosing a subtitle track —
+were each announced as one shape with nothing reachable inside. Both the backdrop and the
+sheet itself are now marked as not being elements, which leaves the rows individually
+reachable and still lets a tap on the backdrop dismiss.
+
+---
+
 ## Troubleshooting
 
 **"Project is incompatible with this version of Expo Go."** Your Expo Go expects a different

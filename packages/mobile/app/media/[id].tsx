@@ -83,6 +83,7 @@ function DownloadButton({
     return (
       <Pressable
         onPress={() => void startDownload({ id, title, type, durationSec })}
+        accessibilityRole="button"
         style={({ pressed }) => ({
           gap: theme.space(1),
           borderColor: 'rgba(248,113,113,0.4)',
@@ -131,6 +132,7 @@ function DownloadButton({
   return (
     <Pressable
       onPress={() => void startDownload({ id, title, type, durationSec })}
+      accessibilityRole="button"
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

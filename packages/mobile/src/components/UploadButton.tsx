@@ -186,11 +186,18 @@ export function UploadButton() {
       >
         <Pressable
           onPress={() => setChoosing(null)}
+          // Not an accessibility element itself. `Pressable` sets `accessible` to true
+          // unless told otherwise, and a container that is an element hides its children —
+          // which would leave a screen reader with one unlabelled blob where the sheet is,
+          // and no way to reach the options inside it. Tapping to dismiss still works.
+          accessible={false}
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}
         >
           {/* Swallow taps on the sheet itself, or choosing a library would dismiss it. */}
           <Pressable
             onPress={() => {}}
+            // Same reason as the backdrop: an element here would swallow the rows below it.
+            accessible={false}
             style={{
               backgroundColor: theme.color.surface,
               borderTopLeftRadius: theme.radius.md,
@@ -208,6 +215,8 @@ export function UploadButton() {
                 <Pressable
                   key={t.id}
                   onPress={() => void send(t, choosing ?? [])}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Upload to ${t.name}`}
                   style={({ pressed }) => ({
                     flexDirection: 'row',
                     alignItems: 'center',

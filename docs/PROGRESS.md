@@ -1183,3 +1183,22 @@ shared schema test, all green; every phase verified with a live built-server smo
   green: typecheck 4/4, `pnpm -r test` **341**, `pnpm -r build`, `expo prebuild` (which is
   what validates the `app.json` change). Dev server still up on `192.168.1.211:8081` and
   `100.81.57.116:8081`.
+- **2026-08-23 — Mobile app: accessibility audit; both bottom sheets were unreachable.**
+  Audited every interactive control rather than spot-checking. Names were fine — all 26 have
+  a discernible one, either explicit or from visible text. Roles were not: only 11 announced
+  themselves as buttons, so Sign in, Sign out, Download, retry-after-failure, the folder chips
+  and the upload-target rows were all read out as plain text with no indication they could be
+  tapped. Now 18, which is all of them; the remaining 8 are correct to leave, being four
+  inside `<Link asChild>` (expo-router gives them link semantics, and a link is what they are)
+  and four modal backdrops and tap-swallowing wrappers.
+  Those last four turned out to hide a real defect. React Native's `Pressable` sets
+  `accessible` to true unless told otherwise, and an accessibility element hides its own
+  children — so the backdrop and inner wrapper of each bottom sheet meant **the sheets for
+  choosing an upload library and choosing a subtitle track were each announced as a single
+  shape with nothing reachable inside**. Both are now marked `accessible={false}`, which
+  leaves the rows individually reachable and still lets a tap on the backdrop dismiss. This is
+  code written this week; it would not have been found by looking at the screen.
+  Also checked and left alone: `Image` is not an accessibility element in React Native unless
+  asked to be, so posters are not announced redundantly; and the caption overlay is left
+  readable, since a cue changes only when the cue changes. Verified green: typecheck 4/4,
+  `pnpm -r test` **341**, `pnpm -r build`, `expo prebuild`.

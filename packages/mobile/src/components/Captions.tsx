@@ -113,11 +113,18 @@ export function CaptionPicker({
       >
         <Pressable
           onPress={() => onOpenChange(false)}
+          // Not an accessibility element itself. `Pressable` sets `accessible` to true
+          // unless told otherwise, and a container that is an element hides its children —
+          // which would leave a screen reader with one unlabelled blob where the sheet is,
+          // and no way to reach the options inside it. Tapping to dismiss still works.
+          accessible={false}
           style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' }}
         >
           {/* Swallow taps on the sheet, or choosing a track would dismiss it. */}
           <Pressable
             onPress={() => {}}
+            // Same reason as the backdrop: an element here would swallow the rows below it.
+            accessible={false}
             style={{
               backgroundColor: theme.color.surface,
               borderTopLeftRadius: theme.radius.md,
