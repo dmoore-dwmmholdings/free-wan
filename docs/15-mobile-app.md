@@ -413,6 +413,14 @@ which is most of the app. `src/lib/secure-store.web.ts` is what makes it reachab
 login screen, since there is no keychain in a browser; `localStorage` is not one either, and
 would not be acceptable in anything shipped to a browser.
 
+`harness-up.sh` builds for production, which is the right default — it is what ships — but it
+means React's development warnings are compiled out, so a console that looks clean there proves
+nothing about duplicate keys, invalid props or hook-order faults. To look for those, export with
+`--dev --no-minify` into a separate directory and serve that instead. Two things are worth
+knowing before trusting the result: the browser extension's console capture reads `console.error`
+but not `console.warn` (React's own warnings are errors, so they come through; other libraries'
+do not), and a zero is only worth having after a deliberate probe has proved the capture is live.
+
 Restart the API after a rebuild. The script deletes and recreates `packages/web/dist`, and a
 server that was already serving that directory then answers every asset with `index.html` —
 which looks exactly like the app crashing on load, a blank page with no requests behind it.

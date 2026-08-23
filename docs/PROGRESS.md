@@ -1821,3 +1821,24 @@ shared schema test, all green; every phase verified with a live built-server smo
   in a sentence, and adds that anything downloaded still plays. Checked both ways: offline it
   explains itself, and with the server back it shows "Signed in as admin / Role admin" again.
   Verified green: typecheck 4/4, `pnpm -r test` **381**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: the console has been checked against the wrong build all along.**
+  No defect this pass, but a hole in how one class of them was being looked for.
+  Every console check in this project has been run against `harness-up.sh`, which exports for
+  production — and a production React build compiles its development warnings out entirely.
+  Duplicate keys, invalid props, hook-order faults and deprecations all report through
+  `console.error` in development and say nothing at all in production. So a console that read
+  "83 messages, all the same image error" was never evidence of anything; it could not have
+  been. That is the same shape as the empty-glob and empty-directory readings from earlier
+  sessions: a quiet answer from a question that was never asked.
+  Asked properly this time, with `expo export --dev --no-minify` served in place of the usual
+  build. Signed in, walked every screen, mounted the three detail screens that build fresh each
+  time, and worked the filters, the folder trail and a tag toggle. **Nothing.** No key warnings,
+  no invalid props, no hook warnings.
+  Two things about the instrument, both found by probing it rather than assuming. The browser
+  extension's console capture reads `console.error` but drops `console.warn` — a deliberate
+  probe emitting both saw only the error come back, which matters because React's warnings are
+  errors and so do come through, while other libraries' warnings would have been missed
+  silently. And a hook installed over `console.warn` from the page covers that gap, but only
+  once a probe has shown it is live; the zero above is from a hook proved live first.
+  Both are written into the mobile doc, since the trap is one anybody would fall into twice.
