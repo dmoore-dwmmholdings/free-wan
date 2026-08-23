@@ -1,8 +1,23 @@
 import { useEffect, useState } from 'react'
+import { Appearance } from 'react-native'
 import type { Branding } from '@free-wan/shared'
 import { api } from './api'
-import { applyBranding } from '@/theme'
+import { applyBranding, theme } from '@/theme'
+import { isLight } from './palette'
 import { getServerUrl } from './session'
+
+/**
+ * Point the platform's own chrome at the brand rather than at the device.
+ *
+ * The keyboard, system dialogs, action sheets and text-selection handles take their look from
+ * the app's colour scheme, not from our tokens. Left alone they follow the phone, so a light
+ * preset could hand you a dark keyboard and a dark alert over a cream screen — the same
+ * half-applied look that following branding was meant to remove. `app.json` declares
+ * `userInterfaceStyle: "automatic"` so this call is what decides it.
+ */
+function syncColorScheme(): void {
+  Appearance.setColorScheme(isLight(theme.color.bg) ? 'light' : 'dark')
+}
 
 /**
  * Apply the server's branding to the app's tokens.
@@ -20,6 +35,10 @@ export function useBranding(): number {
 
   useEffect(() => {
     let cancelled = false
+    // Before branding answers — and on the login screen, which is reached before there is a
+    // server to ask — this settles the chrome on the built-in palette rather than the phone's.
+    syncColorScheme()
+
     void (async () => {
       // Before a server is chosen there is nothing to ask, and the defaults are already right.
       if (!(await getServerUrl())) return
@@ -27,6 +46,7 @@ export function useBranding(): number {
         const branding = await api.get<Branding>('/api/branding')
         if (cancelled) return
         applyBranding(branding)
+        syncColorScheme()
         setVersion((v) => v + 1)
       } catch {
         // An unreachable or older server leaves the built-in palette in place. Branding is

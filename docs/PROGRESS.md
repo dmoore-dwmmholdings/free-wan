@@ -1162,3 +1162,24 @@ shared schema test, all green; every phase verified with a live built-server smo
   which is not worth the churn to fix.
   **The dev server is left running for a device test.** Documented the stale-server trap under
   Troubleshooting, since Metro serving live source is exactly what makes it confusing.
+- **2026-08-23 — Mobile app: native chrome follows the brand; icons and identity checked.**
+  Reviewed what the app looks like as an installed thing rather than as code. Icons are real
+  and correctly formed — 1024×1024, with `icon.png` deliberately carrying no alpha channel
+  (iOS rejects it) while the Android adaptive foreground does, and the mark sits inside
+  Android's centre safe zone. Identity is right too: home-screen name "FreeWAN", sensible
+  bundle ids, and `orientation: default` so video can be turned sideways.
+  One leftover from before branding existed: `userInterfaceStyle` was pinned to `dark`. That
+  governs the platform's own chrome — keyboard, system dialogs, action sheets, text-selection
+  handles — none of which take their look from the app's tokens. Since the app now retunes to
+  light presets, a `paper` or `linen` server would have produced a dark keyboard and a dark
+  alert over a cream screen: exactly the half-applied look that following branding was meant
+  to remove, and the same family as the invisible duration badge found when branding went in.
+  `app.json` now declares `automatic` and the scheme is set from the palette's own lightness,
+  once at startup so the login screen is right before any server has been asked, and again
+  when branding arrives.
+  Deliberately not the browser harness this session: the dev server left running for a device
+  test serves the working tree live, and patching `session.ts` for the harness would have
+  served that patch to any connected phone — the hazard documented last session. Verified
+  green: typecheck 4/4, `pnpm -r test` **341**, `pnpm -r build`, `expo prebuild` (which is
+  what validates the `app.json` change). Dev server still up on `192.168.1.211:8081` and
+  `100.81.57.116:8081`.

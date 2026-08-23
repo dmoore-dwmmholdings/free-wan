@@ -5,7 +5,7 @@
     "scheme": "freewan",
     "version": "0.1.0",
     "orientation": "default",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "backgroundColor": "#0b0b10",
     "ios": {

@@ -119,6 +119,12 @@ be discovered.
    ratio of 1.2:1. It is now a fixed dark pill with fixed white text, since it sits over
    arbitrary poster art and should not follow the palette at all.
 
+   The app's colour scheme is set from the palette's own lightness rather than declared in
+   `app.json`, which now says `automatic`. The keyboard, system dialogs, action sheets and
+   selection handles are drawn by the platform and take their look from that scheme, not from
+   these tokens, so pinning it to dark — as it was — would have left a light preset with dark
+   system chrome over a light app: the same half-applied look this decision set out to avoid.
+
    Not followed: fonts, which would mean loading remote font files at runtime, and the
    `mode` flag, which is redundant here because the palette's own colours already carry it.
 

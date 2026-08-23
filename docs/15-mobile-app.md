@@ -198,6 +198,11 @@ the two match rather than merely resemble each other. Two things are deliberatel
 subtitles stay white-on-black and the duration badge on a thumbnail stays a dark pill, because
 both sit over arbitrary artwork and have to stay readable whatever the palette is.
 
+The platform's own chrome follows the brand too — the keyboard, system dialogs, action sheets
+and text-selection handles take their look from the app's colour scheme rather than from our
+tokens, so it is set from the palette instead of from the phone. Without that a light preset
+could hand you a dark keyboard and a dark alert over a cream screen.
+
 Not followed: the fonts an admin picks, which would mean fetching font files at runtime, and
 the installed app's own name and icon, which are fixed at build time in `app.json`. If the
 server cannot be reached, the built-in palette is used and the app carries on.
