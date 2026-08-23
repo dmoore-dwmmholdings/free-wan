@@ -1,0 +1,79 @@
+import { Alert, FlatList, Pressable, Text, View } from 'react-native'
+import { Link } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
+import { AuthImage } from '@/components/AuthImage'
+import { formatBytes, removeDownload, useDownloads, type DownloadRecord } from '@/lib/downloads'
+import { formatDuration } from '@/lib/media'
+import { theme } from '@/theme'
+
+function Row({ item }: { item: DownloadRecord }) {
+  const duration = formatDuration(item.durationSec)
+  const confirmRemove = () => {
+    Alert.alert('Remove download?', `"${item.title}" will be deleted from this device.`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => void removeDownload(item.id) },
+    ])
+  }
+
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space(3) }}>
+      <Link href={`/media/${item.id}`} asChild>
+        <Pressable style={({ pressed }) => ({ flex: 1, flexDirection: 'row', gap: theme.space(3), opacity: pressed ? 0.7 : 1 })}>
+          <AuthImage
+            localUri={item.posterUri}
+            style={{ width: 108, aspectRatio: 16 / 10, borderRadius: theme.radius.sm, backgroundColor: theme.color.surface2 }}
+          />
+          <View style={{ flex: 1, justifyContent: 'center', gap: theme.space(1) }}>
+            <Text numberOfLines={2} style={{ color: theme.color.text, fontSize: 14, fontWeight: '600' }}>
+              {item.title}
+            </Text>
+            <Text style={{ color: theme.color.muted, fontSize: 12 }}>
+              {[duration, formatBytes(item.bytes)].filter(Boolean).join('  ·  ')}
+            </Text>
+          </View>
+        </Pressable>
+      </Link>
+      <Pressable
+        onPress={confirmRemove}
+        hitSlop={10}
+        style={({ pressed }) => ({ padding: theme.space(2), opacity: pressed ? 0.6 : 1 })}
+      >
+        <Ionicons name="trash-outline" size={20} color={theme.color.muted} />
+      </Pressable>
+    </View>
+  )
+}
+
+export default function DownloadsScreen() {
+  const { items } = useDownloads()
+  const totalBytes = items.reduce((sum, i) => sum + i.bytes, 0)
+
+  return (
+    <FlatList
+      style={{ backgroundColor: theme.color.bg }}
+      data={items}
+      keyExtractor={(i) => i.id}
+      contentContainerStyle={{ padding: theme.space(3), gap: theme.space(4) }}
+      renderItem={({ item }) => <Row item={item} />}
+      ListHeaderComponent={
+        items.length > 0 ? (
+          <Text style={{ color: theme.color.muted, fontSize: 12, letterSpacing: 1, fontWeight: '700' }}>
+            {items.length} ITEM{items.length === 1 ? '' : 'S'}  ·  {formatBytes(totalBytes)}
+          </Text>
+        ) : null
+      }
+      ListEmptyComponent={
+        <View style={{ paddingTop: theme.space(24), alignItems: 'center', gap: theme.space(2), paddingHorizontal: theme.space(8) }}>
+          <Ionicons name="arrow-down-circle-outline" size={40} color={theme.color.muted} />
+          <Text style={{ color: theme.color.text, fontSize: 16, fontWeight: '700', marginTop: theme.space(2) }}>
+            No downloads yet
+          </Text>
+          <Text style={{ color: theme.color.muted, fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+            Open anything in your library and tap Download to keep it on this device. Downloads play
+            with no connection to the server.
+          </Text>
+        </View>
+      }
+    />
+  )
+}

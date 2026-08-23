@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "FreeWAN",
+    "slug": "free-wan",
+    "scheme": "freewan",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "backgroundColor": "#0b0b10",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.freewan.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
+    "android": {
+      "package": "com.freewan.app",
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": { "backgroundColor": "#0b0b10" }
+    },
+    "plugins": ["expo-router", "expo-secure-store", "expo-video"],
+    "experiments": { "typedRoutes": true }
+  }
+}

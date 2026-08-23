@@ -42,3 +42,10 @@ playwright-report/
 # Local preview rig (sample media + machine-specific launch config)
 .preview-media/
 .claude/launch.json
+
+# Expo / React Native build state (prebuild output is regenerated, never committed)
+.expo/
+packages/mobile/android/
+packages/mobile/ios/
+*.jks
+*.keystore

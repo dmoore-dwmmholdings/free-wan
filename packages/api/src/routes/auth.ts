@@ -27,9 +27,12 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       if (!(await verifyPassword(password, u.passwordHash))) return reply.code(401).send(invalidCreds)
 
       const token = app.createSession(u.id, req.headers['user-agent'])
-      // `secure` tracks the real transport, not NODE_ENV: a Secure cookie set over plain HTTP
-      // (common on the tailnet) is dropped by the browser, which would break login.
-      reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(req.protocol === 'https'))
+      const native = parsed.data.client === 'native'
+      if (!native) {
+        // `secure` tracks the real transport, not NODE_ENV: a Secure cookie set over plain HTTP
+        // (common on the tailnet) is dropped by the browser, which would break login.
+        reply.setCookie(SESSION_COOKIE, token, sessionCookieOptions(req.protocol === 'https'))
+      }
       const me: Me = {
         id: u.id,
         username: u.username,
@@ -37,7 +40,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         canRunCommands: Boolean(u.canRunCommands),
         mustChangePassword: Boolean(u.mustChangePassword),
       }
-      return reply.code(200).send({ user: me })
+      // The token is returned only to native clients, which must send it as a Bearer header.
+      // Withholding it from the browser keeps the session out of reach of XSS, and an attacker
+      // who cannot supply the password cannot mint one by replaying this endpoint.
+      return reply.code(200).send(native ? { user: me, token } : { user: me })
     },
   )
 

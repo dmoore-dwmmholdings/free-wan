@@ -40,10 +40,15 @@ export type UserDto = z.infer<typeof userDtoSchema>
 export const loginRequestSchema = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
+  // Native clients (the mobile app) cannot rely on a cookie jar: expo-file-system and
+  // expo-video issue requests outside the JS fetch layer and take headers, not cookies.
+  // They opt in here and get the session token in the body instead of a Set-Cookie.
+  client: z.enum(['web', 'native']).optional(),
 })
 export type LoginRequest = z.infer<typeof loginRequestSchema>
 
-export const loginResponseSchema = z.object({ user: meSchema })
+/** `token` is present only for `client: 'native'` logins — never for the browser. */
+export const loginResponseSchema = z.object({ user: meSchema, token: z.string().optional() })
 export type LoginResponse = z.infer<typeof loginResponseSchema>
 
 export const changePasswordRequestSchema = z.object({

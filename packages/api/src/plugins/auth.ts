@@ -38,16 +38,36 @@ declare module 'fastify' {
 }
 
 /**
- * Resolve the signed session cookie to a live, non-revoked, non-expired user.
- * Returns null on any failure (deny by default). Synchronous: better-sqlite3.
- * Exported so the WebSocket upgrade handler can authenticate with the same logic.
+ * Session token from an `Authorization: Bearer` header. Native clients hold the raw token
+ * (see the `client: 'native'` login) because expo-file-system and expo-video send headers,
+ * not cookies. No unsigning: the cookie signature is CSRF/tamper defence for browsers, and a
+ * header cannot be set cross-origin, so the opaque high-entropy token stands on its own.
  */
-export function resolveSession(app: FastifyInstance, req: FastifyRequest): AuthUser | null {
+function bearerToken(req: FastifyRequest): string | null {
+  const header = req.headers.authorization
+  if (!header) return null
+  const [scheme, value] = header.split(' ')
+  if (!scheme || !value || scheme.toLowerCase() !== 'bearer') return null
+  return value.trim() || null
+}
+
+/** Session token from the signed `fw_session` cookie (browser clients). */
+function signedCookieSession(req: FastifyRequest): string | null {
   const raw = req.cookies[SESSION_COOKIE]
   if (!raw) return null
   const unsigned = req.unsignCookie(raw)
   if (!unsigned.valid || !unsigned.value) return null
-  const sessionId = unsigned.value
+  return unsigned.value
+}
+
+/**
+ * Resolve a Bearer token or the signed session cookie to a live, non-revoked, non-expired user.
+ * Returns null on any failure (deny by default). Synchronous: better-sqlite3.
+ * Exported so the WebSocket upgrade handler can authenticate with the same logic.
+ */
+export function resolveSession(app: FastifyInstance, req: FastifyRequest): AuthUser | null {
+  const sessionId = bearerToken(req) ?? signedCookieSession(req)
+  if (!sessionId) return null
 
   const row = app.db
     .select({
