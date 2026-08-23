@@ -235,6 +235,16 @@ pnpm --filter @free-wan/mobile prebuild
 That reads `app.json` and writes real native projects, wiring in the launcher icons, the
 splash screen, and the Android cleartext-HTTP permission a plain-HTTP server needs.
 
+What the app asks your phone for, and what it deliberately does not: internet access, storage
+on Android versions old enough to need it for the picker, and your photo library when you tap
+Upload. It does **not** ask for the camera or the microphone. `expo-image-picker` adds both by
+default, because it can also take a photo — this app only ever opens the library, so both are
+turned off in `app.json` and the generated manifest carries removal directives for them. An
+app for watching your own films has no business asking to hear you.
+
+Building it also needs things Expo Go does not: the Android SDK, and a JDK the React Native
+Gradle plugin supports — 17 at the time of writing, not whatever is newest.
+
 From there, either:
 
 - **Build locally.** `pnpm --filter @free-wan/mobile android` (needs Android Studio and the

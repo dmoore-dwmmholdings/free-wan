@@ -1329,3 +1329,26 @@ shared schema test, all green; every phase verified with a live built-server smo
   it is now written down so nobody spends an afternoon on it.
   No new defects. Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`. The
   dev server stayed up for the whole sweep, which was the point of last session's work.
+- **2026-08-23 — Mobile app: the app no longer asks for the microphone or the camera.**
+  Looked at what a real build produces, which Expo Go hides — it runs under its own manifest,
+  so nothing in `app.json` is exercised until someone builds properly.
+  `expo-image-picker` adds `RECORD_AUDIO` by default and permits `CAMERA`, because it can also
+  take a photo. This app only ever opens the library, so both were being requested for
+  nothing. On Android that is a permission prompt users notice; on iOS an unused usage string
+  is something App Review asks about. Both are now off in `app.json`, and the regenerated
+  manifest carries `tools:node="remove"` for each with no plain declaration left, so a built
+  APK will not request them. The iOS half — dropping `NSCameraUsageDescription` and
+  `NSMicrophoneUsageDescription` — follows from the same plugin options but is unverified
+  here, since `expo prebuild` on this machine only generates `android/`.
+  Two things checked and found already correct, rather than assumed. The upload permission
+  gate does not lock anyone out: on Android 13+ `getMediaLibraryPermissions` returns an empty
+  array, because `launchImageLibraryAsync` goes through the system Photo Picker and needs no
+  permission at all, and below 13 it asks for the storage permissions the manifest does
+  declare. And the config that matters is present — `usesCleartextTraffic` for a plain-HTTP
+  server, the `freewan` deep-link scheme, unlocked orientation for video.
+  Left alone: `SYSTEM_ALERT_WINDOW` and `VIBRATE`, which come from React Native's own template
+  and are used by the dev overlay.
+  **No APK could be produced here: there is no Android SDK on this machine and the installed
+  JDK is 26, newer than the React Native Gradle plugin supports.** That is now written down
+  alongside the build instructions. Verified green: typecheck 4/4, `pnpm -r test` **347**,
+  `pnpm -r build`, expo-doctor 18/18.

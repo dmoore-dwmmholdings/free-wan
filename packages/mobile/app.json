@@ -52,7 +52,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "FreeWAN uses your photos so you can upload them to your own media library."
+          "photosPermission": "FreeWAN uses your photos so you can upload them to your own media library.",
+          "cameraPermission": false,
+          "microphonePermission": false
         }
       ],
       "expo-font"
