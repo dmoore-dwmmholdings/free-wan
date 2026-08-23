@@ -41,3 +41,19 @@ describe('formatBytes', () => {
     expect(formatBytes(0)).toBe('0 KB')
   })
 })
+
+describe('durations too short to be worth saying', () => {
+  it('says nothing for a photo', () => {
+    // Every image in a library has one: ffprobe reports a single frame as 0.04 seconds, and
+    // rounding that gave a badge reading 0:00 on every photo tile in the grid.
+    expect(formatDuration(0.04)).toBeNull()
+  })
+
+  it('says nothing for anything under a second', () => {
+    expect(formatDuration(0.9)).toBeNull()
+  })
+
+  it('starts saying something at a second', () => {
+    expect(formatDuration(1)).toBe('0:01')
+  })
+})

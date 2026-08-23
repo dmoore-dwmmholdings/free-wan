@@ -1773,3 +1773,28 @@ shared schema test, all green; every phase verified with a live built-server smo
   been seen. Incremental scanning meant the video had to be touched before the new sidecar was
   noticed.
   Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: every photo in the library claimed to be zero seconds long.** The
+  duration badge on a tile guarded against `<= 0`, and ffprobe reports a single frame as 0.04
+  seconds, so every photo carried a badge reading `0:00` — on its tile, under its title on the
+  detail screen, and in its row in the Downloads tab. Now nothing under a second is worth
+  saying; the clip screens already fall back to tenths where a real sub-second duration matters.
+  **3 tests**, control-tested: restoring the old guard fails two of them.
+  Galling to find this way. It was in plain sight in readings taken during at least two earlier
+  sessions — `0:00 photo` sat in the middle of a string I had already pasted into a summary —
+  and it went past me both times because I was looking for something else.
+  It surfaced during a deliberate pass at states this app had never rendered in any session,
+  which is the same trick that found the icon-glyph naming last time. The harness library grew
+  a second repository, a nested folder three deep, a collection with two items in it, and two
+  tags, one with a colour and one without. What that made reachable, and what it showed:
+  folder chips drilling `All / Films / Shorts / 2024` and narrowing to the one item down there;
+  a collection list row reading "Weekend trip, 2 items" and its detail screen holding both; the
+  tag filter cutting six items to one and its control renaming itself to "Remove tag filter
+  Favourites"; liked-only; photos-only. All correct, and none of it had been seen before.
+  One more naming fault from the same pass: a tile announced as `0:08deep`, the duration badge
+  running into the title. Tiles now say "deep, 0:08", with the title first because that is what
+  identifies the thing, and nothing at all for a photo.
+  The "which library?" sheet stays unseen and is now the only screen state in that position:
+  reaching it means going through `launchImageLibraryAsync`, which on web opens a file dialog
+  that would freeze the session. It needs the phone.
+  Verified green: typecheck 4/4, `pnpm -r test` **381**, `pnpm -r build`, both bundles.

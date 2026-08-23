@@ -58,8 +58,17 @@ export function usePlayback(id: string, enabled: boolean) {
   })
 }
 
+/**
+ * A duration to put on a tile, or null when there is nothing worth saying.
+ *
+ * Anything under a second counts as nothing. Every photo in a library has a duration: ffprobe
+ * reports a single frame as 0.04 seconds, and the guard used to be `<= 0`, so every photo tile
+ * carried a badge reading `0:00` — and so did the line under a photo's title, and its row in
+ * the Downloads tab. A label that rounds to zero has never told anyone anything; where a real
+ * sub-second clip needs one, the clip screens fall back to tenths.
+ */
 export function formatDuration(seconds: number | null): string | null {
-  if (seconds == null || seconds <= 0) return null
+  if (seconds == null || seconds < 1) return null
   const total = Math.round(seconds)
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)

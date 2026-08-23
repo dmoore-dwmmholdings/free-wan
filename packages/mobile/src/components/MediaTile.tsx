@@ -21,7 +21,14 @@ function MediaTileImpl({ item, width }: { item: MediaCard; width: number }) {
   const duration = formatDuration(item.durationS)
   return (
     <Link href={`/media/${item.id}`} asChild>
-      <Pressable style={({ pressed }) => ({ width, opacity: pressed ? 0.7 : 1 })}>
+      <Pressable
+        accessibilityRole="link"
+        // Named, because otherwise the name is the children run together and the duration
+        // badge sits in front of the title: "0:08deep". The title is what identifies the
+        // thing, so it goes first.
+        accessibilityLabel={duration ? `${item.title}, ${duration}` : item.title}
+        style={({ pressed }) => ({ width, opacity: pressed ? 0.7 : 1 })}
+      >
         <View
           style={{
             width,
