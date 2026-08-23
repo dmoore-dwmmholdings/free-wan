@@ -10,6 +10,26 @@ the point of the app.
 
 ---
 
+## What is in it
+
+Five tabs:
+
+| Tab | What it holds |
+|---|---|
+| **Browse** | The library. Search, folder navigation, tag filters, and toggles for liked-only, videos-only and photos-only. |
+| **Collections** | Collections made on the web app; open one to see its contents. |
+| **Clips** | Clips cut on the web app; open one to play its segment, looping if that is how it was saved. |
+| **Downloads** | What is saved on the device, what is transferring, and what failed. |
+| **Settings** | Who you are signed in as, which server, how much storage downloads use, and sign out. |
+
+Opening any item gives a player or a photo, its tags, a like button and a Download button.
+
+Filters combine rather than replace each other: a folder, a set of tags and liked-only all
+narrow the same list. Selecting several tags narrows to items carrying *all* of them, which
+is how the API combines them. Videos-only and photos-only are one choice, not two switches.
+
+---
+
 ## Requirements
 
 - Node and pnpm as for the rest of the repo (`pnpm install` at the root covers it)
@@ -80,13 +100,17 @@ A downloaded item plays entirely from the device: the screen skips the `/playbac
 and points the player at the local `file://`, so it works with the server switched off.
 Photos are downloaded at full resolution, not as thumbnails.
 
-Two behaviours worth knowing:
+Three behaviours worth knowing:
 
 - If the OS reclaims a file to free space, its record is dropped when the app next loads its
   index, rather than leaving an entry that fails to open.
 - A transfer that fails leaves no record behind, so a broken download never looks complete.
+- A failure is shown rather than swallowed. Leaving the tailnet mid-transfer is ordinary, so
+  the item says it failed and why, and tapping it starts again. Failures are held in memory
+  only: after a restart the item simply offers Download again.
 
-The Downloads tab lists transfers still running above finished ones, with progress.
+The Downloads tab lists failures first, then transfers still running, then what is on disk.
+There is no way to cancel a transfer in progress.
 
 ---
 
@@ -167,9 +191,13 @@ pnpm --filter @free-wan/mobile test
 ```
 
 The unit tests cover the logic that does not need a device: server-address parsing, session
-handling, formatting, and the download manager. The download tests run against an in-memory
-filesystem stub that can report progress, fail a transfer, and evict a file behind the app's
-back, so the manager's real behaviour is exercised without a phone.
+handling, formatting, the API request layer, and the download manager.
+
+The download tests run against an in-memory filesystem stub that can report progress, hold a
+transfer open midway, fail one, and evict a file behind the app's back, so the manager's real
+behaviour is exercised without a phone. The request-layer tests drive a stubbed `fetch`,
+covering the cases a proxy in front of the server produces — an HTML error page, a 401 that
+is not JSON — which are the ones that used to be mishandled.
 
 What tests cannot cover, and still needs a device: actual playback, real file I/O, and
 secure storage.
