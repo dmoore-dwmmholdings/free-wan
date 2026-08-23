@@ -16,7 +16,7 @@ Five tabs:
 
 | Tab | What it holds |
 |---|---|
-| **Browse** | The library. Search, folder navigation, tag filters, and toggles for liked-only, videos-only and photos-only. |
+| **Browse** | The library. Search, folder navigation, tag filters, and toggles for liked-only, videos-only and photos-only. The button in the corner uploads photos and video from this phone. |
 | **Collections** | Collections made on the web app; open one to see its contents. |
 | **Clips** | Clips cut on the web app; open one to play its segment, looping if that is how it was saved. |
 | **Downloads** | What is saved on the device, what is transferring, and what failed. |
@@ -125,6 +125,37 @@ reporting a failure, since you are the one who stopped it.
 
 ---
 
+## Uploading from your phone
+
+The button in the bottom corner of Browse puts photos and video from the phone into your
+library — the one thing this app does that the web app cannot do as well, since the phone is
+where the pictures are.
+
+Tapping it asks for photo access the first time, then opens the picker. Select as many items
+as you like, up to 50 in one go. If more than one library on your server accepts uploads, it
+asks which one; if only one does, it just starts.
+
+Files are sent one at a time, at full quality — they are not re-encoded, because keeping the
+original is the point of putting it on your own server. The button shows which file is going
+and how far along it is.
+
+They land in an `Uploads` folder inside the library you chose, which also becomes their
+category. The server then indexes them, so give it a moment and pull down to refresh before
+they appear.
+
+A few things worth knowing:
+
+- One file failing does not abandon the rest. Anything rejected is listed by name with the
+  reason — an unsupported type, or too large — so a single odd clip cannot cost you the whole
+  selection.
+- A library has to be writable and hold images or video to accept uploads. If none does, the
+  app says so rather than failing at the end.
+- The server accepts up to 50 files per batch and 2 GB per file.
+- Uploading is the only writing this app does besides changing your own password. Renaming,
+  tagging and organising what you uploaded still happen on the web app.
+
+---
+
 ## Installing it on your phone for real
 
 Expo Go is a development client. It cannot keep the app on your phone, and it will stop
@@ -162,7 +193,6 @@ Deliberate omissions, since this is a companion to the web app rather than a rep
 - No admin: repositories, users, branding, commands and plugins stay on the web app
 - Collections are read-only — you can browse them but not create or edit them
 - Clips play here, looping between their in and out points, but are cut on the web app
-- No uploads
 - Tags can be filtered on and are shown per item, but not created or edited
 
 Two things the web app has that this app cannot currently do, both for structural reasons
@@ -239,7 +269,10 @@ covering the cases a proxy in front of the server produces — an HTML error pag
 is not JSON — which are the ones that used to be mishandled.
 
 What tests cannot cover, and still needs a device: actual playback, real file I/O, and
-secure storage.
+secure storage. Uploading is in that group too. The floating button's placement and its
+pass-through behaviour were checked in the browser harness, but the picker, the
+which-library sheet and the transfer itself were not: `expo-image-picker` opens the platform
+file dialog, and `expo-file-system`'s upload task has no web implementation.
 
 ```bash
 pnpm --filter @free-wan/mobile build

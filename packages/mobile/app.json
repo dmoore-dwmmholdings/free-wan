@@ -49,6 +49,12 @@
           "backgroundColor": "#0b0b10"
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "FreeWAN uses your photos so you can upload them to your own media library."
+        }
+      ],
       "expo-font"
     ],
     "experiments": {

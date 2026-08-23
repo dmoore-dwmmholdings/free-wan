@@ -13,6 +13,7 @@ import { Link } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import type { MediaCard } from '@free-wan/shared'
 import { CategoryChips, type Crumb } from '@/components/CategoryChips'
+import { UploadButton } from '@/components/UploadButton'
 import { MediaTile, gridMetrics } from '@/components/MediaTile'
 import { ErrorState } from '@/components/ErrorState'
 import { TagChips } from '@/components/TagChips'
@@ -97,13 +98,15 @@ export default function BrowseScreen() {
   }
 
   return (
+    <View style={{ flex: 1 }}>
     <FlatList
       style={{ backgroundColor: theme.color.bg }}
       data={items}
       key={columns}
       numColumns={columns}
       keyExtractor={(m) => m.id}
-      contentContainerStyle={{ padding: PADDING, gap: GAP }}
+      // Extra bottom padding so the floating upload button never covers the last row.
+      contentContainerStyle={{ padding: PADDING, gap: GAP, paddingBottom: PADDING + 72 }}
       columnWrapperStyle={columns > 1 ? { gap: GAP } : undefined}
       renderItem={({ item }) => <MediaTile item={item} width={tileWidth} />}
       refreshControl={
@@ -217,5 +220,7 @@ export default function BrowseScreen() {
         )
       }
     />
+      <UploadButton />
+    </View>
   )
 }

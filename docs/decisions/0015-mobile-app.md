@@ -47,6 +47,14 @@ be discovered.
    screen added here is a screen to keep in step with the web app. Changing your own
    password is the exception, because the server forces it (decision 7).
 
+   **Uploads are the other exception, added later.** This decision originally covered them,
+   and it was wrong to: the reason given was that curating is better with a keyboard, and
+   uploading is not curating. It is capture, and the phone is the device holding the photos
+   and video in the first place — it is the one thing this app can do that the web app
+   cannot do as well. The server already had the endpoint and the web app already used it,
+   so this added no server surface. Editing what has been uploaded still belongs on the web
+   app.
+
 6. **Dependency versions are ranged, not pinned.** ADR 0001 pins versions with no `^`.
    `expo install` deliberately writes `~` ranges, because Expo expresses SDK compatibility
    that way and `expo-doctor` checks against it; pinning exactly would fight the tooling on
@@ -79,7 +87,15 @@ be discovered.
     on the tailnet rather than on internet connectivity, so it is not a thing worth guessing
     at — the app issues the request and surfaces a failure as a retryable error.
 
-11. **`metro.config.js` stays minimal and additive.** It appends the workspace root to
+11. **Uploads go one file at a time, and originals are sent unchanged.** The picker can
+    return a whole camera roll, and several 2 GB transfers sharing one uplink would be slower
+    in total and leave a progress bar that means nothing. Files are also sent at full quality
+    rather than re-encoded: the point of putting them on your own server is keeping the
+    original. Each file's outcome is read from the server's own answer — it sorts a batch into
+    saved and rejected rather than failing the whole request — so one unsupported clip cannot
+    cost you the rest of the selection.
+
+12. **`metro.config.js` stays minimal and additive.** It appends the workspace root to
     `watchFolders` and the root store to `nodeModulesPaths`, and nothing else. In particular
     it must not set `disableHierarchicalLookup`: that is the usual advice for npm and yarn
     monorepos, but pnpm nests each package's dependencies under

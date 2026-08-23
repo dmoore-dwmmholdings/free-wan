@@ -955,3 +955,24 @@ shared schema test, all green; every phase verified with a live built-server smo
   `pnpm -r test` **235** (api 180 + mobile 42 + web 11 + shared 2), `pnpm -r build`.
   **The two cancel controls are unverified in a browser and need a device: they only appear
   while a transfer runs, and `expo-file-system` has no web implementation.**
+- **2026-08-23 — Mobile app: uploading from the phone.** The app can now put photos and video
+  from the device into the library — the one thing it does that the web app cannot do as
+  well, since the phone is where the pictures are. This reverses part of ADR 0015 decision 5,
+  and the ADR now records that: the decision ruled out uploads on the grounds that curating
+  is better with a keyboard, but uploading is capture, not curating, so the reason never
+  actually applied. No server change was needed; `/api/upload/targets` and
+  `/api/repositories/:id/upload` already existed for the web app.
+  A floating button on Browse opens the picker (up to 50 items), asks which library if more
+  than one accepts uploads, and sends files one at a time at full quality with per-file
+  progress. Outcomes are read from the server's own answer rather than inferred, so a
+  de-duplicated name ("IMG_0001 (1).jpg") is reported as saved and a rejected file is named
+  with its reason; one bad file does not abandon the rest. Four tests, control-tested — the
+  naive "no skipped entry means success" version fails two of them, including the dangerous
+  one where an empty 422 would have been reported as uploaded.
+  Verified in the browser harness: the button renders once, clears the tab bar, is
+  hit-testable, taps pass through to the grid (`box-none`), and the grid carries 84px of
+  bottom clearance so the last row is never covered. Verified green: typecheck 4/4,
+  `pnpm -r test` **239** (api 180 + mobile 46 + web 11 + shared 2), `pnpm -r build`,
+  expo-doctor 18/18. **The picker, the which-library sheet and the transfer itself are
+  unverified and need a device: `expo-image-picker` opens the platform file dialog and
+  `expo-file-system`'s upload task has no web implementation.**
