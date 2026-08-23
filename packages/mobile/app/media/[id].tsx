@@ -8,6 +8,7 @@ import { AuthImage } from '@/components/AuthImage'
 import { apiUrl, authHeaders } from '@/lib/api'
 import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
 import { formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
+import { TagList } from '@/components/TagChips'
 import { useProgressReporter } from '@/lib/progress'
 import { useToggleLike } from '@/lib/social'
 import { theme } from '@/theme'
@@ -228,6 +229,8 @@ export default function MediaScreen() {
             <LikeButton id={id} liked={detail.data.liked} likeCount={detail.data.likeCount} />
           ) : null}
         </View>
+
+        {detail.data?.tags?.length ? <TagList tags={detail.data.tags} /> : null}
 
         {downloadedUri ? (
           <Text style={{ color: theme.color.muted, fontSize: 12, lineHeight: 18 }}>

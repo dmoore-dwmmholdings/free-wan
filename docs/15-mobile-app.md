@@ -127,7 +127,7 @@ Deliberate omissions, since this is a companion to the web app rather than a rep
 - No admin: repositories, users, branding, commands and plugins stay on the web app
 - Collections are read-only — you can browse them but not create or edit them
 - No clips builder, no uploads
-- No tag filtering yet
+- Tags can be filtered on and are shown per item, but not created or edited
 
 ---
 

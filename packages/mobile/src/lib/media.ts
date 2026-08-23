@@ -3,7 +3,13 @@ import type { MediaDetail, MediaListResponse, PlaybackDescriptor } from '@free-w
 import { api } from './api'
 
 export function useMediaList(
-  params: { q?: string; liked?: boolean; category?: string | null; collection?: string } = {},
+  params: {
+    q?: string
+    liked?: boolean
+    category?: string | null
+    collection?: string
+    tags?: string[]
+  } = {},
 ) {
   return useInfiniteQuery({
     queryKey: ['media', params],
@@ -14,6 +20,8 @@ export function useMediaList(
       if (params.liked) qs.set('liked', 'true')
       if (params.category) qs.set('category', params.category)
       if (params.collection) qs.set('collection', params.collection)
+      // Repeated `tag` params are AND-combined by the API.
+      for (const t of params.tags ?? []) qs.append('tag', t)
       if (pageParam) qs.set('cursor', pageParam)
       return api.get<MediaListResponse>(`/api/media?${qs}`)
     },

@@ -14,7 +14,9 @@ import { Ionicons } from '@expo/vector-icons'
 import type { MediaCard } from '@free-wan/shared'
 import { CategoryChips, type Crumb } from '@/components/CategoryChips'
 import { MediaTile, gridMetrics } from '@/components/MediaTile'
+import { TagChips } from '@/components/TagChips'
 import { useCategoryChildren } from '@/lib/categories'
+import { useTags } from '@/lib/tags'
 import { useMediaList } from '@/lib/media'
 import { theme } from '@/theme'
 
@@ -27,15 +29,22 @@ export default function BrowseScreen() {
   const [query, setQuery] = useState('')
   const [trail, setTrail] = useState<Crumb[]>([])
   const [likedOnly, setLikedOnly] = useState(false)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
   const currentCategory = trail.length > 0 ? trail[trail.length - 1]!.id : null
 
   const { columns, tileWidth } = gridMetrics(screenWidth, PADDING, GAP)
 
   const categories = useCategoryChildren(currentCategory)
+  const tags = useTags()
   const list = useMediaList(
     useMemo(
-      () => ({ q: query || undefined, category: currentCategory, liked: likedOnly || undefined }),
-      [query, currentCategory, likedOnly],
+      () => ({
+        q: query || undefined,
+        category: currentCategory,
+        liked: likedOnly || undefined,
+        tags: selectedTags,
+      }),
+      [query, currentCategory, likedOnly, selectedTags],
     ),
   )
   const items = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data])
@@ -121,6 +130,13 @@ export default function BrowseScreen() {
           onEnter={(node) => setTrail((t) => [...t, { id: node.id, name: node.name }])}
           onExitTo={(depth) => setTrail((t) => t.slice(0, depth))}
         />
+        <TagChips
+          tags={tags.data?.data ?? []}
+          selected={selectedTags}
+          onToggle={(id) =>
+            setSelectedTags((t) => (t.includes(id) ? t.filter((x) => x !== id) : [...t, id]))
+          }
+        />
         </View>
       }
       ListFooterComponent={
@@ -134,7 +150,9 @@ export default function BrowseScreen() {
         <View style={{ paddingTop: theme.space(20), alignItems: 'center', gap: theme.space(2) }}>
           <Text style={{ color: theme.color.text, fontSize: 16, fontWeight: '700' }}>Nothing here</Text>
           <Text style={{ color: theme.color.muted, fontSize: 14, textAlign: 'center' }}>
-            {likedOnly
+            {selectedTags.length > 0
+              ? 'Nothing carries all of the selected tags. Tap one to remove it.'
+              : likedOnly
               ? 'Nothing liked yet. Tap the heart on anything you want to find again.'
               : query
               ? `No results for "${query}".`
