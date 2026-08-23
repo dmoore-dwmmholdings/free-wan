@@ -18,12 +18,14 @@
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
-      }
+      },
+      "icon": "./assets/icon.png"
     },
     "android": {
       "package": "com.freewan.app",
       "adaptiveIcon": {
-        "backgroundColor": "#0b0b10"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#6e4cff"
       }
     },
     "plugins": [
@@ -37,10 +39,20 @@
             "usesCleartextTraffic": true
           }
         }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#0b0b10"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }
