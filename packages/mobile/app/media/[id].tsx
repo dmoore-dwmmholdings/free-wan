@@ -12,7 +12,7 @@ import { formatDuration, useMediaDetail, usePlayback } from '@/lib/media'
 import { cancelDownload, formatBytes, startDownload, useDownloadState } from '@/lib/downloads'
 import { TagList } from '@/components/TagChips'
 import { CaptionOverlay, CaptionPicker } from '@/components/Captions'
-import { useProgressReporter } from '@/lib/progress'
+import { resumeSeek, useProgressReporter } from '@/lib/progress'
 import { useToggleLike } from '@/lib/social'
 import { theme } from '@/theme'
 
@@ -196,9 +196,13 @@ export default function MediaScreen() {
   const downloadedUri = offlineRecord?.localUri ?? null
 
   const isVideo = (detail.data?.type ?? offlineRecord?.type) === 'video'
-  // With a local copy there is nothing to ask the server for, so skip the playback call —
-  // that is what makes the screen work with no connection.
-  const playback = usePlayback(id, isVideo && !downloadedUri)
+  // Asked for even when there is a local copy, whose URL this does not need. It is also where
+  // the resume position and the subtitle tracks come from, and a downloaded video deserves
+  // both — it is the same video, and this app has been reporting its position to the server
+  // all along, so the web app would resume it while this one started it over. The call fails
+  // with no connection and nothing on the screen depends on it, which is what keeps a
+  // downloaded item playable offline.
+  const playback = usePlayback(id, isVideo)
   const source = useVideoSource(id, isVideo, downloadedUri, playback.data?.url)
 
   const player = useVideoPlayer(source ?? null, (p) => {
@@ -229,20 +233,22 @@ export default function MediaScreen() {
   })
 
 
-  // Resuming has the same hazard as a clip's in-point: a seek issued before the source has
-  // loaded can be discarded, so repeat it once the player reports itself ready. The ref stops
-  // a later re-buffer from dragging the viewer back to where they resumed from.
-  const resumeAt = playback.data?.resumeAt
-  const resumed = useRef(false)
-  useEffect(() => {
-    if (player && resumeAt && !downloadedUri) player.currentTime = resumeAt
-  }, [player, resumeAt, downloadedUri])
-
+  // Where playback starts. `resumeSeek` holds the rules and why each one is there; all this
+  // does is feed it and record that the decision has been made.
+  const [ready, setReady] = useState(false)
   useEventListener(player, 'statusChange', ({ status }) => {
-    if (status !== 'readyToPlay' || resumed.current || !resumeAt || downloadedUri) return
-    resumed.current = true
-    player.currentTime = resumeAt
+    if (status === 'readyToPlay') setReady(true)
   })
+
+  const resumed = useRef(false)
+  const resumeAt = playback.data?.resumeAt ?? null
+  useEffect(() => {
+    if (!player) return
+    const seek = resumeSeek({ ready, pending: playback.isPending, resumed: resumed.current, resumeAt })
+    if (!seek) return
+    resumed.current = true
+    if (seek.seekTo) player.currentTime = seek.seekTo
+  }, [player, ready, playback.isPending, resumeAt])
 
   const title = detail.data?.title ?? offlineRecord?.title ?? 'Untitled'
   // A portrait photo in a 16:9 letterbox wastes most of the screen.

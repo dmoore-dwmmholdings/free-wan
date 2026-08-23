@@ -46,3 +46,33 @@ export function useProgressReporter(id: string, player: VideoPlayer | null, dura
     }
   }, [player, id, durationS])
 }
+
+/**
+ * Whether to seek the player to the position the server remembers, and where to.
+ *
+ * `null` means do nothing yet. An action means the resume has been decided, and the caller
+ * must record that so this is never asked again: a `seekTo` of null is a real answer — start
+ * at the top — not an absence of one.
+ *
+ * The rules exist for reasons that each cost something to find:
+ *
+ * - Wait for the player. A seek issued before the source has loaded is discarded.
+ * - Wait for the server, but only until it has answered one way or the other. A streamed
+ *   video cannot be ready first, because the URL being played comes from the same response;
+ *   a downloaded one is ready as soon as the file opens, and offline that response never
+ *   arrives at all.
+ * - Decide once. `resumeAt` is the last position this app reported, and `/playback` is
+ *   refetched every time the app returns to the foreground, so following its current value
+ *   would drag the playhead back a reporting interval on every switch away and back — or the
+ *   whole stretch of background playback, if the reporting timer was suspended while the
+ *   audio kept going.
+ */
+export function resumeSeek(state: {
+  ready: boolean
+  pending: boolean
+  resumed: boolean
+  resumeAt: number | null
+}): { seekTo: number | null } | null {
+  if (state.resumed || !state.ready || state.pending) return null
+  return { seekTo: state.resumeAt && state.resumeAt > 0 ? state.resumeAt : null }
+}

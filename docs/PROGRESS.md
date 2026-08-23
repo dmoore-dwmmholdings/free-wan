@@ -1442,3 +1442,33 @@ shared schema test, all green; every phase verified with a live built-server smo
   directly, and the control fails.
   Verified green: typecheck 4/4, `pnpm -r test` **355**, `pnpm -r build` (both Hermes bundles,
   iOS 3.13 MB and Android 3.12 MB).
+
+- **2026-08-23 — Mobile app: returning to the app dragged the video backwards, and a
+  downloaded one never resumed at all.** Two defects in the same few lines of the media screen.
+  The first: the seek that resumes playback was an effect keyed on `resumeAt`. That value is
+  nothing more than the position this app itself last posted — `playback.ts:49` returns the
+  stored `positionS` — and `/api/media/:id/playback` is refetched every time the app returns to
+  the foreground, since `refetchOnWindowFocus` is on and `focusManager` is wired to `AppState`.
+  So each switch away and back re-ran the effect with a position up to one reporting interval
+  behind the live playhead, and yanked the viewer there. Longer if the video kept playing in
+  the background while the reporting timer was suspended. The web player does not have this: it
+  seeks from `loadedmetadata`, once. The comment above the effect even claimed a ref stopped a
+  re-buffer dragging the viewer back, but the ref guarded only the other of the two seek paths.
+  The second: `usePlayback` was disabled whenever a local copy existed, on the grounds that
+  there was no URL to ask for. But that response also carries the resume position and the
+  subtitle tracks, so a downloaded video started at the top and had no subtitles — while the
+  app went on reporting its position, so the web app would resume the very same video. The
+  query is now asked for every video; the route is three DB reads with no transcode, and
+  nothing on the screen waits for it, so an item downloaded for offline use still plays with
+  the server unreachable.
+  Fixing both together needed the ordering to change: a local file can be ready to play before
+  the server answers, where a streamed one cannot be, since the URL being played comes from
+  that same answer. The decision now waits for both and is made exactly once. It lives in
+  `resumeSeek` with **6 tests**, each control-tested — dropping the wait for the player, the
+  wait for the server, the once-only rule, or the deliberate "start at the top" answer each
+  fails its own test and only its own.
+  Verified in the browser only as far as the browser goes: the screen renders unchanged and
+  `/playback` is requested. The seek itself cannot be reached there — `/api/media/:id/stream`
+  is never requested at all, because expo-video's web build does not start loading, so
+  `readyToPlay` never fires. Both fixes are on the device list.
+  Verified green: typecheck 4/4, `pnpm -r test` **361**, `pnpm -r build`.

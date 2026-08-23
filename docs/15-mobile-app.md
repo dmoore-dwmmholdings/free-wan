@@ -360,8 +360,8 @@ pnpm --filter @free-wan/mobile test
 The unit tests cover the logic that does not need a device: server-address parsing, session
 handling, formatting, the API request layer, the download manager, WebVTT parsing and cue
 timing, the branding colour arithmetic — including a contrast check on every preset — when
-branding is fetched and re-fetched, where the auth gate sends someone, how a clip behaves at
-its out-point, and the library's
+branding is fetched and re-fetched, where playback starts and why it is decided only once,
+where the auth gate sends someone, how a clip behaves at its out-point, and the library's
 pagination — that each filter has its own cache key, and that the list stops asking for pages
 once the server says there are none left. Both of those fail silently rather than loudly: a
 shared key shows one filter another's results, and a cursor that never resolves to
@@ -412,7 +412,10 @@ that left the app on a blank screen.
 ---
 
 What tests cannot cover, and still needs a device: actual playback, real file I/O, and
-secure storage. Uploading is in that group too. The floating button's placement and its
+secure storage. Resuming is squarely in that group, and further out of reach than the rest:
+the browser harness cannot even load a video, because expo-video's web build never requests
+the stream, so the player never reports itself ready and the seek that resumes never runs.
+Uploading is in that group too. The floating button's placement and its
 pass-through behaviour were checked in the browser harness, but the picker, the
 which-library sheet and the transfer itself were not: `expo-image-picker` opens the platform
 file dialog, and `expo-file-system`'s upload task has no web implementation.
