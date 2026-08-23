@@ -428,6 +428,11 @@ pass-through behaviour were checked in the browser harness, but the picker, the
 which-library sheet and the transfer itself were not: `expo-image-picker` opens the platform
 file dialog, and `expo-file-system`'s upload task has no web implementation.
 
+Accessibility is checked in the browser rather than by test: a sweep over every button, link
+and input on all eight screens, failing anything without a name. It was worth running — the
+three text fields had none at all, and on the change-password screen there was no placeholder
+to fall back on either.
+
 One test reads both sides of a contract rather than exercising code: it collects every
 `/api/...` path this app asks for and every route the server registers, and fails if a path
 has no route. This is checked because it has gone wrong before — an early version called an

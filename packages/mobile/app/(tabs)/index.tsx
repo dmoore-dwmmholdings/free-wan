@@ -131,6 +131,7 @@ export default function BrowseScreen() {
             }}
             onSubmitEditing={() => setQuery(search.trim())}
             returnKeyType="search"
+            accessibilityLabel="Search your library"
             placeholder="Search your library"
             placeholderTextColor={theme.color.muted}
             autoCapitalize="none"

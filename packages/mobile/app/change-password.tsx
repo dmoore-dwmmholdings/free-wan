@@ -32,6 +32,12 @@ function Field(props: {
         secureTextEntry
         autoCapitalize="none"
         autoCorrect={false}
+        // The label above is a sibling `Text`, which tells a screen reader nothing: without
+        // this, all three fields on this screen announce as an unnamed secure text field, and
+        // there is no placeholder to fall back on either. Changing a password by guessing
+        // which box is which is not a thing anyone should have to do.
+        accessibilityLabel={props.label}
+        accessibilityHint={props.hint}
         style={{
           backgroundColor: theme.color.surface,
           borderColor: theme.color.border,

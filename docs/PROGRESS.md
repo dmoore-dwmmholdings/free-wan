@@ -1544,3 +1544,27 @@ shared schema test, all green; every phase verified with a live built-server smo
   Two tests were written for the retry path and then deleted rather than kept: they asserted
   what the existing `resumeSeek` tests already assert, with different numbers.
   Verified green: typecheck 4/4, `pnpm -r test` **367**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: none of the three text inputs had a name a screen reader could
+  read.** Every button in this app carries a label, and the ones that needed thinking about got
+  it — but the text fields had been missed entirely. The change-password screen was the worst
+  of them: three secure fields, no `accessibilityLabel`, no placeholder to fall back on, and
+  the visible labels above them are sibling `Text` nodes, which name nothing. Measured rather
+  than assumed — all three inputs came back with `aria-label`, `aria-labelledby`, placeholder,
+  `title` and any associated label element all null. Someone using VoiceOver or TalkBack would
+  have had to guess which box was which to change their own password. The login screen's
+  password field was in the same state; its other two at least had placeholders, which are the
+  value's understudy and not a label.
+  All three screens now label their fields, and the validation text goes through as a hint.
+  After the fix the same probe reads "Current password", "New password", "Confirm new password"
+  on one screen and "Server", "Username", "Password" on the other. A sweep of every interactive
+  element across all eight screens — buttons, links, inputs — now finds nothing unnamed.
+  Reaching the change-password screen at all meant creating a user through the admin API and
+  resetting its password, which is what sets the flag. Worth the setup: that screen and its
+  gate had never been exercised in a browser. Both work. Signing in as that user lands on it,
+  a short password says "At least 8 characters", a mismatch says "These do not match", and
+  saving releases the gate to the library.
+  No test was added. Labels on JSX are not unit-testable without a renderer this package does
+  not have, and the browser probe above is the verification; a test asserting the string is
+  passed to the prop would only restate the diff.
+  Verified green: typecheck 4/4, `pnpm -r test` **367**, `pnpm -r build`.

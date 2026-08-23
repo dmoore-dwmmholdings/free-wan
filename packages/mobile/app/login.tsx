@@ -39,6 +39,10 @@ function Field(props: {
         autoCapitalize={props.autoCapitalize ?? 'none'}
         autoCorrect={false}
         keyboardType={props.keyboardType}
+        // Same reason as the change-password screen: the visible label is a sibling `Text`,
+        // which names nothing. A placeholder is not a label — it is the value's understudy.
+        accessibilityLabel={props.label}
+        accessibilityHint={props.hint}
         style={{
           backgroundColor: theme.color.surface,
           borderColor: theme.color.border,
