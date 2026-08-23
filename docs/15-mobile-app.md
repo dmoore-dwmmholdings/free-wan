@@ -359,8 +359,9 @@ pnpm --filter @free-wan/mobile test
 
 The unit tests cover the logic that does not need a device: server-address parsing, session
 handling, formatting, the API request layer, the download manager, WebVTT parsing and cue
-timing, the branding colour arithmetic — including a contrast check on every preset — where
-the auth gate sends someone, how a clip behaves at its out-point, and the library's
+timing, the branding colour arithmetic — including a contrast check on every preset — when
+branding is fetched and re-fetched, where the auth gate sends someone, how a clip behaves at
+its out-point, and the library's
 pagination — that each filter has its own cache key, and that the list stops asking for pages
 once the server says there are none left. Both of those fail silently rather than loudly: a
 shared key shows one filter another's results, and a cursor that never resolves to
@@ -368,7 +369,11 @@ shared key shows one filter another's results, and a cursor that never resolves 
 
 The download tests run against an in-memory filesystem stub that can report progress, hold a
 transfer open midway, fail one, fail a *cancel* midway, and evict a file behind the app's
-back, so the manager's real behaviour is exercised without a phone. The cancel path is
+back, so the manager's real behaviour is exercised without a phone. The branding tests drive
+`startBranding` with a fake session and a fake server, because every defect this feature has
+produced has been in *when* things happen rather than in any single line: a first launch with
+no server stored, a sign-in that creates one, a move to a different server, a fetch that
+fails and is retried, and a server that accepts the connection and then says nothing. The cancel path is
 covered this way but its buttons are not: the Downloads tab's cross and the Stop control only
 appear while a transfer is running, and `expo-file-system` has no web implementation, so the
 browser harness used for the rest of the UI cannot reach that state. Those two controls need

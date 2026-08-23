@@ -103,8 +103,8 @@ be discovered.
    through every screen. That turned out to be avoidable: this package has no
    `StyleSheet.create` anywhere, so every style object is built during render. The tokens in
    `src/theme.ts` can therefore be mutated in place and take effect on the next render, and
-   the root is keyed so one happens. That is why ~300 `theme.` reads across 19 files did not
-   have to change. If `StyleSheet.create` is ever introduced those styles will freeze at
+   the root is made to render again whenever they change. That is why ~300 `theme.` reads
+   across 19 files did not have to change. If `StyleSheet.create` is ever introduced those styles will freeze at
    creation and this stops working — the note in `theme.ts` says so.
 
    The app is held back until branding has settled, so the tree mounts once already wearing
@@ -114,6 +114,21 @@ be discovered.
    capped at two seconds, because `fetch` has no timeout of its own here and a server that
    accepts a connection then says nothing would otherwise hold the app on a blank screen for
    as long as the platform allows.
+
+   Branding is fetched at startup and again whenever the session changes. Startup alone is not
+   enough: a first launch has no server address stored, so there is nothing to ask, and signing
+   in is the moment a server first exists. Fetching only at startup left a freshly installed
+   app on the built-in dark palette until it was killed and reopened — which is how the server
+   was branded, and how the phone that just scanned a QR code would see it. The fetch is keyed
+   on the server address rather than on a flag, so moving to a different server refetches and
+   returning to the same one does not.
+
+   Three separate defects have now come out of the sequencing in this file, none of them from
+   any single line. The fetch logic is therefore split out of the hook as `startBranding`, a
+   plain function over two callbacks, and covered by eight tests — first run, colour scheme,
+   re-render on change only, server switch, retry after failure, settling with no server,
+   settling at the cap, and teardown. Each was control-tested against a deliberately broken
+   copy of the function.
 
    `src/lib/palette.ts` reproduces the web's `color-mix` derivations (surface-2, border,
    muted, tints) with the same percentages, so a preset retunes both apps to the same values

@@ -1416,3 +1416,29 @@ shared schema test, all green; every phase verified with a live built-server smo
   stalls `/api/branding` for thirty seconds, and the app renders with that request still
   outstanding.
   Verified green: typecheck 4/4, `pnpm -r test` **347**, `pnpm -r build`.
+
+- **2026-08-23 — Mobile app: a freshly installed app never picked up the server's branding.**
+  Reading `useBranding` for something else showed it returning early when no server address is
+  stored, with `[]` deps and nothing to bring it back. On a first launch that is always the
+  case — the address is typed on the login screen, so at startup there is no server to ask.
+  Signing in stored one and nothing noticed.
+  Confirmed against a server branded "Dawson Media" with the light `linen` preset: a first-run
+  sign-in gave `{"screenBg":"rgb(11, 11, 16)","brandingFetched":0}` — the built-in dark palette,
+  and `/api/branding` never requested. The app would have looked right only after being killed
+  and reopened, which is not what a phone that has just scanned the QR code does.
+  Fixed by fetching on session changes as well as at startup, keyed on the server address so a
+  different server refetches and the same one does not. The re-render is a state bump rather
+  than a key, deliberately: keying the root remounts it, which is what broke deep links a
+  moment ago. Same run, after the fix: `{"screenBg":"rgb(243, 239, 230)","brandingFetched":1}`,
+  branding applied without a restart, and the deep link to `/media/<id>` still lands on the item.
+  This is the third defect from the sequencing in this one file, so the logic is now split out
+  of the hook as `startBranding` — a plain function over two callbacks — and covered by **eight
+  tests**. Every one was control-tested against a deliberately broken copy: removing the
+  subscription fails five of them including the first-run test, and removing the dedupe, the
+  retry-after-failure reset, the colour-scheme resync, and the cap each fail exactly their own.
+  The teardown test needed a second pass. It asserted that branding arriving after teardown is
+  not applied, which the `cancelled` flag already guarantees, so it passed against a version
+  that never unsubscribed — a leak of one listener per remount. It now checks the listener set
+  directly, and the control fails.
+  Verified green: typecheck 4/4, `pnpm -r test` **355**, `pnpm -r build` (both Hermes bundles,
+  iOS 3.13 MB and Android 3.12 MB).

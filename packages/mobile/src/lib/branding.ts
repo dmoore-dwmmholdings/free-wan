@@ -4,7 +4,7 @@ import type { Branding } from '@free-wan/shared'
 import { api } from './api'
 import { applyBranding, theme } from '@/theme'
 import { isLight } from './palette'
-import { getServerUrl } from './session'
+import { getServerUrl, subscribeSession } from './session'
 
 /**
  * Point the platform's own chrome at the brand rather than at the device.
@@ -29,6 +29,74 @@ function syncColorScheme(): void {
 const BRANDING_WAIT_MS = 2000
 
 /**
+ * Fetch the server's branding into the app's tokens, now and whenever the session changes.
+ *
+ * Split out from the hook below so it can be tested: this is the third defect to come out of
+ * this file, and every one of them was in the sequencing rather than in any single line.
+ *
+ * `onSettled` fires once, when the app should stop waiting — branding applied, failed, or the
+ * cap reached. `onApplied` fires each time the tokens actually change, so the caller can render
+ * again. Returns a teardown.
+ */
+export function startBranding(onSettled: () => void, onApplied: () => void): () => void {
+  let cancelled = false
+  // The server whose branding is already loaded. Not a boolean: moving to a different server
+  // has to fetch again.
+  let fetchedFor: string | null = null
+
+  // Before branding answers — and on the login screen, which is reached before there is a
+  // server to ask — this settles the chrome on the built-in palette rather than the phone's.
+  syncColorScheme()
+
+  const release = () => {
+    if (!cancelled) onSettled()
+  }
+  const cap = setTimeout(release, BRANDING_WAIT_MS)
+
+  const load = async (atStartup: boolean) => {
+    try {
+      const server = await getServerUrl()
+      // A first launch has no server at all, so this is not something to do once and forget:
+      // signing in is when a server first exists, and it is the moment the app should start
+      // wearing that server's name and colours rather than the built-in ones.
+      if (!server || server === fetchedFor) return
+      fetchedFor = server
+      try {
+        const branding = await api.get<Branding>('/api/branding')
+        if (cancelled) return
+        applyBranding(branding)
+        syncColorScheme()
+        onApplied()
+      } catch {
+        // Let a later sign-in try again rather than leaving this server marked as done.
+        fetchedFor = null
+        throw new Error('branding unavailable')
+      }
+    } catch {
+      // An unreachable or older server leaves the built-in palette in place. Branding is
+      // decoration; failing to fetch it must not keep anyone out of their library.
+    } finally {
+      if (atStartup) {
+        clearTimeout(cap)
+        release()
+      }
+    }
+  }
+
+  void load(true)
+  // Signing in, signing out, or moving to a different server all come through here.
+  const unsubscribe = subscribeSession(() => {
+    void load(false)
+  })
+
+  return () => {
+    cancelled = true
+    clearTimeout(cap)
+    unsubscribe()
+  }
+}
+
+/**
  * Apply the server's branding to the app's tokens, and report when that has settled.
  *
  * Not a TanStack query: it runs above the QueryClientProvider so the whole tree, login screen
@@ -48,41 +116,18 @@ const BRANDING_WAIT_MS = 2000
  */
 export function useBranding(): boolean {
   const [settled, setSettled] = useState(false)
+  // Bumped when tokens change, purely to make React render again. Deliberately not a key:
+  // keying the root remounts it, and a remount resets the router.
+  const [, setApplied] = useState(0)
 
-  useEffect(() => {
-    let cancelled = false
-    // Before branding answers — and on the login screen, which is reached before there is a
-    // server to ask — this settles the chrome on the built-in palette rather than the phone's.
-    syncColorScheme()
-
-    const release = () => {
-      if (!cancelled) setSettled(true)
-    }
-    const cap = setTimeout(release, BRANDING_WAIT_MS)
-
-    void (async () => {
-      try {
-        // Before a server is chosen there is nothing to ask, and the defaults are already right.
-        const server = await getServerUrl()
-        if (!server) return
-        const branding = await api.get<Branding>('/api/branding')
-        if (cancelled) return
-        applyBranding(branding)
-        syncColorScheme()
-      } catch {
-        // An unreachable or older server leaves the built-in palette in place. Branding is
-        // decoration; failing to fetch it must not keep anyone out of their library.
-      } finally {
-        clearTimeout(cap)
-        release()
-      }
-    })()
-
-    return () => {
-      cancelled = true
-      clearTimeout(cap)
-    }
-  }, [])
+  useEffect(
+    () =>
+      startBranding(
+        () => setSettled(true),
+        () => setApplied((n) => n + 1),
+      ),
+    [],
+  )
 
   return settled
 }

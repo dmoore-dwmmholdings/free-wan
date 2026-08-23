@@ -14,6 +14,7 @@ export default defineConfig({
       '@free-wan/shared': path.join(dir, '..', 'shared', 'src', 'index.ts'),
       // These packages import expo-modules-core / React Native internals at load time, which
       // cannot run under Node. The logic under test never calls into them.
+      'react-native': stub('react-native.ts'),
       'expo-secure-store': stub('expo-secure-store.ts'),
       'expo-file-system/legacy': stub('expo-file-system.ts'),
       '@react-native-async-storage/async-storage': stub('async-storage.ts'),
