@@ -12,7 +12,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.freewan.app",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"],
+        "UIBackgroundModes": [
+          "audio"
+        ],
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
@@ -20,10 +22,25 @@
     },
     "android": {
       "package": "com.freewan.app",
-      "usesCleartextTraffic": true,
-      "adaptiveIcon": { "backgroundColor": "#0b0b10" }
+      "adaptiveIcon": {
+        "backgroundColor": "#0b0b10"
+      }
     },
-    "plugins": ["expo-router", "expo-secure-store", "expo-video"],
-    "experiments": { "typedRoutes": true }
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-video",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
   }
 }

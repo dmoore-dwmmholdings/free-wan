@@ -1,6 +1,10 @@
-// Monorepo-aware Metro config. pnpm's symlinked store means Metro must watch the workspace
-// root (to resolve @free-wan/shared) and must NOT walk up the tree looking for a hoisted
-// node_modules that pnpm never creates.
+// Monorepo-aware Metro config for a pnpm workspace.
+//
+// Metro must watch the workspace root so @free-wan/shared resolves through its symlink.
+// Note what is deliberately NOT set: `disableHierarchicalLookup`. That flag is the usual
+// advice for npm/yarn monorepos, but pnpm nests each package's own dependencies under
+// node_modules/.pnpm/<pkg>/node_modules/, which Metro reaches only by walking up from the
+// importing file. Disabling that lookup breaks every transitive dependency of expo-router.
 const { getDefaultConfig } = require('expo/metro-config')
 const path = require('node:path')
 
@@ -14,7 +18,6 @@ config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ]
-config.resolver.disableHierarchicalLookup = true
 config.resolver.unstable_enableSymlinks = true
 
 module.exports = config
