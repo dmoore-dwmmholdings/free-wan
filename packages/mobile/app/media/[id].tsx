@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-nati
 import { useLocalSearchParams } from 'expo-router'
 import { useEventListener } from 'expo'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import { AuthImage } from '@/components/AuthImage'
 import { ErrorState } from '@/components/ErrorState'

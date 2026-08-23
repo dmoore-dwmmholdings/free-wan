@@ -1,6 +1,6 @@
 import { ActivityIndicator, FlatList, Pressable, Text, View } from 'react-native'
 import { Link } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import type { ClipDto } from '@free-wan/shared'
 import { AuthImage } from '@/components/AuthImage'
 import { ErrorState } from '@/components/ErrorState'

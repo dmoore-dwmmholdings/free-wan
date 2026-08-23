@@ -1,6 +1,6 @@
 import { Alert, FlatList, Pressable, Text, View } from 'react-native'
 import { Link } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import { AuthImage } from '@/components/AuthImage'
 import {
   formatBytes,

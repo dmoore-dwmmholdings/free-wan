@@ -10,7 +10,7 @@ import {
   View,
 } from 'react-native'
 import { Link } from 'expo-router'
-import { Ionicons } from '@expo/vector-icons'
+import Ionicons from '@expo/vector-icons/Ionicons'
 import type { MediaCard } from '@free-wan/shared'
 import { CategoryChips, type Crumb } from '@/components/CategoryChips'
 import { MediaTile, gridMetrics } from '@/components/MediaTile'
