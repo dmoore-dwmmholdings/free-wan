@@ -56,9 +56,9 @@ describe('offline download manager', () => {
   it('clears the in-flight entry when a transfer fails', async () => {
     const { fs, downloads } = await fresh()
     fs.__fs.failNext()
-    await expect(downloads.startDownload(VIDEO)).rejects.toThrow()
-    // Neither downloading nor done: a stuck progress row would never clear.
-    expect(downloads.getDownloadState(VIDEO.id)).toEqual({ status: 'none' })
+    await downloads.startDownload(VIDEO)
+    // Not still downloading: a stuck progress row would never clear.
+    expect(downloads.getDownloadState(VIDEO.id).status).not.toBe('downloading')
   })
 
   // Regression: `loaded` is only set at the end of the load, so concurrent callers each ran
@@ -96,12 +96,35 @@ describe('offline download manager', () => {
     expect(downloads.getDownloadState(VIDEO.id)).toEqual({ status: 'none' })
   })
 
-  it('leaves no half-finished record when the transfer fails', async () => {
+  it('records a failure instead of throwing, so it can be shown and retried', async () => {
     const { fs, downloads } = await fresh()
     fs.__fs.failNext()
-    await expect(downloads.startDownload(VIDEO)).rejects.toThrow(/simulated network failure/)
+
+    // Callers fire this from an onPress; throwing would only surface as an unhandled
+    // rejection and the progress row would vanish with no explanation.
+    await expect(downloads.startDownload(VIDEO)).resolves.toBeUndefined()
+
+    const state = downloads.getDownloadState(VIDEO.id)
+    expect(state.status).toBe('failed')
+    if (state.status === 'failed') expect(state.message).toMatch(/simulated network failure/)
+  })
+
+  it('does not leave a half-finished record behind after a failure', async () => {
+    const { fs, downloads } = await fresh()
+    fs.__fs.failNext()
+    await downloads.startDownload(VIDEO)
     // A failed download must not look downloaded, or the player opens a file that is not there.
-    expect(downloads.getDownloadState(VIDEO.id)).toEqual({ status: 'none' })
+    expect(downloads.getDownloadState(VIDEO.id).status).not.toBe('done')
+  })
+
+  it('clears the failure when the download is retried', async () => {
+    const { fs, downloads } = await fresh()
+    fs.__fs.failNext()
+    await downloads.startDownload(VIDEO)
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('failed')
+
+    await downloads.startDownload(VIDEO)
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
   })
 
   it('keeps a downloaded item across a restart', async () => {

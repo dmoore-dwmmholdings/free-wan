@@ -5,9 +5,11 @@ import { AuthImage } from '@/components/AuthImage'
 import {
   formatBytes,
   removeDownload,
+  startDownload,
   useDownloads,
   type ActiveDownload,
   type DownloadRecord,
+  type FailedDownload,
 } from '@/lib/downloads'
 import { formatDuration } from '@/lib/media'
 import { theme } from '@/theme'
@@ -82,11 +84,56 @@ function ActiveRow({ item }: { item: ActiveDownload }) {
   )
 }
 
+/** A transfer that stopped short. Tapping starts it again. */
+function FailedRow({ item }: { item: FailedDownload }) {
+  return (
+    <Pressable
+      onPress={() =>
+        void startDownload({
+          id: item.id,
+          title: item.title,
+          type: item.type,
+          durationSec: item.durationSec,
+        })
+      }
+      style={({ pressed }) => ({
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: theme.space(3),
+        opacity: pressed ? 0.7 : 1,
+      })}
+    >
+      <View
+        style={{
+          width: 108,
+          aspectRatio: 16 / 10,
+          borderRadius: theme.radius.sm,
+          backgroundColor: theme.color.surface2,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Ionicons name="alert-circle-outline" size={20} color={theme.color.danger} />
+      </View>
+      <View style={{ flex: 1, justifyContent: 'center', gap: theme.space(1) }}>
+        <Text numberOfLines={2} style={{ color: theme.color.text, fontSize: 14, fontWeight: '600' }}>
+          {item.title}
+        </Text>
+        <Text style={{ color: theme.color.danger, fontSize: 12 }}>Failed — tap to try again</Text>
+        <Text numberOfLines={1} style={{ color: theme.color.muted, fontSize: 12 }}>
+          {item.error}
+        </Text>
+      </View>
+    </Pressable>
+  )
+}
+
 export default function DownloadsScreen() {
-  const { items, active } = useDownloads()
+  const { items, active, failed } = useDownloads()
   const totalBytes = items.reduce((sum, i) => sum + i.bytes, 0)
   // In-flight transfers sit above finished ones so progress is the first thing seen.
-  const rows: Array<ActiveDownload | DownloadRecord> = [...active, ...items]
+  // Failures first: they need a decision. Then transfers in flight, then what is on disk.
+  const rows: Array<FailedDownload | ActiveDownload | DownloadRecord> = [...failed, ...active, ...items]
 
   return (
     <FlatList
@@ -95,7 +142,13 @@ export default function DownloadsScreen() {
       keyExtractor={(r) => r.id}
       contentContainerStyle={{ padding: theme.space(3), gap: theme.space(4) }}
       renderItem={({ item }) =>
-        'localUri' in item ? <Row item={item} /> : <ActiveRow item={item} />
+        'localUri' in item ? (
+          <Row item={item} />
+        ) : 'error' in item ? (
+          <FailedRow item={item} />
+        ) : (
+          <ActiveRow item={item} />
+        )
       }
       ListHeaderComponent={
         items.length > 0 ? (

@@ -33,15 +33,22 @@ export interface ActiveDownload {
   progress: number
 }
 
+/** A transfer that did not finish. Kept so the failure is visible and retryable. */
+export interface FailedDownload extends ActiveDownload {
+  error: string
+}
+
 export type DownloadState =
   | { status: 'none' }
   | { status: 'downloading'; progress: number }
+  | { status: 'failed'; message: string }
   | { status: 'done'; record: DownloadRecord }
 
 // ---- in-memory store, persisted to AsyncStorage -----------------------------
 
 let index: Record<string, DownloadRecord> = {}
 let active: Record<string, ActiveDownload> = {}
+let failures: Record<string, FailedDownload> = {}
 let loaded = false
 let hydrating: Promise<void> | null = null
 const listeners = new Set<() => void>()
@@ -101,6 +108,9 @@ export async function startDownload(item: {
   await loadDownloads()
   if (index[item.id] || item.id in active) return
 
+  // Starting again is how a failure is retried, so clear the last one.
+  delete failures[item.id]
+
   active[item.id] = {
     id: item.id,
     title: item.title,
@@ -158,6 +168,19 @@ export async function startDownload(item: {
       completedAt: Date.now(),
     }
     await persist()
+  } catch (err) {
+    // A download failing is ordinary — a phone leaves the tailnet mid-transfer. Record it so
+    // the Downloads tab can say so and offer a retry; throwing here would only surface as an
+    // unhandled rejection, and the progress row would vanish with no explanation.
+    const entry = active[item.id]
+    failures[item.id] = {
+      id: item.id,
+      title: item.title,
+      type: item.type,
+      durationSec: item.durationSec ?? null,
+      progress: entry?.progress ?? 0,
+      error: err instanceof Error ? err.message : 'Download failed',
+    }
   } finally {
     delete active[item.id]
     emit()
@@ -174,6 +197,7 @@ export async function removeDownload(id: string): Promise<void> {
     await FileSystem.deleteAsync(record.posterUri, { idempotent: true }).catch(() => {})
   }
   delete index[id]
+  delete failures[id]
   await persist()
   emit()
 }
@@ -183,6 +207,8 @@ export function getDownloadState(id: string): DownloadState {
   if (index[id]) return { status: 'done', record: index[id] }
   const running = active[id]
   if (running) return { status: 'downloading', progress: running.progress }
+  const failure = failures[id]
+  if (failure) return { status: 'failed', message: failure.error }
   return { status: 'none' }
 }
 
@@ -208,14 +234,17 @@ export function useDownloadState(id: string): DownloadState {
 export function useDownloads(): {
   items: DownloadRecord[]
   active: ActiveDownload[]
+  failed: FailedDownload[]
   ready: boolean
 } {
   const [items, setItems] = useState<DownloadRecord[]>([])
   const [active_, setActive] = useState<ActiveDownload[]>([])
+  const [failed, setFailed] = useState<FailedDownload[]>([])
   const [ready, setReady] = useState(loaded)
   const sync = useCallback(() => {
     setItems(Object.values(index).sort((a, b) => b.completedAt - a.completedAt))
     setActive(Object.values(active).map((a) => ({ ...a })))
+    setFailed(Object.values(failures).map((f) => ({ ...f })))
     setReady(true)
   }, [])
   useEffect(() => {
@@ -225,7 +254,7 @@ export function useDownloads(): {
       listeners.delete(sync)
     }
   }, [sync])
-  return { items, active: active_, ready }
+  return { items, active: active_, failed, ready }
 }
 
 export function formatBytes(bytes: number): string {

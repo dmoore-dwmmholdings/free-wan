@@ -74,6 +74,30 @@ function DownloadButton({
     )
   }
 
+  if (state.status === 'failed') {
+    return (
+      <Pressable
+        onPress={() => void startDownload({ id, title, type, durationSec })}
+        style={({ pressed }) => ({
+          gap: theme.space(1),
+          borderColor: 'rgba(248,113,113,0.4)',
+          borderWidth: 1,
+          borderRadius: theme.radius.sm,
+          paddingVertical: theme.space(3),
+          paddingHorizontal: theme.space(4),
+          opacity: pressed ? 0.75 : 1,
+        })}
+      >
+        <Text style={{ color: theme.color.danger, fontWeight: '700', fontSize: 14 }}>
+          Download failed — tap to try again
+        </Text>
+        <Text numberOfLines={2} style={{ color: theme.color.muted, fontSize: 12 }}>
+          {state.message}
+        </Text>
+      </Pressable>
+    )
+  }
+
   if (state.status === 'downloading') {
     const pct = Math.round(state.progress * 100)
     return (
@@ -115,6 +139,10 @@ function LikeButton({ id, liked, likeCount }: { id: string; liked: boolean; like
   return (
     <Pressable
       onPress={() => toggle.mutate(liked)}
+      accessibilityRole="button"
+      accessibilityState={{ selected: liked }}
+      // Without this a screen reader announces a heart glyph and a bare number.
+      accessibilityLabel={liked ? 'Remove from liked' : 'Add to liked'}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',
