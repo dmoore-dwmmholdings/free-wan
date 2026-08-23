@@ -1892,3 +1892,27 @@ shared schema test, all green; every phase verified with a live built-server smo
   server is a decision the product has already made, consistently, and the error boundary added
   last session is the floor that makes it survivable.
   Verified green: typecheck 4/4, `pnpm -r test` **383**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: the library can be sorted.** The server has supported it all along
+  — `sort` and `order`, seven orderings including one by like count — and the web app has had a
+  control for it since it was built. This app never sent either parameter, so a phone was stuck
+  with whatever the server did by default and had no way to ask for anything else. That is a
+  gap rather than a decision: nothing anywhere records a reason for leaving it out.
+  The same seven, in the same words the web uses, because a library ordered differently in the
+  two places would quietly undermine the idea that it is the same library. They live in one
+  list in `media.ts` so the two cannot drift apart by accident.
+  A sheet rather than an eighth control in the filter row, modelled on the subtitle picker: the
+  row already carries a search box and three toggles, and seven choices are more than icons can
+  say. The button names the ordering currently in force, since that is otherwise invisible to
+  anyone who cannot see which row has a tick.
+  Sent only when asked for, so a list that was never sorted still gets the server's own default
+  rather than this app's opinion of it. Not offered inside a collection, which the server orders
+  by position regardless.
+  **4 tests**, control-tested: not sending the parameters fails one, and collapsing the query
+  key so orderings share a cache fails seven — that last is the same hazard the filters have,
+  where a shared key shows one ordering another's results and the list simply looks wrong.
+  Verified in the browser against a real library: Title A–Z came back alphabetical, Title Z–A
+  its exact reverse, and Longest put both eight-second videos above the three photos. It holds
+  while drilled into a folder and with a media-type filter on top, and the button relabels
+  itself to "Sort by, currently Longest".
+  Verified green: typecheck 4/4, `pnpm -r test` **387**, `pnpm -r build`, both bundles.

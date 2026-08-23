@@ -91,3 +91,37 @@ describe('library pagination', () => {
     expect(a).not.toBe(b)
   })
 })
+
+describe('ordering the library', () => {
+  it('asks the server for the ordering that was chosen', async () => {
+    const { media } = await fresh()
+    const url = await urlFor(media.mediaListQueryOptions({ sort: 'title', order: 'asc' }))
+    expect(url.searchParams.get('sort')).toBe('title')
+    expect(url.searchParams.get('order')).toBe('asc')
+  })
+
+  it('asks for nothing when no ordering was chosen, leaving the server its own default', async () => {
+    const { media } = await fresh()
+    const url = await urlFor(media.mediaListQueryOptions({}))
+    expect(url.searchParams.has('sort')).toBe(false)
+    expect(url.searchParams.has('order')).toBe(false)
+  })
+
+  it('keeps each ordering in its own cache', async () => {
+    // The same hazard the filters have: a shared key would show one ordering the results of
+    // another, and the list would simply look wrong with nothing to explain it.
+    const { media } = await fresh()
+    const newest = JSON.stringify(media.mediaListQueryOptions({ sort: 'added', order: 'desc' }).queryKey)
+    const oldest = JSON.stringify(media.mediaListQueryOptions({ sort: 'added', order: 'asc' }).queryKey)
+    const byTitle = JSON.stringify(media.mediaListQueryOptions({ sort: 'title', order: 'asc' }).queryKey)
+    expect(new Set([newest, oldest, byTitle]).size).toBe(3)
+  })
+
+  it('offers the same orderings as the web app, starting on the server default', async () => {
+    const { media } = await fresh()
+    expect(media.SORT_CHOICES.map((c: { id: string }) => c.id)).toEqual([
+      'added:desc', 'added:asc', 'title:asc', 'title:desc', 'duration:desc', 'duration:asc', 'popularity:desc',
+    ])
+    expect(media.DEFAULT_SORT.id).toBe('added:desc')
+  })
+})

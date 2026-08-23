@@ -16,7 +16,7 @@ Five tabs:
 
 | Tab | What it holds |
 |---|---|
-| **Browse** | The library. Search, folder navigation, tag filters, and toggles for liked-only, videos-only and photos-only. The button in the corner uploads photos and video from this phone. |
+| **Browse** | The library. Search, folder navigation, tag filters, toggles for liked-only, videos-only and photos-only, and the same seven orderings the web app offers. The button in the corner uploads photos and video from this phone. |
 | **Collections** | Collections made on the web app; open one to see its contents. |
 | **Clips** | Clips cut on the web app; open one to play its segment. A clip saved to loop repeats; one saved not to stops at its out-point and rewinds, so it is ready to play again. |
 | **Downloads** | What is saved on the device, what is transferring, and what failed. |

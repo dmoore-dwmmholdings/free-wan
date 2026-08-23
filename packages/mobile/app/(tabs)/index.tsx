@@ -13,6 +13,7 @@ import { Link } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import type { MediaCard } from '@free-wan/shared'
 import { CategoryChips, type Crumb } from '@/components/CategoryChips'
+import { SortSheet } from '@/components/SortSheet'
 import { UploadButton } from '@/components/UploadButton'
 import { MediaTile, gridMetrics } from '@/components/MediaTile'
 import { ErrorState } from '@/components/ErrorState'
@@ -20,7 +21,7 @@ import { TagChips } from '@/components/TagChips'
 import { useCategoryChildren } from '@/lib/categories'
 import { useDownloads } from '@/lib/downloads'
 import { useTags } from '@/lib/tags'
-import { useMediaList } from '@/lib/media'
+import { DEFAULT_SORT, useMediaList, type SortChoice } from '@/lib/media'
 import { theme } from '@/theme'
 
 const GAP = theme.space(2.5)
@@ -68,6 +69,8 @@ export default function BrowseScreen() {
   const [likedOnly, setLikedOnly] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [mediaType, setMediaType] = useState<'video' | 'image' | null>(null)
+  const [sortChoice, setSortChoice] = useState<SortChoice>(DEFAULT_SORT)
+  const [sortOpen, setSortOpen] = useState(false)
   const currentCategory = trail.length > 0 ? trail[trail.length - 1]!.id : null
 
   const { columns, tileWidth } = gridMetrics(screenWidth, PADDING, GAP)
@@ -83,8 +86,10 @@ export default function BrowseScreen() {
         liked: likedOnly || undefined,
         tags: selectedTags,
         type: mediaType ?? undefined,
+        sort: sortChoice.sort,
+        order: sortChoice.order,
       }),
-      [query, currentCategory, likedOnly, selectedTags, mediaType],
+      [query, currentCategory, likedOnly, selectedTags, mediaType, sortChoice],
     ),
   )
   const items = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data])
@@ -165,6 +170,12 @@ export default function BrowseScreen() {
             icon="image-outline"
             label={mediaType === 'image' ? 'Show all media types' : 'Show only photos'}
             onPress={() => setMediaType((t) => (t === 'image' ? null : 'image'))}
+          />
+          <SortSheet
+            choice={sortChoice}
+            onChoose={setSortChoice}
+            open={sortOpen}
+            onOpenChange={setSortOpen}
           />
         </View>
         <CategoryChips

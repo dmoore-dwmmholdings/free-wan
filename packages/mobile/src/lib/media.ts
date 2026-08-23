@@ -2,6 +2,32 @@ import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { MediaDetail, MediaListResponse, PlaybackDescriptor } from '@free-wan/shared'
 import { api } from './api'
 
+/** The orderings the server offers, paired the way they are offered to the reader. */
+export interface SortChoice {
+  /** Stable identity for the chosen ordering, and what the sheet marks as selected. */
+  id: string
+  label: string
+  sort: 'title' | 'added' | 'created' | 'duration' | 'popularity'
+  order: 'asc' | 'desc'
+}
+
+/**
+ * The same seven the web app offers, in the same words. A library sorted differently in the
+ * two places would be a small betrayal of the idea that this is the same library.
+ */
+export const SORT_CHOICES: SortChoice[] = [
+  { id: 'added:desc', label: 'Newest', sort: 'added', order: 'desc' },
+  { id: 'added:asc', label: 'Oldest', sort: 'added', order: 'asc' },
+  { id: 'title:asc', label: 'Title A–Z', sort: 'title', order: 'asc' },
+  { id: 'title:desc', label: 'Title Z–A', sort: 'title', order: 'desc' },
+  { id: 'duration:desc', label: 'Longest', sort: 'duration', order: 'desc' },
+  { id: 'duration:asc', label: 'Shortest', sort: 'duration', order: 'asc' },
+  { id: 'popularity:desc', label: 'Most liked', sort: 'popularity', order: 'desc' },
+]
+
+/** What the server does without being asked, and so what the app starts on. */
+export const DEFAULT_SORT = SORT_CHOICES[0]!
+
 export interface MediaListParams {
   q?: string
   liked?: boolean
@@ -9,6 +35,9 @@ export interface MediaListParams {
   collection?: string
   tags?: string[]
   type?: 'video' | 'image'
+  /** Omitted inside a collection, which the server orders by position regardless. */
+  sort?: SortChoice['sort']
+  order?: SortChoice['order']
 }
 
 /**
@@ -27,6 +56,9 @@ export function mediaListQueryOptions(params: MediaListParams = {}) {
       if (params.type) qs.set('type', params.type)
       if (params.category) qs.set('category', params.category)
       if (params.collection) qs.set('collection', params.collection)
+      // Sent only when asked for, so the server's own default is what an unsorted list gets.
+      if (params.sort) qs.set('sort', params.sort)
+      if (params.order) qs.set('order', params.order)
       // Repeated `tag` params are AND-combined by the API.
       for (const t of params.tags ?? []) qs.append('tag', t)
       if (pageParam) qs.set('cursor', pageParam)
