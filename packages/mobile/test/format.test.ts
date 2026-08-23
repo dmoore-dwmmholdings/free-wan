@@ -34,4 +34,10 @@ describe('formatBytes', () => {
     expect(formatBytes(12_000)).toBe('12 KB')
     expect(formatBytes(1)).toBe('1 KB')
   })
+
+  // Regression: the Settings screen showed "Storage used  1 KB" with no downloads,
+  // because the floor above was applied to an empty total as well.
+  it('reports nothing used when there are no downloads', () => {
+    expect(formatBytes(0)).toBe('0 KB')
+  })
 })

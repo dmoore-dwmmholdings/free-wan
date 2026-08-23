@@ -185,5 +185,8 @@ export function useDownloads(): { items: DownloadRecord[]; ready: boolean } {
 export function formatBytes(bytes: number): string {
   if (bytes >= 1e9) return `${(bytes / 1e9).toFixed(1)} GB`
   if (bytes >= 1e6) return `${Math.round(bytes / 1e6)} MB`
+  // An empty library uses nothing; the 1 KB floor below is for real files that would
+  // otherwise round down to "0 KB", and must not make an empty total claim storage.
+  if (bytes <= 0) return '0 KB'
   return `${Math.max(1, Math.round(bytes / 1e3))} KB`
 }
