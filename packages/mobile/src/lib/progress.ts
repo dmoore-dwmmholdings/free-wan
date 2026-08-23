@@ -10,7 +10,11 @@ const REPORT_INTERVAL_MS = 10_000
  * next successful report supersedes anything that was lost.
  */
 export function useProgressReporter(id: string, player: VideoPlayer | null, durationS: number | null) {
-  const lastSent = useRef(-1)
+  // Scoped to the item: this ref outlives a change of `id`, so a bare number let one item's
+  // position suppress another's. Leaving a video at 300s and then leaving a second one at
+  // 300.5s within the same session dropped the second report entirely, and with it the only
+  // record of where that video had been watched to.
+  const lastSent = useRef<{ id: string; position: number }>({ id: '', position: -1 })
 
   useEffect(() => {
     if (!player) return
@@ -24,8 +28,9 @@ export function useProgressReporter(id: string, player: VideoPlayer | null, dura
       }
       // Ignore the pre-roll and anything that has not moved since the last report.
       if (!Number.isFinite(position) || position < 5) return
-      if (Math.abs(position - lastSent.current) < 1) return
-      lastSent.current = position
+      const previous = lastSent.current
+      if (previous.id === id && Math.abs(position - previous.position) < 1) return
+      lastSent.current = { id, position }
       void api
         .post(`/api/media/${id}/progress`, {
           positionS: position,

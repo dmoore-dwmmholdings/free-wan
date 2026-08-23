@@ -311,6 +311,12 @@ pass-through behaviour were checked in the browser harness, but the picker, the
 which-library sheet and the transfer itself were not: `expo-image-picker` opens the platform
 file dialog, and `expo-file-system`'s upload task has no web implementation.
 
+One test reads both sides of a contract rather than exercising code: it collects every
+`/api/...` path this app asks for and every route the server registers, and fails if a path
+has no route. This is checked because it has gone wrong before — an early version called an
+endpoint that was never written, and neither `tsc` nor a stubbed-`fetch` test can see that,
+since a URL is only a string.
+
 ```bash
 pnpm --filter @free-wan/mobile build
 ```

@@ -1121,3 +1121,23 @@ shared schema test, all green; every phase verified with a live built-server smo
   there, for the same reason as subtitle timing — the browser cannot load the video at all,
   since a plain `<video>` element cannot carry the auth header. Verified green: typecheck 4/4,
   `pnpm -r test` **321** (api 180 + mobile 128 + web 11 + shared 2), `pnpm -r build`.
+- **2026-08-23 — Mobile app: the app/server contract is now checked, plus one small fix.**
+  Two review passes had already been done, so this one was systematic rather than
+  exploratory: every `/api/...` path the app asks for was compared against every route the
+  server registers. **The result was clean — no path is missing.** Rather than leave that as a
+  one-off, it is now `test/api-contract.test.ts`, which reads both sides and fails if a
+  requested path has no route. It exists because this has gone wrong before: an early version
+  called `GET /api/collections/:id`, which was never written, and nothing caught it until the
+  screen 404'd. Neither `tsc` nor the stubbed-`fetch` tests can see that, because a URL is
+  only a string. Control-tested twice — an invented endpoint and a one-letter typo in a real
+  one both fail, naming the file that asks for it. The test also asserts both extractions
+  found something, so a broken scrape cannot pass vacuously.
+  One real defect found while reading `useProgressReporter`: the marker recording the last
+  position sent was a bare number and outlived a change of item, so one video's position could
+  suppress another's. Leaving a video at 300s and then a second at 300.5s in the same session
+  dropped the second report, and with it the only record of where that video had been watched
+  to. The marker is now scoped to the item.
+  Also reviewed and left alone: `AuthImage` (the window where a stale poster could show is one
+  microtask, since the URL and headers come from memory after the first call). Verified green:
+  typecheck 4/4, `pnpm -r test` **341** (api 180 + mobile 148 + web 11 + shared 2),
+  `pnpm -r build`.
