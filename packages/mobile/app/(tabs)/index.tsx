@@ -12,6 +12,8 @@ import {
 import { Link } from 'expo-router'
 import type { MediaCard } from '@free-wan/shared'
 import { AuthImage } from '@/components/AuthImage'
+import { CategoryChips, type Crumb } from '@/components/CategoryChips'
+import { useCategoryChildren } from '@/lib/categories'
 import { formatDuration, useMediaList } from '@/lib/media'
 import { theme } from '@/theme'
 
@@ -66,12 +68,17 @@ export default function BrowseScreen() {
   const { width: screenWidth } = useWindowDimensions()
   const [search, setSearch] = useState('')
   const [query, setQuery] = useState('')
+  const [trail, setTrail] = useState<Crumb[]>([])
+  const currentCategory = trail.length > 0 ? trail[trail.length - 1]!.id : null
 
   // Two columns on a phone, more as the viewport grows (tablet, landscape).
   const columns = Math.max(2, Math.floor(screenWidth / 220))
   const tileWidth = (screenWidth - PADDING * 2 - GAP * (columns - 1)) / columns
 
-  const list = useMediaList(useMemo(() => ({ q: query || undefined }), [query]))
+  const categories = useCategoryChildren(currentCategory)
+  const list = useMediaList(
+    useMemo(() => ({ q: query || undefined, category: currentCategory }), [query, currentCategory]),
+  )
   const items = useMemo(() => list.data?.pages.flatMap((p) => p.data) ?? [], [list.data])
 
   if (list.isLoading) {
@@ -104,6 +111,7 @@ export default function BrowseScreen() {
         if (list.hasNextPage && !list.isFetchingNextPage) void list.fetchNextPage()
       }}
       ListHeaderComponent={
+        <View>
         <TextInput
           value={search}
           onChangeText={setSearch}
@@ -122,9 +130,16 @@ export default function BrowseScreen() {
             fontSize: 15,
             paddingHorizontal: theme.space(4),
             paddingVertical: theme.space(2.5),
-            marginBottom: theme.space(1),
+            marginBottom: theme.space(2),
           }}
         />
+        <CategoryChips
+          trail={trail}
+          options={categories.data?.data ?? []}
+          onEnter={(node) => setTrail((t) => [...t, { id: node.id, name: node.name }])}
+          onExitTo={(depth) => setTrail((t) => t.slice(0, depth))}
+        />
+        </View>
       }
       ListFooterComponent={
         list.isFetchingNextPage ? (
@@ -137,7 +152,11 @@ export default function BrowseScreen() {
         <View style={{ paddingTop: theme.space(20), alignItems: 'center', gap: theme.space(2) }}>
           <Text style={{ color: theme.color.text, fontSize: 16, fontWeight: '700' }}>Nothing here</Text>
           <Text style={{ color: theme.color.muted, fontSize: 14, textAlign: 'center' }}>
-            {query ? `No results for "${query}".` : 'Your library is empty, or the server is still scanning.'}
+            {query
+              ? `No results for "${query}".`
+              : currentCategory
+                ? 'This folder has no media directly in it. Try a sub-folder above.'
+                : 'Your library is empty, or the server is still scanning.'}
           </Text>
         </View>
       }
