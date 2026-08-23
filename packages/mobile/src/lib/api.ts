@@ -41,16 +41,32 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
   if (res.status === 204) return undefined as T
   const text = await res.text()
-  const data: unknown = text ? JSON.parse(text) : undefined
 
   if (!res.ok) {
     // A revoked or expired session must not leave a dead token in secure storage, or the app
     // reopens to a browse screen that 401s on every tile.
     if (res.status === 401) await clearSession()
-    const err = (data as { error?: { code?: string; message?: string } } | undefined)?.error
-    throw new ApiError(res.status, err?.code ?? 'internal', err?.message ?? res.statusText)
+
+    // An error body is not necessarily JSON. Anything between the phone and the server —
+    // Tailscale Serve, a gateway, a captive portal — answers with HTML, and parsing that
+    // would throw a SyntaxError that buries the real status.
+    let code = 'internal'
+    let message = res.statusText || `HTTP ${res.status}`
+    try {
+      const err = (JSON.parse(text) as { error?: { code?: string; message?: string } })?.error
+      if (err?.code) code = err.code
+      if (err?.message) message = err.message
+    } catch {
+      /* not JSON — the status is all we know */
+    }
+    throw new ApiError(res.status, code, message)
   }
-  return data as T
+
+  try {
+    return (text ? JSON.parse(text) : undefined) as T
+  } catch {
+    throw new ApiError(res.status, 'bad_response', 'The server sent a response this app could not read')
+  }
 }
 
 export const api = {
