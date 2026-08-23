@@ -61,6 +61,25 @@ describe('offline download manager', () => {
     expect(downloads.getDownloadState(VIDEO.id)).toEqual({ status: 'none' })
   })
 
+  // Regression: `loaded` is only set at the end of the load, so concurrent callers each ran
+  // the whole body and reassigned the index. A record written between two in-flight loads was
+  // wiped by the slower one — a finished download vanishing during startup.
+  it('shares one hydration between concurrent callers', async () => {
+    const { downloads, storage } = await fresh()
+    await Promise.all([downloads.loadDownloads(), downloads.loadDownloads(), downloads.loadDownloads()])
+    expect(storage.default.__reads()).toBe(1)
+  })
+
+  it('keeps a download that finishes while the index is still loading', async () => {
+    const { downloads, storage } = await fresh()
+    const slowLoad = downloads.loadDownloads()
+    const saved = downloads.startDownload(VIDEO)
+    await Promise.all([slowLoad, saved])
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
+    const persisted = JSON.parse((await storage.default.getItem('fw_downloads_v1')) ?? '{}')
+    expect(Object.keys(persisted)).toContain(VIDEO.id)
+  })
+
   it('is a no-op for something already downloaded', async () => {
     const { fs, downloads } = await fresh()
     await downloads.startDownload(VIDEO)

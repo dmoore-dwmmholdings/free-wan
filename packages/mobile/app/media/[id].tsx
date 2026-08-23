@@ -15,11 +15,22 @@ import { useToggleLike } from '@/lib/social'
 import { theme } from '@/theme'
 
 /** Resolved video source: a local file when downloaded, otherwise the authenticated server URL. */
-function useVideoSource(id: string, downloadedUri: string | null, serverPath: string | undefined) {
+function useVideoSource(
+  id: string,
+  isVideo: boolean,
+  downloadedUri: string | null,
+  serverPath: string | undefined,
+) {
   const [source, setSource] = useState<{ uri: string; headers?: Record<string, string> } | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    // Photos are drawn with an Image, never handed to the player. Without this a downloaded
+    // photo would give the video player a JPEG to open.
+    if (!isVideo) {
+      setSource(null)
+      return
+    }
     // A downloaded copy always wins — it plays with the server unreachable.
     if (downloadedUri) {
       setSource({ uri: downloadedUri })
@@ -33,7 +44,7 @@ function useVideoSource(id: string, downloadedUri: string | null, serverPath: st
     return () => {
       cancelled = true
     }
-  }, [id, downloadedUri, serverPath])
+  }, [id, isVideo, downloadedUri, serverPath])
 
   return source
 }
@@ -141,7 +152,7 @@ export default function MediaScreen() {
   // With a local copy there is nothing to ask the server for, so skip the playback call —
   // that is what makes the screen work with no connection.
   const playback = usePlayback(id, isVideo && !downloadedUri)
-  const source = useVideoSource(id, downloadedUri, playback.data?.url)
+  const source = useVideoSource(id, isVideo, downloadedUri, playback.data?.url)
 
   const player = useVideoPlayer(source ?? null, (p) => {
     p.showNowPlayingNotification = true

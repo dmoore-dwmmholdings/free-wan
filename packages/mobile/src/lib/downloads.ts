@@ -43,6 +43,7 @@ export type DownloadState =
 let index: Record<string, DownloadRecord> = {}
 let active: Record<string, ActiveDownload> = {}
 let loaded = false
+let hydrating: Promise<void> | null = null
 const listeners = new Set<() => void>()
 
 function emit() {
@@ -56,6 +57,19 @@ async function persist() {
 /** Hydrate the index from storage, dropping records whose files no longer exist. */
 export async function loadDownloads(): Promise<void> {
   if (loaded) return
+  // Concurrent callers must share one load. Both hooks and startDownload call this on mount,
+  // and `loaded` is only set at the end — so without this each call would run the whole body
+  // and reassign `index`, letting a slower one overwrite a record the faster one had already
+  // written. A download finishing during startup would simply vanish.
+  hydrating ??= hydrate()
+  try {
+    await hydrating
+  } finally {
+    hydrating = null
+  }
+}
+
+async function hydrate(): Promise<void> {
   const raw = await AsyncStorage.getItem(INDEX_KEY)
   index = raw ? (JSON.parse(raw) as Record<string, DownloadRecord>) : {}
   await FileSystem.makeDirectoryAsync(DIR, { intermediates: true }).catch(() => {})
