@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import { Appearance } from 'react-native'
 import type { Branding } from '@free-wan/shared'
 import { api } from './api'
@@ -25,6 +25,55 @@ function syncColorScheme(): void {
   Appearance.setColorScheme(isLight(theme.color.bg) ? 'light' : 'dark')
 }
 
+/**
+ * Bumped whenever `applyBranding` changes the tokens, so anything holding a colour can be told
+ * to read them again.
+ *
+ * The tokens are a mutable singleton, which works because every style object in this package is
+ * built during render — but only for the parts of the tree that render again. React Navigation
+ * keeps a navigator's `screenOptions` from when that navigator mounted, and a state change up
+ * in the root layout never reaches it. So after a first sign-in the tab bar went on wearing the
+ * built-in palette: a dark bar under a cream app, until the app was restarted. That is exactly
+ * the half-applied look this feature set out to avoid, arriving through the one part of the
+ * tree that decides for itself when to render.
+ */
+let brandingVersion = 0
+const versionListeners = new Set<() => void>()
+
+function bumpBrandingVersion(): void {
+  brandingVersion += 1
+  for (const listener of versionListeners) listener()
+}
+
+function subscribeBrandingVersion(listener: () => void): () => void {
+  versionListeners.add(listener)
+  return () => {
+    versionListeners.delete(listener)
+  }
+}
+
+/**
+ * Re-render this component whenever the branding tokens change — for anything that hands a
+ * colour to something which will not go back and read it again.
+ */
+export function useBrandingVersion(): number {
+  return useSyncExternalStore(
+    subscribeBrandingVersion,
+    () => brandingVersion,
+    () => brandingVersion,
+  )
+}
+
+/**
+ * Test-only view of the same signal `useBrandingVersion` gives React. Exposed because what has
+ * to be checked is *when* the tokens are announced as changed, and a hook needs a renderer this
+ * package does not have.
+ */
+export const __test = {
+  subscribeVersion: subscribeBrandingVersion,
+  version: () => brandingVersion,
+}
+
 /** How long the app will wait for branding before showing itself anyway. */
 const BRANDING_WAIT_MS = 2000
 
@@ -35,10 +84,10 @@ const BRANDING_WAIT_MS = 2000
  * this file, and every one of them was in the sequencing rather than in any single line.
  *
  * `onSettled` fires once, when the app should stop waiting — branding applied, failed, or the
- * cap reached. `onApplied` fires each time the tokens actually change, so the caller can render
- * again. Returns a teardown.
+ * cap reached. Tokens changing is announced separately, through `useBrandingVersion`, because
+ * more of the tree needs to hear about it than just the caller. Returns a teardown.
  */
-export function startBranding(onSettled: () => void, onApplied: () => void): () => void {
+export function startBranding(onSettled: () => void): () => void {
   let cancelled = false
   // The server whose branding is already loaded. Not a boolean: moving to a different server
   // has to fetch again.
@@ -66,7 +115,7 @@ export function startBranding(onSettled: () => void, onApplied: () => void): () 
         if (cancelled) return
         applyBranding(branding)
         syncColorScheme()
-        onApplied()
+        bumpBrandingVersion()
       } catch {
         // Let a later sign-in try again rather than leaving this server marked as done.
         fetchedFor = null
@@ -116,18 +165,11 @@ export function startBranding(onSettled: () => void, onApplied: () => void): () 
  */
 export function useBranding(): boolean {
   const [settled, setSettled] = useState(false)
-  // Bumped when tokens change, purely to make React render again. Deliberately not a key:
-  // keying the root remounts it, and a remount resets the router.
-  const [, setApplied] = useState(0)
+  // Subscribed purely to make React render again when the tokens change. Deliberately not a
+  // key: keying the root remounts it, and a remount resets the router.
+  useBrandingVersion()
 
-  useEffect(
-    () =>
-      startBranding(
-        () => setSettled(true),
-        () => setApplied((n) => n + 1),
-      ),
-    [],
-  )
+  useEffect(() => startBranding(() => setSettled(true)), [])
 
   return settled
 }

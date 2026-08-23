@@ -1719,3 +1719,28 @@ shared schema test, all green; every phase verified with a live built-server smo
   Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`, and `pnpm test:e2e`
   **18/18**, six of which are axe WCAG A/AA audits of the web app. Those audits run on the
   default preset, which is why they never saw this one.
+
+- **2026-08-23 — Mobile app: a dark tab bar under a cream app, after a first sign-in.** Found
+  by going back to look at the screens after changing colours that affect all of them, which is
+  the only reason it was found at all: it is a defect you see rather than one you reason your
+  way to. Measuring the rendered colours on a `linen` server showed the tab bar's label at
+  `rgb(155,155,160)` and its background at `rgb(22,22,29)` — the *built-in dark* palette —
+  under a screen at `rgb(243,239,230)`. Restarting the app fixed it, which placed the fault
+  exactly: on the sign-in transition, not at startup.
+  The cause is the last unswept corner of the mutable-token design. Tokens are mutated in place
+  and everything that draws with them picks them up on its next render — but React Navigation
+  keeps a navigator's `screenOptions` from when that navigator mounted, and a state change in
+  the root layout never reaches it. The tab bar therefore wore whatever palette was in force
+  when the tabs first appeared, which on a first run is the built-in one. This is the fourth
+  defect out of this design and the second of them to be a first-run problem; the ADR warned
+  that half-applied branding "would look broken", and this is what that looks like.
+  A token change is now announced through a small store — `useBrandingVersion`, on
+  `useSyncExternalStore` — rather than through a callback that only the root layout heard. The
+  tabs layout subscribes. `startBranding` loses its second callback, and the test that used to
+  count calls to it now counts notifications from the store, which is the same property
+  observed where it now lives. Both control-tested: never announcing the change fails one test,
+  bumping the counter without telling anyone fails another.
+  Verified in the browser on the sequence that produced it — a first-run sign-in against a
+  `linen` server now gives a tab bar at `rgb(251,248,242)` with its label at `rgb(108,104,96)`,
+  and the deep link to an item still lands on the item rather than the library.
+  Verified green: typecheck 4/4, `pnpm -r test` **378**, `pnpm -r build`.

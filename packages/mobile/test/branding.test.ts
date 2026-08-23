@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DEFAULT_BRANDING, type Branding } from '@free-wan/shared'
-import { startBranding } from '@/lib/branding'
+import { __test, startBranding } from '@/lib/branding'
 import { theme, applyBranding } from '@/theme'
 import { Appearance } from '@/../test/stubs/react-native'
 
@@ -65,10 +65,7 @@ describe('startBranding', () => {
     // A first launch has no server stored, so there is nothing to ask at startup. Branding
     // must still arrive the moment signing in creates one — the alternative shipped an app
     // that stayed on the built-in dark palette until it was killed and reopened.
-    const stop = startBranding(
-      () => {},
-      () => {},
-    )
+    const stop = startBranding(() => {})
     await settle()
     expect(theme.color.bg).toBe(DEFAULT_BRANDING.colors.background)
 
@@ -80,10 +77,7 @@ describe('startBranding', () => {
   })
 
   it('follows the brand with the platform colour scheme', async () => {
-    const stop = startBranding(
-      () => {},
-      () => {},
-    )
+    const stop = startBranding(() => {})
     await settle()
     // The built-in palette is dark, and that is settled before anything is fetched so the
     // login screen does not get the phone's keyboard.
@@ -95,28 +89,29 @@ describe('startBranding', () => {
     stop()
   })
 
-  it('re-renders the caller only when the tokens actually change', async () => {
-    const applied = vi.fn()
-    const stop = startBranding(() => {}, applied)
+  it('announces a token change only when the tokens actually change', async () => {
+    // Everything that draws with these colours renders again on this signal, the tab bar
+    // included, so it has to fire on a real change and stay quiet otherwise.
+    const heard = vi.fn()
+    const unsubscribe = __test.subscribeVersion(heard)
+    const stop = startBranding(() => {})
     await settle()
-    expect(applied).not.toHaveBeenCalled()
+    expect(heard).not.toHaveBeenCalled()
 
     await signIn('https://media.example.net')
-    expect(applied).toHaveBeenCalledTimes(1)
+    expect(heard).toHaveBeenCalledTimes(1)
 
     // Same server again — a sign-out and sign-in to the same place, say. Nothing has changed,
-    // so the root must not be told to render again.
+    // so nothing should be told to render again.
     for (const listener of [...sessionListeners]) listener()
     await settle()
-    expect(applied).toHaveBeenCalledTimes(1)
+    expect(heard).toHaveBeenCalledTimes(1)
     stop()
+    unsubscribe()
   })
 
   it('fetches again when the session moves to a different server', async () => {
-    const stop = startBranding(
-      () => {},
-      () => {},
-    )
+    const stop = startBranding(() => {})
     await settle()
     await signIn('https://one.example.net')
     expect(theme.color.bg).toBe(LINEN.colors.background)
@@ -129,10 +124,7 @@ describe('startBranding', () => {
   })
 
   it('retries a server whose branding could not be fetched', async () => {
-    const stop = startBranding(
-      () => {},
-      () => {},
-    )
+    const stop = startBranding(() => {})
     await settle()
 
     mockFetch = async () => {
@@ -153,7 +145,7 @@ describe('startBranding', () => {
 
   it('settles at startup even with no server to ask', async () => {
     const settled = vi.fn()
-    const stop = startBranding(settled, () => {})
+    const stop = startBranding(settled)
     await settle()
 
     // Not after the cap — immediately. The caller holds the whole app on a blank screen
@@ -166,7 +158,7 @@ describe('startBranding', () => {
     mockServer = async () => 'https://slow.example.net'
     mockFetch = () => new Promise<Branding>(() => {})
     const settled = vi.fn()
-    const stop = startBranding(settled, () => {})
+    const stop = startBranding(settled)
     await settle()
     expect(settled).not.toHaveBeenCalled()
 
@@ -177,8 +169,9 @@ describe('startBranding', () => {
   })
 
   it('stops listening once torn down', async () => {
-    const applied = vi.fn()
-    const stop = startBranding(() => {}, applied)
+    const heard = vi.fn()
+    const unsubscribe = __test.subscribeVersion(heard)
+    const stop = startBranding(() => {})
     await settle()
     expect(sessionListeners.size).toBe(1)
 
@@ -191,7 +184,8 @@ describe('startBranding', () => {
     expect(sessionListeners.size).toBe(0)
 
     await signIn('https://media.example.net')
-    expect(applied).not.toHaveBeenCalled()
+    expect(heard).not.toHaveBeenCalled()
     expect(theme.color.bg).toBe(DEFAULT_BRANDING.colors.background)
+    unsubscribe()
   })
 })

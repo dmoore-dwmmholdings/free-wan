@@ -1,8 +1,14 @@
 import { Tabs } from 'expo-router'
 import Ionicons from '@expo/vector-icons/Ionicons'
+import { useBrandingVersion } from '@/lib/branding'
 import { theme } from '@/theme'
 
 export default function TabsLayout() {
+  // React Navigation keeps these options from when the navigator mounted, and a state change
+  // in the root layout does not reach it — so without this the bar keeps whatever palette was
+  // in force when the tabs first appeared, which after a first sign-in is the built-in one.
+  useBrandingVersion()
+
   return (
     <Tabs
       screenOptions={{
