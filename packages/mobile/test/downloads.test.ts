@@ -293,7 +293,7 @@ describe('a cancel that lands on an all-but-finished transfer', () => {
     await started
 
     // Not a failure either: the user asked for this.
-    expect(downloads.__test.snapshot()).toEqual({ activeIds: [], doneIds: [] })
+    expect(downloads.__test.snapshot()).toEqual({ activeIds: [], doneIds: [], failedIds: [] })
     expect(downloads.getDownloadState(VIDEO.id).status).toBe('none')
   })
 })
@@ -370,5 +370,27 @@ describe('what a transfer the app never came back from leaves behind', () => {
     await downloads2.loadDownloads()
 
     expect(fs2.__fs.paths().slice().sort()).toEqual(before)
+  })
+})
+
+describe('when the phone has no room left to write the index', () => {
+  it('does not report a finished download as a failure as well', async () => {
+    // This app exists to fill a phone with video, so a storage write that fails is an ordinary
+    // condition here rather than an exotic one. The file has landed and the record is in
+    // memory; only the write-back for the next launch failed.
+    const { storage, downloads } = await fresh()
+    await downloads.loadDownloads()
+    storage.default.__failNextWrite()
+
+    await downloads.startDownload(VIDEO)
+
+    // The Downloads tab renders failures, then transfers, then finished items, keyed by id.
+    // An item in two of those lists puts the same key on screen twice and reads as both.
+    expect(downloads.__test.snapshot()).toEqual({
+      activeIds: [],
+      doneIds: [VIDEO.id],
+      failedIds: [],
+    })
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
   })
 })

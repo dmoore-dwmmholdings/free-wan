@@ -64,8 +64,28 @@ function emit() {
   for (const l of listeners) l()
 }
 
+/**
+ * Write the index back for the next launch. Best effort, deliberately.
+ *
+ * A phone runs out of room, and this app is what fills it — a failing write here is an
+ * ordinary condition, not an exotic one. Letting it throw was worse in three separate places
+ * at once. In `startDownload` the record has already been published by the time this runs, so
+ * the rejection landed in the catch that records failures and left one item listed as both
+ * finished and failed: the same key twice on the Downloads tab, offering to retry something it
+ * was simultaneously offering to play. In `hydrate` and `removeDownload` it skipped the
+ * notification that tells the screens to re-read, so the list simply stopped matching what the
+ * app held.
+ *
+ * What is lost by swallowing it is real but small: a record that could not be written does not
+ * survive a restart, and the sweep at the next startup reclaims the file it pointed at. The
+ * download works for as long as the app is open, which is more than it would have otherwise.
+ */
 async function persist() {
-  await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(index))
+  try {
+    await AsyncStorage.setItem(INDEX_KEY, JSON.stringify(index))
+  } catch {
+    // Nothing to do here: the index in memory is still the truth for this session.
+  }
 }
 
 /** Hydrate the index from storage, dropping records whose files no longer exist. */
@@ -349,10 +369,15 @@ export function formatBytes(bytes: number): string {
 }
 
 /**
- * Test-only view of the two collections the Downloads tab concatenates. Exposed because the
- * invariant that matters — an item is never both in flight and finished — is only observable
- * between them, and the screen keys its rows by id.
+ * Test-only view of the three collections the Downloads tab concatenates. Exposed because the
+ * invariant that matters — an item appears in exactly one of them — is only observable between
+ * them, and the screen keys its rows by id, so two of them holding the same id puts the same
+ * key on screen twice.
  */
 export const __test = {
-  snapshot: () => ({ activeIds: Object.keys(active), doneIds: Object.keys(index) }),
+  snapshot: () => ({
+    activeIds: Object.keys(active),
+    doneIds: Object.keys(index),
+    failedIds: Object.keys(failures),
+  }),
 }

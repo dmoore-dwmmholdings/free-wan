@@ -2,6 +2,7 @@
 const store = new Map<string, string>()
 let reads = 0
 let holdWrite: Promise<void> | null = null
+let failWrite = false
 
 export default {
   async getItem(k: string) {
@@ -12,7 +13,15 @@ export default {
     return store.get(k) ?? null
   },
   __reads: () => reads,
+  /** Make the next write reject, as a full or unavailable store would. */
+  __failNextWrite() {
+    failWrite = true
+  },
   async setItem(k: string, v: string) {
+    if (failWrite) {
+      failWrite = false
+      throw new Error('no space left on device')
+    }
     // Held before the write lands, so a caller can be inspected mid-persist.
     if (holdWrite) {
       const pending = holdWrite
@@ -33,6 +42,7 @@ export default {
     store.clear()
     reads = 0
     holdWrite = null
+    failWrite = false
   },
   __seed(k: string, v: string) {
     store.set(k, v)

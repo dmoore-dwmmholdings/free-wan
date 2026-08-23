@@ -2004,3 +2004,27 @@ shared schema test, all green; every phase verified with a live built-server smo
   for, returning "undecided" instead of "decided, do nothing" fails two, and a grace of zero
   blocks the ordinary resume that a healthy server answers in a fraction of a second.
   Verified green: typecheck 4/4, `pnpm -r test` **390**, `pnpm -r build`, both bundles.
+
+- **2026-08-23 — Mobile app: a full phone made one download appear as both finished and
+  failed.** Found by reading `downloads.ts` as a whole rather than as three separate diffs,
+  which is how this session had been changing it.
+  Writing the index back is the last thing a finished transfer does, and it happens *after* the
+  record has been published. So a rejection from that write landed in the catch that records
+  failures, and the item ended up in two of the three collections the Downloads tab
+  concatenates — the same key on screen twice, offering to retry something it was at the same
+  moment offering to play. `getDownloadState` reads the index first, so the media screen said
+  "Available offline" while the Downloads tab said it had failed.
+  What makes this worth more than its narrowness suggests: the write fails when the phone is
+  out of room, and this app is the thing that fills it. Storage exhaustion is not an exotic
+  condition here, it is the expected end state of using the feature.
+  Fixed at the root by making the write best effort. It was throwing into three places and
+  helping in none: in `hydrate` and `removeDownload` a rejection skipped the notification that
+  tells the screens to re-read, so the list stopped matching what the app held. What is given
+  up is small and honest — a record that cannot be written does not survive a restart, and the
+  sweep added earlier reclaims the file it pointed at.
+  The first attempt at the test proved nothing and said so loudly enough to notice: the
+  test-only snapshot exposed active and finished ids but not failures, which is precisely the
+  pair the invariant is about. Extending it to all three turned a passing test into one that
+  reported `doneIds: ["media-1"]` alongside `failedIds: ["media-1"]`. The invariant it guards
+  is now the real one: an item appears in exactly one of the three lists.
+  Verified green: typecheck 4/4, `pnpm -r test` **391**, `pnpm -r build`, both bundles.
