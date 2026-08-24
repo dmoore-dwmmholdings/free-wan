@@ -1,8 +1,17 @@
+import { useEffect, useState } from 'react'
 import { Modal, Pressable, Text, View } from 'react-native'
+import { useEventListener } from 'expo'
+import type { VideoPlayer } from 'expo-video'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import type { CaptionTrack } from '@free-wan/shared'
-import { cueAt, useCaptionCues } from '@/lib/captions'
+import { cueAt, useCaptionCues, type Cue } from '@/lib/captions'
 import { theme } from '@/theme'
+
+/**
+ * How often the player reports its position for caption timing. Fine enough that a cue appears
+ * on the right word, coarse enough not to make work four times a second.
+ */
+const CAPTION_TICK_S = 0.25
 
 /**
  * Subtitles drawn over the video.
@@ -11,10 +20,35 @@ import { theme } from '@/theme'
  * field for one, and `availableSubtitleTracks` only sees tracks inside the media itself —
  * while this server keeps captions as separate WebVTT. Drawing them here also covers
  * direct-played files, which an HLS-manifest approach would miss entirely.
+ *
+ * Takes the player rather than a time, and keeps the cue rather than the clock. Both for the
+ * same reason. The position used to be state on the media screen, so every tick re-rendered
+ * that whole screen — the player, the poster, the tags, all four buttons and the scroll view
+ * around them — four times a second for the length of a subtitled film, to change one line of
+ * text inside an overlay. Holding the cue here means React sees the same value between one
+ * subtitle and the next and does nothing at all: this re-renders once per line, and nothing
+ * above it re-renders at any point.
  */
-export function CaptionOverlay({ path, timeS }: { path: string | null; timeS: number }) {
+export function CaptionOverlay({ path, player }: { path: string | null; player: VideoPlayer }) {
   const cues = useCaptionCues(path)
-  const cue = cues.length > 0 ? cueAt(cues, timeS) : null
+  const [cue, setCue] = useState<Cue | null>(null)
+
+  // The player reports its position only when asked to, and this is the only thing that needs
+  // it finely. Asked for while a track is actually showing something, so a video with no
+  // subtitles on costs nothing — and so does one whose track has not loaded or would not parse.
+  const showing = path !== null && cues.length > 0
+  useEffect(() => {
+    player.timeUpdateEventInterval = showing ? CAPTION_TICK_S : 0
+    if (!showing) setCue(null)
+  }, [player, showing])
+
+  // `cueAt` returns the cue out of the array rather than building one, so between two ticks
+  // inside the same subtitle this hands React the value it already holds, and React stops
+  // there. That identity is what makes this cheap; there is a test on it.
+  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
+    if (showing) setCue(cueAt(cues, currentTime))
+  })
+
   if (!cue) return null
 
   return (

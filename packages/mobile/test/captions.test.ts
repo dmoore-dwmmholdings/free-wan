@@ -194,3 +194,31 @@ The actual line.
     expect(cueAt(overlapping, 5)?.text).toBe('Label.')
   })
 })
+
+/**
+ * The overlay stores the cue rather than the clock, and asks for a new one four times a second.
+ * What keeps that cheap is that two readings inside the same subtitle are the *same object*, so
+ * React sees no change and re-renders nothing. That property belongs to `cueAt`, so it is
+ * tested here rather than asserted in a comment.
+ */
+describe('the identity of what cueAt returns', () => {
+  const cues = parseVtt(SIMPLE)
+
+  it('hands back the very same cue for every moment inside it', () => {
+    const first = cueAt(cues, 1.1)
+    expect(first).not.toBeNull()
+    // `toBe`, not `toEqual`: an equal-but-new object would re-render on every tick, which is
+    // the whole thing this avoids.
+    expect(cueAt(cues, 1.5)).toBe(first)
+    expect(cueAt(cues, 3.9)).toBe(first)
+  })
+
+  it('hands back a different one when the line changes', () => {
+    expect(cueAt(cues, 6)).not.toBe(cueAt(cues, 1.1))
+  })
+
+  it('hands back null, not a new empty object, in the gaps', () => {
+    // Same argument at the other end: two silent moments must also compare equal.
+    expect(cueAt(cues, 4.5)).toBe(cueAt(cues, 4.8))
+  })
+})

@@ -17,10 +17,6 @@ import { resumeSeek, useProgressReporter } from '@/lib/progress'
 import { useToggleLike } from '@/lib/social'
 import { theme } from '@/theme'
 
-/** How often the player reports its position for caption timing. Fine enough that a cue
- * appears on the right word, coarse enough not to re-render the screen continuously. */
-const CAPTION_TICK_S = 0.25
-
 /** Resolved video source: a local file when downloaded, otherwise the authenticated server URL. */
 function useVideoSource(
   id: string,
@@ -223,19 +219,6 @@ export default function MediaScreen() {
   const tracks = playback.data?.captions ?? []
   const [captionTrackId, setCaptionTrackId] = useState<string | null>(null)
   const [captionPickerOpen, setCaptionPickerOpen] = useState(false)
-  const [playheadS, setPlayheadS] = useState(0)
-
-  // Only while a track is showing. The interval defaults to 0, meaning no event at all, and
-  // leaving it on for every video would re-render this whole screen — player, poster, tags,
-  // buttons — four times a second for the sake of subtitles nobody asked for.
-  const captionsOn = captionTrackId !== null
-  useEffect(() => {
-    if (player) player.timeUpdateEventInterval = captionsOn ? CAPTION_TICK_S : 0
-  }, [player, captionsOn])
-
-  useEventListener(player, 'timeUpdate', ({ currentTime }) => {
-    if (captionsOn) setPlayheadS(currentTime)
-  })
 
 
   // Where playback starts. `resumeSeek` holds the rules and why each one is there; all this
@@ -333,7 +316,7 @@ export default function MediaScreen() {
               />
               <CaptionOverlay
                 path={tracks.find((t) => t.id === captionTrackId)?.url ?? null}
-                timeS={playheadS}
+                player={player}
               />
               {playbackError ? (
                 <PlaybackError

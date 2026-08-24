@@ -2171,3 +2171,32 @@ now part of step 7 of the device checklist.
 
 Verified green: typecheck 4/4, `pnpm -r test` **410** (180 backend + 217 mobile + 11 web +
 2 shared), `pnpm -r build`, both Hermes bundles.
+
+### Subtitles were re-rendering the whole media screen four times a second
+
+The playhead used for caption timing was state on the media screen, fed by a `timeUpdate` event
+every 250 ms. So while subtitles were on — which is the whole length of a subtitled film — every
+tick re-rendered that screen: the video view, the poster, the title, the tags, the download
+button, the like button, the subtitle picker and the scroll view around them, to change one line
+of text inside an absolutely-positioned overlay.
+
+The cost was already half-recognised. The event interval was set to 0 when no track was chosen,
+with a comment saying that leaving it on "would re-render this whole screen ... four times a
+second for the sake of subtitles nobody asked for". True — and equally true of subtitles somebody
+did ask for.
+
+`CaptionOverlay` now takes the player instead of a time, subscribes itself, and keeps the *cue*
+rather than the clock. Two consequences. Nothing above it re-renders at all, because the state
+that changes lives inside it. And it re-renders once per subtitle line rather than four times a
+second, because `cueAt` returns the cue out of its array rather than building one — so between
+two ticks inside the same line React is handed the value it already holds and stops there. The
+overlay also owns the event interval now, and asks for it only while a track is actually showing
+something: a track still loading, or one that would not parse, costs nothing.
+
+3 tests on the identity that makes it work, control-tested by having `cueAt` return `{...cue}`.
+The re-render counts themselves are not tested — that needs a renderer this package does not
+have — so what is asserted is the property the saving rests on, not the saving.
+
+Verified green: typecheck 4/4, `pnpm -r test` **413** (180 backend + 220 mobile + 11 web +
+2 shared), `pnpm -r build`, both Hermes bundles. Subtitles cannot be seen in the browser harness
+— `expo-video` never requests the stream there — so this is another one for the device run.
