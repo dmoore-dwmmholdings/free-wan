@@ -15,6 +15,7 @@ import { CaptionOverlay, CaptionPicker } from '@/components/Captions'
 import { PlaybackError } from '@/components/PlaybackError'
 import { resumeSeek, useProgressReporter } from '@/lib/progress'
 import { useToggleLike } from '@/lib/social'
+import { withAlpha } from '@/lib/palette'
 import { theme } from '@/theme'
 
 /** Resolved video source: a local file when downloaded, otherwise the authenticated server URL. */
@@ -88,7 +89,7 @@ function DownloadButton({
         accessibilityRole="button"
         style={({ pressed }) => ({
           gap: theme.space(1),
-          borderColor: 'rgba(248,113,113,0.4)',
+          borderColor: withAlpha(theme.color.danger, 0.4),
           borderWidth: 1,
           borderRadius: theme.radius.sm,
           paddingVertical: theme.space(3),

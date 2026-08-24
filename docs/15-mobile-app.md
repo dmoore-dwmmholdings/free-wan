@@ -250,6 +250,13 @@ and text-selection handles take their look from the app's colour scheme rather t
 tokens, so it is set from the palette instead of from the phone. Without that a light preset
 could hand you a dark keyboard and a dark alert over a cream screen.
 
+Two tokens are chosen rather than copied, because one value cannot serve both a dark app and a
+light one. The text on the primary button follows the primary's own lightness, and the colour
+errors are written in follows the background's: Tailwind's `red-400`, which the web app uses
+throughout, sits at 2.34:1 on `paper` and 2.41:1 on `linen`, so the two light presets get
+`red-700` instead. Both choices are checked against every preset by the tests in
+`packages/mobile/test/palette.test.ts`.
+
 Not followed: the fonts an admin picks, which would mean fetching font files at runtime, and
 the installed app's own name and icon, which are fixed at build time in `app.json`. If the
 server cannot be reached, the built-in palette is used and the app carries on.

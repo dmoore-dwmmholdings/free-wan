@@ -11,6 +11,7 @@ import {
 } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useChangePassword } from '@/lib/auth'
+import { withAlpha } from '@/lib/palette'
 import { theme } from '@/theme'
 
 const MIN_LENGTH = 8
@@ -112,8 +113,8 @@ export default function ChangePasswordScreen() {
         {change.isError ? (
           <View
             style={{
-              backgroundColor: 'rgba(248,113,113,0.12)',
-              borderColor: 'rgba(248,113,113,0.4)',
+              backgroundColor: withAlpha(theme.color.danger, 0.12),
+              borderColor: withAlpha(theme.color.danger, 0.4),
               borderWidth: 1,
               borderRadius: theme.radius.sm,
               padding: theme.space(3.5),

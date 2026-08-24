@@ -12,6 +12,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLogin } from '@/lib/auth'
 import { getServerUrl } from '@/lib/session'
+import { withAlpha } from '@/lib/palette'
 import { theme } from '@/theme'
 
 function Field(props: {
@@ -122,8 +123,11 @@ export default function LoginScreen() {
         {login.isError ? (
           <View
             style={{
-              backgroundColor: 'rgba(248,113,113,0.12)',
-              borderColor: 'rgba(248,113,113,0.4)',
+              // Derived from the token rather than written out: the token is not one colour
+              // any more, and a fixed light-red wash under dark-red text is the mismatch this
+              // whole change is about.
+              backgroundColor: withAlpha(theme.color.danger, 0.12),
+              borderColor: withAlpha(theme.color.danger, 0.4),
               borderWidth: 1,
               borderRadius: theme.radius.sm,
               padding: theme.space(3.5),

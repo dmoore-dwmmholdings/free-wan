@@ -2490,3 +2490,40 @@ view.
 
 Verified green: typecheck 4/4, `pnpm -r test` **446**, `pnpm -r build`, both Hermes bundles,
 `pnpm test:e2e` **20 passed**.
+
+### The worst contrast in the app was on its error messages
+
+Following the light-preset work one step further — measuring every token that is ever drawn as
+text against every preset's background and surface — turned up `danger`, which was fixed at
+Tailwind's `red-400`. It was copied from the web app, which writes `text-red-400` in twenty-nine
+places.
+
+A fixed light red cannot serve a light app. On `paper` it is **2.34:1** against the background
+and on `linen` **2.41:1** — lower than the accent case found last pass, lower than the
+on-primary case before it, and the lowest contrast anywhere in this app. It is also on the text
+that most needs reading: six places draw it as words, among them the Sign out button, the login
+error, a failed download on two separate screens, a clip whose source is gone, and the crash
+screen.
+
+There is no single value that works. `red-400` clears 6.42:1 on all five dark presets and fails
+both light ones; `red-700` is the exact mirror; `red-600`, the nearest thing to a compromise,
+still only reaches 4.09:1 on `paper`. So it is chosen by background lightness, the same shape as
+`onPrimary`. Every preset now clears 4.5:1 on both the background and a surface.
+
+Four hardcoded `rgba(248,113,113,…)` literals went with it — the error box on two screens and
+the borders on Sign out and a failed download. They were the same red written out by hand, and
+a fixed light-red wash under dark-red text is precisely the mismatch this was about. They derive
+from the token now.
+
+3 tests, control-tested four ways: one fixed light red, one fixed dark red, the text colour on
+light presets (readable, but no longer a warning), and `red-600` as a compromise. Each fails.
+The second test is the one worth keeping an eye on — it asserts the colour is still recognisably
+red, because a colour dark enough to read is no use if it stops reading as a warning.
+
+**The web app has the same defect and is not fixed here.** `text-red-400` in twenty-nine places
+is a much larger change than the one-line token this was on the phone, and it is the third
+web-side finding now waiting on a view. The e2e audit does not catch it because no error state is
+rendered on the pages it visits under `linen`.
+
+Verified green: typecheck 4/4, `pnpm -r test` **449**, `pnpm -r build`, both Hermes bundles,
+`pnpm test:e2e` **20 passed**.

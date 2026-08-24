@@ -148,6 +148,18 @@ export function isLight(color: string): boolean {
 /** The dark half of the on-primary pair, shared with the web app's `--fw-on-primary`. */
 const ON_PRIMARY_DARK = '#15120c'
 
+/**
+ * Error red, for a dark app and for a light one. Tailwind's `red-400` and `red-700`, `red-400`
+ * being where the fixed value came from — the web app writes `text-red-400` in twenty-nine
+ * places and this file copied it.
+ *
+ * One value could not serve both. `red-400` reaches 6.42:1 or better on the five dark presets
+ * and **2.34:1** on `paper`, 2.41:1 on `linen`; `red-700` is the mirror image. There is nothing
+ * in between: `red-600`, the closest to a compromise, still only manages 4.09:1 on `paper`.
+ */
+const DANGER_ON_DARK = '#f87171'
+const DANGER_ON_LIGHT = '#b91c1c'
+
 export interface Palette {
   bg: string
   surface: string
@@ -207,7 +219,12 @@ export function derivePalette(colors: Branding['colors']): Palette {
     // luminance below is right for all seven, and the web app now uses the same one — the
     // point of this file is that a preset resolves to the same values in both apps.
     onPrimary: isLight(primary) ? ON_PRIMARY_DARK : '#ffffff',
-    danger: '#f87171',
+    // Chosen the same way as `onPrimary`, and for a worse failure. This was fixed at `red-400`,
+    // which put every error message in the app at 2.34:1 on `paper` and 2.41:1 on `linen` —
+    // the lowest contrast anywhere in it, on the text that most needs reading. Six places draw
+    // this as words: the Sign out button, the login error, a failed download on two screens, a
+    // clip whose source is gone, and the crash screen.
+    danger: isLight(bg) ? DANGER_ON_LIGHT : DANGER_ON_DARK,
   }
 }
 

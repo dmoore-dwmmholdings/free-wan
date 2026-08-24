@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router'
 import { useLogout, useMe } from '@/lib/auth'
 import { getServerUrl } from '@/lib/session'
 import { formatBytes, useDownloads } from '@/lib/downloads'
+import { withAlpha } from '@/lib/palette'
 import { theme } from '@/theme'
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
@@ -97,7 +98,7 @@ export default function SettingsScreen() {
         onPress={confirmSignOut}
         accessibilityRole="button"
         style={({ pressed }) => ({
-          borderColor: 'rgba(248,113,113,0.4)',
+          borderColor: withAlpha(theme.color.danger, 0.4),
           borderWidth: 1,
           borderRadius: theme.radius.sm,
           paddingVertical: theme.space(3.5),

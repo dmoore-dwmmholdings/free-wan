@@ -407,3 +407,62 @@ describe('the accent colour, which is only ever a glyph', () => {
     expect(failing.map(([id]) => id)).toEqual(['linen'])
   })
 })
+
+/**
+ * Error red. This was fixed at Tailwind's `red-400` — copied from the web app, which writes
+ * `text-red-400` in twenty-nine places — and a fixed light red cannot serve a light app. On
+ * `paper` it came out at 2.34:1 against the background and on `linen` at 2.41:1: the lowest
+ * contrast anywhere in this app, on the text that most needs reading. Six places draw it as
+ * words, among them the Sign out button and every error message.
+ */
+describe('the colour errors are written in', () => {
+  function lum(hex: string): number {
+    const h = hex.replace('#', '')
+    const ch = (i: number) => {
+      const x = parseInt(h.slice(i, i + 2), 16) / 255
+      return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4)
+  }
+  function ratio(a: string, b: string): number {
+    const [la, lb] = [lum(a), lum(b)]
+    const [hi, lo] = la > lb ? [la, lb] : [lb, la]
+    return (hi + 0.05) / (lo + 0.05)
+  }
+
+  it('is readable on every preset, on both the background and a surface', () => {
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      expect(ratio(p.danger, p.bg), `${id} danger on bg`).toBeGreaterThanOrEqual(4.5)
+      expect(ratio(p.danger, p.surface), `${id} danger on surface`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('is still recognisably red rather than the body text in disguise', () => {
+    // A colour dark enough to read is no use if it stops reading as a warning.
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      const c = parseColor(p.danger)!
+      expect(c.r, `${id} danger red channel`).toBeGreaterThan(c.g + 40)
+      expect(c.r, `${id} danger red channel`).toBeGreaterThan(c.b + 40)
+      expect(p.danger, `${id}`).not.toBe(p.text)
+    }
+  })
+
+  it('follows the background rather than being one colour for everyone', () => {
+    // The two light presets get the dark red; the five dark ones get the light red. Named, so
+    // a change of rule has to face which presets it moves.
+    const chosen = Object.fromEntries(
+      Object.entries(BRANDING_PRESETS).map(([id, p]) => [id, derivePalette(p.colors).danger]),
+    )
+    expect(chosen).toEqual({
+      midnight: '#f87171',
+      slate: '#f87171',
+      forest: '#f87171',
+      ember: '#f87171',
+      neon: '#f87171',
+      paper: '#b91c1c',
+      linen: '#b91c1c',
+    })
+  })
+})
