@@ -2423,3 +2423,33 @@ is not something worth acting on blind for no gain.
 Verified green: typecheck 4/4, `pnpm -r test` **444** (180 backend + 250 mobile + 12 web +
 2 shared), `pnpm -r build`, both Hermes bundles. Not seen working: deep links need a real build,
 and the browser extension has now failed to connect four passes running.
+
+### Auditing the preset where the answer actually changed
+
+Two passes ago the on-primary rule was changed in both apps, and the reasoning was arithmetic:
+white on `slate` and `neon` reaches 3.23:1 and 3.50:1, the dark half reaches 5.79:1 and 5.34:1.
+What was never done was running the e2e suite afterwards. That was a real gap — the suite ends
+with six axe WCAG A/AA audits, and colour contrast is one of the things axe checks.
+
+Running it: 18 of 18 green. But that proves less than it looks. Every audit runs on the default
+`midnight` preset, where the primary is dark enough that white was always the right answer — the
+change is a no-op there. Which is exactly why the rule was wrong for so long without anyone
+noticing: five of the seven presets want white, and the default is one of them.
+
+So a nineteenth flow now applies `slate` in the branding editor and audits both that page and the
+library under it. Reverting the web app to its old rule and re-running turns it red, with axe
+reporting a **serious** `color-contrast` violation on five separate elements — the active preset
+button, a primary button, a badge and two more. An independent auditor now says the old
+behaviour was a real violation and the new one is not, which is a much better footing than my own
+contrast arithmetic.
+
+Kept last in the file, since applying a preset is a persistent change to the site's branding.
+
+**Noted, not changed:** `CaptionTrack.default` is in the shared schema, sent by the API and
+consumed by the web app's `<track default={...}>`, but the server hardcodes it to `false` for
+every track — so the mobile app ignoring it costs nothing today. Dead plumbing across three
+packages rather than a mobile defect. And `ApiError.code` is captured on every failure and read
+nowhere; the message is what screens show.
+
+Verified green: typecheck 4/4, `pnpm -r test` **444**, `pnpm -r build`, both Hermes bundles, and
+`pnpm test:e2e` **19 passed**.

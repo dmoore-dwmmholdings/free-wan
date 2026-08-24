@@ -63,3 +63,27 @@ test('admin settings pages pass the axe audit', async ({ page }) => {
     await auditCurrentPage(page, path)
   }
 })
+
+// Every audit above runs on the default `midnight` preset, where the primary is dark enough
+// that white text on it was never in question. That is exactly why the on-primary rule was
+// wrong for a long time without anyone noticing: five of the seven presets want white, and the
+// default is one of them. This runs the audit again under a preset where the answer differs.
+//
+// Kept last: applying a preset is a persistent change to the site's branding.
+test('a light-primary preset still passes the axe audit', async ({ page }) => {
+  await login(page, NEW_PASSWORD)
+  await page.goto('/settings/branding')
+
+  // `slate` has a primary of #5b8def. White on it reaches 3.23:1, under the 4.5:1 AA needs;
+  // the dark half of the on-primary pair reaches 5.79:1. The rule used to pick white.
+  await page.getByRole('button', { name: 'Slate', exact: false }).first().click()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+
+  await auditCurrentPage(page, '/settings/branding on the slate preset')
+
+  // And on an ordinary page, where the primary button is the one a reader actually meets.
+  await page.goto('/')
+  await expect(page.locator('button[aria-label^="Open "]').first()).toBeVisible()
+  await auditCurrentPage(page, '/ on the slate preset')
+})
