@@ -135,3 +135,34 @@ describe('the API contract between this app and the server', () => {
     expect(match, `${path} is requested by ${requested.get(path)} but no route matches it`).toBeDefined()
   })
 })
+
+/**
+ * `fetch` has no timeout of its own, so a call that does not go through `fetchWithTimeout`
+ * hangs until the platform gives up on the socket — a minute on iOS, with nothing to press.
+ *
+ * This is checked by reading the source because that is the only way to see it. Signing in used
+ * a bare `fetch`, since it has to build its URL from an address that has only just been typed,
+ * and so the one screen in the app with nothing else on it was the one screen that could not
+ * give up. Nothing failed; it simply never finished, which no other test notices.
+ */
+const TIMEOUT_EXEMPT = new Set([
+  // The implementation itself.
+  'api.ts',
+  // Deliberate. A caption track can need ffmpeg to extract it, which is genuinely slower than
+  // the database reads everything else makes, and captions failing costs the captions only.
+  'captions.ts',
+])
+
+describe('requests that could hang', () => {
+  const offenders = MOBILE.flatMap((root) =>
+    sourceFiles(root)
+      .filter((file) => !TIMEOUT_EXEMPT.has(file.split(/[\\/]/).pop()!))
+      .filter((file) => /(?<![\w.])fetch\s*\(/.test(readFileSync(file, 'utf8')))
+      .map((file) => file.replace(/.*packages./, 'packages/')),
+  )
+
+  it('go through the one call that gives up', () => {
+    // Reported by name: a list of files is the only useful form of this failure.
+    expect(offenders).toEqual([])
+  })
+})

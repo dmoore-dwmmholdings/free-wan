@@ -2106,3 +2106,36 @@ Verified green: typecheck 4/4, `pnpm -r test` **400** (180 backend + 207 mobile 
 2 shared), `pnpm -r build`, both Hermes bundles. Not verified on a device — the Downloads tab's
 cross and Stop controls are among the few things the browser harness cannot reach, since it
 cannot download anything to fail.
+
+### The one request that could hang was the one with nothing else on the screen
+
+`api.ts` grew a twenty-second timeout because `fetch` has none, and without one a phone that
+drifts off the tailnet mid-request sits on a spinner until the platform gives up on the socket —
+a minute on iOS, with no error and nothing to press. Signing in never got it. It cannot go
+through `request`, because it has to build its URL from an address that has only just been typed,
+before there is a session to read one from, so it called `fetch` directly. The result is the
+worst placement of that defect available: the login screen is the one screen in the app with
+nothing else on it, and an address that resolves to something which is not your server, or to a
+machine that is asleep, is exactly the mistake made there.
+
+The timeout is now `fetchWithTimeout`, which `request` calls and login calls. Nothing about the
+limit changed.
+
+Two behavioural tests on the wrapper called the way login calls it, and one that reads the
+source: any file under `src` or `app` calling a bare `fetch` fails it, with `api.ts` and
+`captions.ts` named as exemptions — the implementation, and a deliberate one where a caption
+track may need ffmpeg and where failing costs the captions only. That last test is the shape
+that would have caught this: nothing failed here, the request simply never finished, which no
+ordinary test notices.
+
+Two controls to note, because both were wrong on the first attempt and passed:
+
+- Reversing the spread in `fetchWithTimeout` (`{signal, ...init}`) passed, because no caller
+  passes `signal: undefined` — the hazard is unreachable. Removing the signal outright, and
+  dropping `init`, are reachable and both fail the tests.
+- The mock in the new test typechecked as taking no arguments, so `mock.calls[0]![1]` was
+  `undefined`. Vitest passed; `tsc` caught it. Same as before: green tests are not the whole
+  check.
+
+Verified green: typecheck 4/4, `pnpm -r test` **403** (180 backend + 210 mobile + 11 web +
+2 shared), `pnpm -r build`, both Hermes bundles.

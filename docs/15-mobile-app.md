@@ -90,6 +90,10 @@ Anything the browser would reach works here — a tailnet hostname
 (`media.tailnet.ts.net`), a LAN address with a port (`http://192.168.1.10:8080`), or a
 pasted URL with a path, which is reduced to its origin.
 
+An address that resolves to something which is not your server — or to a machine that is
+asleep — accepts the connection and then says nothing. Sign-in gives up on that after twenty
+seconds and says so, the same limit every other request gets.
+
 ### Why the app uses a bearer token
 
 The web app authenticates with an httpOnly `fw_session` cookie. The mobile app cannot: both

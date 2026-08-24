@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Me } from '@free-wan/shared'
-import { api, ApiError } from './api'
+import { api, ApiError, fetchWithTimeout } from './api'
 import { clearSession, getServerUrl, getToken, normalizeServerUrl, saveSession, subscribeSession } from './session'
 
 /** Resolves once secure storage has been read, so the router can pick a first screen. */
@@ -46,7 +46,10 @@ export function useLogin() {
 
       // Pre-seed the server so api.post can build an absolute URL for this very call.
       await saveSession(server, '')
-      const res = await fetch(`${server}/api/auth/login`, {
+      // Through the same limit every other request gets. There is nothing else on this screen
+      // to press while it waits, so waiting for the platform's socket timeout is the worst
+      // place in the app to do it.
+      const res = await fetchWithTimeout(`${server}/api/auth/login`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

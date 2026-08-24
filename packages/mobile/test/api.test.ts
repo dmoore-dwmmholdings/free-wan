@@ -121,3 +121,57 @@ describe('a server that accepts the connection and then says nothing', () => {
     await expect(api.api.get('/api/media')).resolves.toEqual({ ok: true })
   })
 })
+
+/**
+ * Signing in cannot go through `request`: it builds its URL from an address that has only just
+ * been typed, before there is a session to read one from. So it calls the timeout wrapper
+ * directly, and what that call has to preserve is worth stating.
+ */
+describe('the timeout wrapper on its own, as signing in uses it', () => {
+  it('keeps the caller’s method, headers and body, and adds a signal', async () => {
+    const { api } = await fresh()
+    const fetchMock = vi.fn(async (_url: string, _init: RequestInit) => respond(200, '{"ok":true}'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.fetchWithTimeout('https://media.example.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{"username":"admin"}',
+    })
+
+    const init = fetchMock.mock.calls[0]![1]
+    expect(init.method).toBe('POST')
+    expect(init.headers).toEqual({ 'content-type': 'application/json' })
+    expect(init.body).toBe('{"username":"admin"}')
+    // Without this the wrapper is a plain fetch with extra steps.
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('gives up on a host that answers the connection and then nothing', async () => {
+    // The login screen has nothing else on it. Waiting for the platform to decide the socket
+    // is dead is a minute of a spinner and no way out.
+    const { api } = await fresh()
+    vi.useFakeTimers()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+          }),
+      ),
+    )
+
+    const pending = api.fetchWithTimeout('https://asleep.example.com/api/auth/login', { method: 'POST' })
+    const settled = pending.then(
+      () => ({ ok: true as const }),
+      (e: unknown) => ({ ok: false as const, error: e as InstanceType<typeof api.ApiError> }),
+    )
+    await vi.advanceTimersByTimeAsync(20_000)
+    const outcome = await settled
+
+    expect(outcome.ok).toBe(false)
+    if (!outcome.ok) expect(outcome.error.code).toBe('timeout')
+    vi.useRealTimers()
+  })
+})

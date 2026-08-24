@@ -43,22 +43,22 @@ export async function authHeaders(): Promise<Record<string, string>> {
  */
 const REQUEST_TIMEOUT_MS = 20_000
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const url = await apiUrl(path)
-  const headers: Record<string, string> = { ...(await authHeaders()) }
-  if (body !== undefined) headers['content-type'] = 'application/json'
-
+/**
+ * `fetch` with that limit applied.
+ *
+ * Exported for signing in, which is the one call that cannot go through `request` below: it has
+ * to build its URL from an address that has only just been typed, before there is a session to
+ * read one from. Doing it with a bare `fetch` meant the app's only screen with nothing else on
+ * it was also its only screen with no way to give up — a host that resolves but is not your
+ * server, or a tailnet machine that is asleep, accepts the connection and then says nothing,
+ * and the button spun until the platform gave up on the socket.
+ */
+export async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
   // Built by hand rather than with `AbortSignal.timeout`, which Hermes does not have.
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-  let res: Response
   try {
-    res = await fetch(url, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: controller.signal,
-    })
+    return await fetch(url, { ...init, signal: controller.signal })
   } catch (err) {
     // An abort arrives here as an ordinary rejection, indistinguishable from the connection
     // failing, so the signal is what tells the two apart.
@@ -69,6 +69,18 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   } finally {
     clearTimeout(timer)
   }
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  const url = await apiUrl(path)
+  const headers: Record<string, string> = { ...(await authHeaders()) }
+  if (body !== undefined) headers['content-type'] = 'application/json'
+
+  const res = await fetchWithTimeout(url, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  })
 
   if (res.status === 204) return undefined as T
   const text = await res.text()
