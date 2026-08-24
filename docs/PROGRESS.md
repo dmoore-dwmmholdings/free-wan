@@ -2453,3 +2453,40 @@ nowhere; the message is what screens show.
 
 Verified green: typecheck 4/4, `pnpm -r test` **444**, `pnpm -r build`, both Hermes bundles, and
 `pnpm test:e2e` **19 passed**.
+
+### Light mode had never been rendered by any test, and it was hiding a real one
+
+Last pass established that the e2e audits all ran on the default preset, and added one under
+`slate`. The same reasoning applies harder to the light presets: light mode is not a variation
+on dark, it is the background and the text swapping roles, so every derived token lands somewhere
+else. No flow in this suite had ever rendered it.
+
+Adding one under `linen` failed immediately, with three colour-contrast violations. Following
+them found a defect on the phone, which is the part that mattered:
+
+**`linen`'s accent is 3.44:1 against its own background**, and the mobile app used it as 14px
+semibold text — the "Available offline" line on the media detail screen, which is the label every
+downloaded item shows. That is under the 4.5:1 normal text holds to. Every other preset is
+comfortable (9.24 to 14.28), which is why it survived: six of seven presets hide it, and the
+default is one of the six. The same shape as the on-primary defect, found the same way.
+
+The tick keeps the accent — an icon is a graphical object and holds to 3:1, which all seven
+clear — and the words now use the readable token. Deliberately *not* by adding an `accentStrong`
+to match `primaryStrong`: the web has no such token, so inventing one here would split the two
+token sets apart for the sake of a single label, and this file exists to keep them together.
+
+2 tests. One pins that the accent clears 3:1 everywhere, which is what makes the icon acceptable.
+The other asserts the fact that motivates the restriction — that exactly `linen` fails 4.5:1 —
+written as a list of preset names, so if that ever stops being true the test says so rather than
+silently passing.
+
+The e2e flow audits the library and the watch page under `linen`. It deliberately does not audit
+`/settings/branding`, and says so in the test: the three violations there are all inside the
+editor's own preview panel, including a pill that paints `--fw-bg` on `--fw-accent` to show what
+the pair looks like. A swatch that demonstrates a colour necessarily shows that colour, and axe
+cannot tell one from a label. Whether to change them is a design decision for that page, not
+something to settle by widening a test — and it is the second web-side finding now waiting on a
+view.
+
+Verified green: typecheck 4/4, `pnpm -r test` **446**, `pnpm -r build`, both Hermes bundles,
+`pnpm test:e2e` **20 passed**.

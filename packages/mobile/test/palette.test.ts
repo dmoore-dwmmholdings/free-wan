@@ -367,3 +367,43 @@ describe('the primary colour where it is read rather than filled', () => {
     expect(p.primaryStrong).toBe(mix('#6e4cff', '#e9e9ee', 0.6))
   })
 })
+
+/**
+ * The accent is only ever drawn as a glyph — the tick beside "Available offline" is its one use
+ * in the app. That is deliberate rather than incidental: on `linen` the accent sits at 3.44:1
+ * against the background, which is fine for an icon and not fine for words. This pins the half
+ * of that which is a property of the palette; the other half is a comment at the call site.
+ */
+describe('the accent colour, which is only ever a glyph', () => {
+  function lum(hex: string): number {
+    const h = hex.replace('#', '')
+    const ch = (i: number) => {
+      const x = parseInt(h.slice(i, i + 2), 16) / 255
+      return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4)
+  }
+  function ratio(a: string, b: string): number {
+    const [la, lb] = [lum(a), lum(b)]
+    const [hi, lo] = la > lb ? [la, lb] : [lb, la]
+    return (hi + 0.05) / (lo + 0.05)
+  }
+
+  it('clears the 3:1 a graphical object needs, on every preset', () => {
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      expect(ratio(p.accent, p.bg), `${id} accent on bg`).toBeGreaterThanOrEqual(3)
+      expect(ratio(p.accent, p.surface), `${id} accent on surface`).toBeGreaterThanOrEqual(3)
+    }
+  })
+
+  it('does not clear 4.5:1 everywhere, which is why it is not used for text', () => {
+    // Stated as a fact about the presets rather than an aspiration: if this ever became true
+    // for all seven, the restriction at the call site could be revisited. Today it is not.
+    const failing = Object.entries(BRANDING_PRESETS).filter(([, preset]) => {
+      const p = derivePalette(preset.colors)
+      return ratio(p.accent, p.bg) < 4.5
+    })
+    expect(failing.map(([id]) => id)).toEqual(['linen'])
+  })
+})

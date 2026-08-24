@@ -87,3 +87,34 @@ test('a light-primary preset still passes the axe audit', async ({ page }) => {
   await expect(page.locator('button[aria-label^="Open "]').first()).toBeVisible()
   await auditCurrentPage(page, '/ on the slate preset')
 })
+
+// Every flow in this suite, including the one above, runs on a dark preset. Light mode is not a
+// variation on it — background and text swap roles, so every derived token lands somewhere
+// different, and `--fw-muted` is at its tightest there. The CSS comment beside it names `linen`
+// as closest to the line, having once been below it at 4.41:1.
+//
+// `/settings/branding` is deliberately not audited here, and the reason is worth stating rather
+// than leaving as a gap in the list: under `linen` it reports three colour-contrast violations,
+// all inside the editor's own preview panel — `text-accent` on the Saved confirmation, and a
+// pill that paints `--fw-bg` on `--fw-accent` to show what the pair looks like. A swatch that
+// demonstrates a colour necessarily shows that colour, and axe cannot tell one from a label.
+// Whether to change them is a design decision for that page, not something to settle by
+// widening a test. The reader-facing screens below carry no such preview and pass.
+test('a light preset passes the axe audit', async ({ page }) => {
+  await login(page, NEW_PASSWORD)
+  await page.goto('/settings/branding')
+
+  await page.getByRole('button', { name: 'Linen', exact: false }).first().click()
+  await page.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible()
+
+  await page.goto('/')
+  await expect(page.locator('button[aria-label^="Open "]').first()).toBeVisible()
+  await auditCurrentPage(page, '/ on the linen preset')
+
+  // The watch page carries the most muted text of any reader-facing screen.
+  const list = await (await page.request.get('/api/media?q=ocean')).json()
+  await page.goto(`/watch/${list.data[0].id}`)
+  await expect(page.locator('video').first()).toBeVisible()
+  await auditCurrentPage(page, '/watch/:id on the linen preset')
+})

@@ -68,8 +68,13 @@ function DownloadButton({
   if (state.status === 'done') {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space(2) }}>
+        {/* The tick carries the accent; the words do not. An icon is a graphical object and
+            holds to 3:1, which every preset's accent clears — but this is 14px text, which
+            holds to 4.5:1, and `linen` puts its accent at 3.44:1 against the background. The
+            web app has no accent-strong token to borrow, and inventing one here would split
+            the two token sets apart for a single label. */}
         <Ionicons name="checkmark-circle" size={18} color={theme.color.accent} />
-        <Text style={{ color: theme.color.accent, fontSize: 14, fontWeight: '600' }}>
+        <Text style={{ color: theme.color.text, fontSize: 14, fontWeight: '600' }}>
           Available offline · {formatBytes(state.record.bytes)}
         </Text>
       </View>
