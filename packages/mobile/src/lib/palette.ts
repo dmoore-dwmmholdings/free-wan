@@ -11,69 +11,107 @@ interface Rgb {
   r: number
   g: number
   b: number
+  /** 0..1. Opaque unless the colour was written with an alpha channel. */
+  a: number
 }
 
-/** Parse `#rgb`, `#rrggbb`, or `rgb()/rgba()`. Returns null for anything else. */
+/**
+ * Parse `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`, or `rgb()/rgba()`. Null for anything else.
+ *
+ * The four-digit and eight-digit forms are here because the branding schema accepts them —
+ * `packages/shared/src/branding.ts` allows 3, 6 or 8 hex digits for every one of the five base
+ * colours — and this file did not. The web app was fine, since CSS `color-mix` understands
+ * them; the phone was not, and the way it failed was not subtle. `mix` returns its first
+ * argument when it cannot parse, so a text colour written as `#241f18ff` made `surface-2`,
+ * `border` and `muted` all come out as the text colour itself: near-black tile backdrops,
+ * solid borders where an eleven-percent wash belongs, and muted text at full strength. On top
+ * of that `isLight` answered false for a cream background, which points the status bar and the
+ * keyboard at a dark scheme over a light app — the exact half-applied look `syncColorScheme`
+ * exists to prevent. Nothing warned; the server had accepted the colour.
+ */
 export function parseColor(input: string): Rgb | null {
   const value = input.trim()
 
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value)
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(value)
   if (hex) {
     const digits = hex[1]!
+    if (digits.length !== 3 && digits.length !== 4 && digits.length !== 6 && digits.length !== 8) {
+      return null
+    }
+    // The short forms double each digit: #abc is #aabbcc, #abcd is #aabbccdd.
     const full =
-      digits.length === 3
+      digits.length <= 4
         ? digits
             .split('')
             .map((d) => d + d)
             .join('')
         : digits
+    const at = (i: number) => parseInt(full.slice(i, i + 2), 16)
     return {
-      r: parseInt(full.slice(0, 2), 16),
-      g: parseInt(full.slice(2, 4), 16),
-      b: parseInt(full.slice(4, 6), 16),
+      r: at(0),
+      g: at(2),
+      b: at(4),
+      a: full.length === 8 ? at(6) / 255 : 1,
     }
   }
 
-  const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(value)
+  const rgb = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:[\s,/]+([\d.]+))?/i.exec(value)
   if (rgb) {
     const [r, g, b] = [Number(rgb[1]), Number(rgb[2]), Number(rgb[3])]
-    if ([r, g, b].every((n) => Number.isFinite(n) && n >= 0 && n <= 255)) return { r, g, b }
+    if (![r, g, b].every((n) => Number.isFinite(n) && n >= 0 && n <= 255)) return null
+    const raw = rgb[4] === undefined ? 1 : Number(rgb[4])
+    const a = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 1
+    return { r, g, b, a }
   }
 
   return null
 }
 
-function toHex({ r, g, b }: Rgb): string {
-  const part = (n: number) =>
-    Math.round(Math.min(255, Math.max(0, n)))
-      .toString(16)
-      .padStart(2, '0')
-  return `#${part(r)}${part(g)}${part(b)}`
+/** Back to something React Native takes: hex while opaque, `rgba()` once it is not. */
+function toColor({ r, g, b, a }: Rgb): string {
+  const byte = (n: number) => Math.round(Math.min(255, Math.max(0, n)))
+  if (a >= 1) {
+    const part = (n: number) => byte(n).toString(16).padStart(2, '0')
+    return `#${part(r)}${part(g)}${part(b)}`
+  }
+  return `rgba(${byte(r)},${byte(g)},${byte(b)},${Math.round(a * 1000) / 1000})`
 }
 
 /**
  * `color-mix(in srgb, a <weight>%, b)` — `weight` of `a` against the remainder of `b`.
  * Falls back to `a` unparsed rather than throwing: a bad colour from the branding API should
  * cost that one token, not the whole app's chrome.
+ *
+ * Mixed with the channels premultiplied by alpha, which is what `color-mix` does by default,
+ * so a translucent input does not drag the result towards a colour it is barely contributing.
+ * With two opaque colours — every preset that ships — this is the plain weighted average it
+ * always was.
  */
 export function mix(a: string, b: string, weightOfA: number): string {
   const ca = parseColor(a)
   const cb = parseColor(b)
   if (!ca || !cb) return a
   const w = Math.min(1, Math.max(0, weightOfA))
-  return toHex({
-    r: ca.r * w + cb.r * (1 - w),
-    g: ca.g * w + cb.g * (1 - w),
-    b: ca.b * w + cb.b * (1 - w),
+  const alpha = ca.a * w + cb.a * (1 - w)
+  if (alpha === 0) return 'rgba(0,0,0,0)'
+  const channel = (ka: number, kb: number) => (ka * ca.a * w + kb * cb.a * (1 - w)) / alpha
+  return toColor({
+    r: channel(ca.r, cb.r),
+    g: channel(ca.g, cb.g),
+    b: channel(ca.b, cb.b),
+    a: alpha,
   })
 }
 
-/** `color-mix(in srgb, color <alpha>%, transparent)` — the same colour, partly see-through. */
+/**
+ * `color-mix(in srgb, color <alpha>%, transparent)` — the same colour, partly see-through.
+ * A colour that is already translucent gets more so, rather than being reset to this alpha.
+ */
 export function withAlpha(color: string, alpha: number): string {
   const c = parseColor(color)
   if (!c) return color
-  const a = Math.min(1, Math.max(0, alpha))
-  return `rgba(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)},${a})`
+  const a = Math.min(1, Math.max(0, alpha)) * c.a
+  return `rgba(${Math.round(c.r)},${Math.round(c.g)},${Math.round(c.b)},${Math.round(a * 1000) / 1000})`
 }
 
 /**

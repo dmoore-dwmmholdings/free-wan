@@ -2258,3 +2258,40 @@ none of the four screens changed over the last few passes has been *looked at*. 
 was exported and served, and the API was up, but the check itself did not happen. What can be
 established by reading — that no hook in any changed component sits after an early return, which
 is the fault a dev bundle would catch — was established that way instead.
+
+### A colour the server accepts that the phone could not read
+
+`packages/shared/src/branding.ts` allows 3, 6 **or 8** hex digits for every one of the five base
+colours, so an admin can set one with an alpha channel and the server stores it without
+complaint. The web app copes, because CSS `color-mix` understands the eight-digit form. The
+mobile palette did not: `parseColor` matched 3 or 6 digits only.
+
+The way it failed was not subtle. `mix` returns its first argument when it cannot parse, on the
+reasoning that a bad colour should cost one token rather than the whole app's chrome — but here
+nothing was bad, and the first argument is the text colour. So on the `linen` preset with its
+text written as `#241f18ff`, three derived tokens all came out as near-black: `surface-2`, which
+is every tile backdrop, every progress track and every poster placeholder; `border`, where an
+eleven-percent wash belongs; and `muted`, which is every secondary line of text on every screen,
+at full strength. On top of that `isLight` answered false for a cream background, pointing the
+status bar and the keyboard at a dark scheme over a light app — the exact half-applied look
+`syncColorScheme` was written to prevent. This was confirmed by running it before changing
+anything, not reasoned about.
+
+`parseColor` now reads all four hex lengths and the alpha in `rgba()`, `mix` composites with the
+channels premultiplied — which is what `color-mix` does by default, so the two apps still agree —
+and `withAlpha` multiplies the source alpha rather than replacing it. Two opaque colours mix
+exactly as before, so none of the seven shipped presets moves.
+
+7 tests, control-tested four ways: restoring the 3-or-6 regex, accepting every length in the
+3..8 range, mixing without premultiplying, and letting `withAlpha` discard the source alpha.
+Each fails on the assertion it should.
+
+Two of my own expected values in those tests were wrong and the run caught them — a made-up hex
+literal for an opaque mix, and an equality that compared the base colours as well as the derived
+ones when only the derived ones have to agree.
+
+Verified green: typecheck 4/4, `pnpm -r test` **427** (180 backend + 234 mobile + 11 web +
+2 shared), `pnpm -r build`, both Hermes bundles.
+
+Still blocked: the browser extension would not connect again this pass, so the four screens
+changed over recent passes remain unlooked-at.

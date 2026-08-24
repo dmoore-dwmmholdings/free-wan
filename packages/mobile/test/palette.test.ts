@@ -4,13 +4,13 @@ import { derivePalette, isLight, mix, parseColor, parseRadius, withAlpha } from 
 
 describe('parsing colours', () => {
   it('reads long and short hex', () => {
-    expect(parseColor('#6e4cff')).toEqual({ r: 110, g: 76, b: 255 })
-    expect(parseColor('#fff')).toEqual({ r: 255, g: 255, b: 255 })
+    expect(parseColor('#6e4cff')).toEqual({ r: 110, g: 76, b: 255, a: 1 })
+    expect(parseColor('#fff')).toEqual({ r: 255, g: 255, b: 255, a: 1 })
   })
 
   it('reads rgb() and rgba()', () => {
-    expect(parseColor('rgb(1, 2, 3)')).toEqual({ r: 1, g: 2, b: 3 })
-    expect(parseColor('rgba(1, 2, 3, 0.5)')).toEqual({ r: 1, g: 2, b: 3 })
+    expect(parseColor('rgb(1, 2, 3)')).toEqual({ r: 1, g: 2, b: 3, a: 1 })
+    expect(parseColor('rgba(1, 2, 3, 0.5)')).toEqual({ r: 1, g: 2, b: 3, a: 0.5 })
   })
 
   it('rejects anything it cannot read', () => {
@@ -160,5 +160,77 @@ describe('deciding whether a background is light', () => {
     for (const preset of Object.values(BRANDING_PRESETS)) {
       expect(isLight(preset.colors.background)).toBe(preset.mode === 'light')
     }
+  })
+})
+
+/**
+ * `packages/shared/src/branding.ts` accepts 3, 6 **or 8** hex digits for every base colour, so
+ * an admin can set one with an alpha channel and the server will store it. The web app copes,
+ * because CSS `color-mix` understands the eight-digit form. This file did not, and `mix`
+ * returning its first argument when it cannot parse meant the failure was silent and large.
+ */
+describe('a base colour written with an alpha channel, which the server accepts', () => {
+  const LINEN = {
+    primary: '#1f6f5c',
+    accent: '#c2682f',
+    background: '#f3efe6',
+    surface: '#fbf8f2',
+    text: '#241f18',
+  }
+
+  it('reads all four hex lengths', () => {
+    expect(parseColor('#abc')).toEqual({ r: 170, g: 187, b: 204, a: 1 })
+    expect(parseColor('#abcd')).toEqual({ r: 170, g: 187, b: 204, a: 221 / 255 })
+    expect(parseColor('#aabbcc')).toEqual({ r: 170, g: 187, b: 204, a: 1 })
+    expect(parseColor('#aabbccdd')).toEqual({ r: 170, g: 187, b: 204, a: 221 / 255 })
+  })
+
+  it('still refuses lengths that are not colours', () => {
+    // The regex is now a range, so the lengths between the legal ones have to be excluded.
+    expect(parseColor('#12345')).toBeNull()
+    expect(parseColor('#1234567')).toBeNull()
+    expect(parseColor('#123456789')).toBeNull()
+  })
+
+  it('does not fall back to the unmixed colour', () => {
+    // This is the whole defect: mix() returned `a` when it could not parse, so surface-2,
+    // border and muted all came out as the text colour itself.
+    const withAlphaText = derivePalette({ ...LINEN, text: '#241f18ff' })
+    expect(withAlphaText.surface2).not.toBe('#241f18ff')
+    expect(withAlphaText.muted).not.toBe('#241f18ff')
+    expect(parseColor(withAlphaText.surface2)).not.toBeNull()
+    expect(parseColor(withAlphaText.muted)).not.toBeNull()
+  })
+
+  it('resolves a fully opaque eight-digit colour exactly as the six-digit one', () => {
+    // #241f18ff and #241f18 are the same colour, so every *derived* token has to agree. The
+    // base colours themselves are passed through as the admin wrote them, and React Native
+    // renders both spellings the same, so those are not compared.
+    const spelled = derivePalette({ ...LINEN, text: '#241f18ff' })
+    const plain = derivePalette(LINEN)
+    expect(spelled.surface2).toBe(plain.surface2)
+    expect(spelled.border).toBe(plain.border)
+    expect(spelled.muted).toBe(plain.muted)
+  })
+
+  it('reads a light background as light even with the alpha spelled out', () => {
+    // isLight drives Appearance.setColorScheme and the status bar. Answering false here put a
+    // dark keyboard and light status-bar icons over a cream app.
+    expect(isLight('#f3efe6')).toBe(true)
+    expect(isLight('#f3efe6ff')).toBe(true)
+  })
+
+  it('carries a real translucency through rather than discarding it', () => {
+    // Half-transparent black over opaque white, mixed evenly: the black contributes half of
+    // what its weight suggests, which is what premultiplied mixing is for.
+    expect(mix('#00000080', '#ffffff', 0.5)).toBe('rgba(170,170,170,0.751)')
+    // And an already-translucent colour taken to 11% ends up at 11% of what it had.
+    expect(withAlpha('#24241880', 0.11)).toBe('rgba(36,36,24,0.055)')
+  })
+
+  it('leaves two opaque colours mixing exactly as before', () => {
+    // Every preset that ships is opaque, so none of this may move them.
+    expect(mix('#000000', '#ffffff', 0.5)).toBe('#808080')
+    expect(mix('#241f18', '#f3efe6', 0.65)).toBe('#6c6860')
   })
 })
