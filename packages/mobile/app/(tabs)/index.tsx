@@ -19,7 +19,7 @@ import { MediaTile, gridMetrics } from '@/components/MediaTile'
 import { ErrorState } from '@/components/ErrorState'
 import { TagChips } from '@/components/TagChips'
 import { useCategoryChildren } from '@/lib/categories'
-import { useDownloads } from '@/lib/downloads'
+import { useDownloadCount } from '@/lib/downloads'
 import { useTags } from '@/lib/tags'
 import { DEFAULT_SORT, useMediaList, type SortChoice } from '@/lib/media'
 import { theme } from '@/theme'
@@ -77,7 +77,7 @@ export default function BrowseScreen() {
 
   const categories = useCategoryChildren(currentCategory)
   const tags = useTags()
-  const { items: downloaded } = useDownloads()
+  const downloadCount = useDownloadCount()
   const list = useMediaList(
     useMemo(
       () => ({
@@ -209,8 +209,8 @@ export default function BrowseScreen() {
           <ErrorState
             onRetry={() => void list.refetch()}
             hint={
-              downloaded.length > 0
-                ? `Check that it is running and that this phone is on the same network or tailnet. ${downloaded.length === 1 ? '1 download is' : `${downloaded.length} downloads are`} still playable from the Downloads tab.`
+              downloadCount > 0
+                ? `Check that it is running and that this phone is on the same network or tailnet. ${downloadCount === 1 ? '1 download is' : `${downloadCount} downloads are`} still playable from the Downloads tab.`
                 : undefined
             }
           />

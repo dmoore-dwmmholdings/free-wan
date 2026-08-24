@@ -394,3 +394,56 @@ describe('when the phone has no room left to write the index', () => {
     expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
   })
 })
+
+/**
+ * Every screen holding download state re-reads it on the same notification, and the progress
+ * callback fires that notification once per chunk written — many times a second for a video
+ * over a fast link. What each reader does with an answer that has not changed is therefore the
+ * difference between a browsable app and a stuttering one while anything is downloading.
+ */
+describe('what a progress notification means to a reader that is not watching that transfer', () => {
+  it('counts finished downloads only, so a transfer in flight does not move the number', async () => {
+    const { fs, downloads } = await fresh()
+    const release = fs.__fs.holdNextDownload()
+    const pending = downloads.startDownload(VIDEO)
+    // startDownload hydrates and resolves auth headers before transferring; give it real time.
+    await new Promise((r) => setTimeout(r, 20))
+
+    // Mid-flight, and the count the Browse screen reads has not moved. It says how much is
+    // playable without the server, and a file that is half written is not.
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('downloading')
+    expect(downloads.countDownloads()).toBe(0)
+
+    release()
+    await pending
+    expect(downloads.countDownloads()).toBe(1)
+  })
+
+  it('reads an unrelated item as unchanged, and the transferring one as changed', async () => {
+    const { fs, downloads } = await fresh()
+    const { sameDownloadState } = downloads.__test
+    const release = fs.__fs.holdNextDownload()
+    const pending = downloads.startDownload(VIDEO)
+    await new Promise((r) => setTimeout(r, 20))
+
+    const first = downloads.getDownloadState('media-2')
+    const second = downloads.getDownloadState('media-2')
+    // Two different objects, because every call builds one — which is why storing the answer
+    // unconditionally re-renders whatever holds it.
+    expect(second).not.toBe(first)
+    expect(sameDownloadState(first, second)).toBe(true)
+
+    // The transfer itself must still get through. Progress moving, and finishing, are both
+    // changes; a comparison that swallowed either would freeze the progress bar instead.
+    expect(sameDownloadState({ status: 'downloading', progress: 0.5 }, { status: 'downloading', progress: 0.6 })).toBe(false)
+    expect(sameDownloadState({ status: 'downloading', progress: 1 }, downloads.getDownloadState(VIDEO.id))).toBe(false)
+
+    release()
+    await pending
+
+    const done = downloads.getDownloadState(VIDEO.id)
+    expect(sameDownloadState({ status: 'downloading', progress: 1 }, done)).toBe(false)
+    expect(sameDownloadState(done, downloads.getDownloadState(VIDEO.id))).toBe(true)
+    expect(sameDownloadState({ status: 'failed', message: 'a' }, { status: 'failed', message: 'b' })).toBe(false)
+  })
+})

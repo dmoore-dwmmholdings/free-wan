@@ -314,11 +314,34 @@ export function getDownloadState(id: string): DownloadState {
   return { status: 'none' }
 }
 
+/**
+ * Whether two readings of one item's state say the same thing.
+ *
+ * `getDownloadState` builds a fresh object every call, so a subscriber that stores the result
+ * unconditionally re-renders on every notification — and notifications are not rare. The
+ * progress callback below emits once per chunk written, which for a multi-gigabyte video over
+ * a fast link is many times a second. Without this check, downloading one thing re-renders the
+ * screen of every *other* thing that happens to be open, to arrive at the same answer it
+ * already had.
+ */
+function sameDownloadState(a: DownloadState, b: DownloadState): boolean {
+  if (a.status !== b.status) return false
+  if (a.status === 'downloading' && b.status === 'downloading') return a.progress === b.progress
+  if (a.status === 'failed' && b.status === 'failed') return a.message === b.message
+  // Records are replaced rather than mutated, so identity is the right comparison here.
+  if (a.status === 'done' && b.status === 'done') return a.record === b.record
+  return true
+}
+
 /** Subscribe to one item's download state. */
 export function useDownloadState(id: string): DownloadState {
   const [state, setState] = useState<DownloadState>(() => getDownloadState(id))
   useEffect(() => {
-    const sync = () => setState(getDownloadState(id))
+    const sync = () =>
+      setState((prev) => {
+        const next = getDownloadState(id)
+        return sameDownloadState(prev, next) ? prev : next
+      })
     listeners.add(sync)
     void loadDownloads().then(sync)
     return () => {
@@ -326,6 +349,37 @@ export function useDownloadState(id: string): DownloadState {
     }
   }, [id])
   return state
+}
+
+/** How many completed downloads there are. */
+export function countDownloads(): number {
+  return Object.keys(index).length
+}
+
+/**
+ * Subscribe to the number of completed downloads, and to nothing else.
+ *
+ * Separate from `useDownloads` because the Browse screen wants this one number — to say, when
+ * the library cannot be reached, how much is still playable without it — and `useDownloads`
+ * would hand it a new array of every record and every transfer on each notification. That
+ * means Browse re-rendering its search field, its folder chips and its grid once per chunk of
+ * whatever is downloading, which is precisely the flow this app is built around: start a
+ * download, go back, keep browsing while it runs. `MediaTile` is memoised against the same
+ * hazard from typing; this is the same hazard from a different direction.
+ *
+ * A number that has not changed is the point: React bails out of the re-render itself.
+ */
+export function useDownloadCount(): number {
+  const [count, setCount] = useState(countDownloads)
+  useEffect(() => {
+    const sync = () => setCount(countDownloads())
+    listeners.add(sync)
+    void loadDownloads().then(sync)
+    return () => {
+      listeners.delete(sync)
+    }
+  }, [])
+  return count
 }
 
 /**
@@ -375,6 +429,7 @@ export function formatBytes(bytes: number): string {
  * key on screen twice.
  */
 export const __test = {
+  sameDownloadState,
   snapshot: () => ({
     activeIds: Object.keys(active),
     doneIds: Object.keys(index),

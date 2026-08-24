@@ -2048,3 +2048,31 @@ shared schema test, all green; every phase verified with a live built-server smo
   argument made for patching likes into the cache instead of refetching: a phone's link to its
   own server is not free. **5 tests** across the two, both control-tested.
   Verified green: typecheck 4/4, `pnpm -r test` **395**, `pnpm -r build`, both bundles.
+
+### Do not re-render the library because something is downloading
+
+The download store notifies every subscriber from one place, and one of the callers of that
+notification is `expo-file-system`'s progress callback — which fires per chunk written, so many
+times a second for a video over a fast link. Two readers took that notification and did more
+with it than they needed to.
+
+`useDownloads` returns a fresh array of every record and every transfer on each notification, so
+storing it always re-renders. The Browse screen was calling it for one number: how many finished
+downloads there are, used to say — when the library cannot be reached — how much is still
+playable without it. So starting a download and going back to browse, which is the flow this app
+is built around, re-rendered the search field, the folder chips and the grid once per chunk.
+`MediaTile` is memoised against exactly this hazard coming from typing; this was the same hazard
+from a different direction. Browse now reads `useDownloadCount()`, which sets a number: unchanged,
+React bails out of the render itself.
+
+`useDownloadState(id)` had the same shape one level down. `getDownloadState` builds a new object
+every call, so a screen showing item A re-rendered on every chunk of item B to arrive at the
+`{status: 'none'}` it already had. It now compares the two readings and keeps the old one when
+they say the same thing.
+
+2 tests, control-tested three ways: counting in-flight transfers in `countDownloads`, dropping
+the progress comparison, and comparing states by identity — which is what the old code
+effectively did — each fail the new tests.
+
+Verified green: typecheck 4/4, `pnpm -r test` **397** (180 backend + 204 mobile + 11 web +
+2 shared), `pnpm -r build`, both Hermes bundles.
