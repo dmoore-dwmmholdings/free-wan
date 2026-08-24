@@ -499,7 +499,11 @@ what would be worst if it were wrong.
 7. **Leave the app while a video plays, and lock the phone.** *(needs a build)* The sound
    should carry on, and the lock screen should offer play, pause and the title. Both were asked
    for in the player's settings and granted by nothing until the config plugin was given its
-   options, so this is the first run on which either can work.
+   options, so this is the first run on which either can work. Then unlock after ten minutes or
+   so and open the same video on the web app: it should resume near where the sound had got to,
+   not where the phone was when it was locked. Position is now reported on every change of app
+   state for exactly this, because a backgrounded app cannot count on its timers — which of the
+   two actually happens on your phone is one of the things this run is for.
 8. **Send the video to a picture-in-picture window.** *(needs a build)* Same story: the
    activity flag that allows it on Android arrived with that same fix.
 9. **Follow a `freewan://media/<id>` link from somewhere else on the phone.** *(needs a build)*

@@ -1,13 +1,48 @@
 import { useEffect, useRef } from 'react'
+import { AppState } from 'react-native'
 import type { VideoPlayer } from 'expo-video'
 import { api } from './api'
 
 const REPORT_INTERVAL_MS = 10_000
 
+/** How far a position has to move before it is worth another request. */
+const REPORT_MIN_DELTA_S = 1
+
+/** Below this, someone has not watched anything yet and there is nothing to come back to. */
+const REPORT_MIN_POSITION_S = 5
+
+/**
+ * Whether a reading of the playhead is worth sending.
+ *
+ * Split out because reports no longer arrive on a timer alone — leaving the app and coming back
+ * both trigger one — and this is what keeps that from turning into a request every time a
+ * notification shade is pulled down. It is also the whole of the rule that stopped one item's
+ * position suppressing another's, which is a defect this file has already had once.
+ */
+export function shouldReport(state: {
+  id: string
+  position: number
+  last: { id: string; position: number }
+}): boolean {
+  if (!Number.isFinite(state.position) || state.position < REPORT_MIN_POSITION_S) return false
+  if (state.last.id !== state.id) return true
+  return Math.abs(state.position - state.last.position) >= REPORT_MIN_DELTA_S
+}
+
 /**
  * Report playback position so the web app and this app resume at the same place.
  * Fire-and-forget: a phone off the tailnet must not surface an error mid-playback, and the
  * next successful report supersedes anything that was lost.
+ *
+ * Reported on a timer, on leaving the screen, and whenever the app changes state. That last one
+ * is because two of this app's features meet badly without it. A video keeps playing when the
+ * phone is locked — that is the point of `staysActiveInBackground` and the lock-screen
+ * controls — while a JavaScript timer is not something a backgrounded app can count on. So an
+ * hour listened to with the screen off could be reported as the minute before it was locked, and
+ * picking the same video up on the web app would start it an hour early. `resumeSeek` below
+ * already names this as a hazard and defends against its symptom; this is the same hole at its
+ * source. Coming back to the foreground is the reading that matters, since it is taken after
+ * whatever happened while away.
  */
 export function useProgressReporter(id: string, player: VideoPlayer | null, durationS: number | null) {
   // Scoped to the item: this ref outlives a change of `id`, so a bare number let one item's
@@ -26,10 +61,7 @@ export function useProgressReporter(id: string, player: VideoPlayer | null, dura
       } catch {
         return // player already released
       }
-      // Ignore the pre-roll and anything that has not moved since the last report.
-      if (!Number.isFinite(position) || position < 5) return
-      const previous = lastSent.current
-      if (previous.id === id && Math.abs(position - previous.position) < 1) return
+      if (!shouldReport({ id, position, last: lastSent.current })) return
       lastSent.current = { id, position }
       void api
         .post(`/api/media/${id}/progress`, {
@@ -40,8 +72,12 @@ export function useProgressReporter(id: string, player: VideoPlayer | null, dura
     }
 
     const timer = setInterval(report, REPORT_INTERVAL_MS)
+    // Every transition, not just backgrounding: the reading on the way out records where the
+    // phone was locked, and the one on the way back records where playing on regardless got to.
+    const appState = AppState.addEventListener('change', report)
     return () => {
       clearInterval(timer)
+      appState.remove()
       report() // capture the final position on leaving the screen
     }
   }, [player, id, durationS])

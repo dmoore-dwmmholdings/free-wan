@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resumeSeek } from '@/lib/progress'
+import { resumeSeek, shouldReport } from '@/lib/progress'
 
 const state = (over: Partial<Parameters<typeof resumeSeek>[0]> = {}) => ({
   ready: true,
@@ -62,5 +62,51 @@ describe('resumeSeek once the viewer is already watching', () => {
   it('still resumes when playback has barely begun', () => {
     // A healthy server answers in a fraction of a second, which is the ordinary case.
     expect(resumeSeek(state({ playedTo: 0.3 }))).toEqual({ seekTo: 300 })
+  })
+})
+
+/**
+ * Reports no longer come from a timer alone: every app-state transition triggers one, so that
+ * an hour played with the phone locked is not recorded as the minute before it was locked.
+ * That makes this guard load-bearing in a way it was not before — pulling down a notification
+ * shade twice must not become two requests.
+ */
+describe('deciding whether a reading of the playhead is worth sending', () => {
+  const last = (id: string, position: number) => ({ id, position })
+
+  it('sends the first real position for an item', () => {
+    expect(shouldReport({ id: 'a', position: 42, last: last('', -1) })).toBe(true)
+  })
+
+  it('says nothing before anyone has watched anything', () => {
+    // Under five seconds is opening the screen, not watching it.
+    expect(shouldReport({ id: 'a', position: 4.9, last: last('', -1) })).toBe(false)
+    expect(shouldReport({ id: 'a', position: 0, last: last('', -1) })).toBe(false)
+  })
+
+  it('ignores a position that has not moved', () => {
+    // Two transitions in a row — inactive, then active — read the same playhead.
+    expect(shouldReport({ id: 'a', position: 300, last: last('a', 300) })).toBe(false)
+    expect(shouldReport({ id: 'a', position: 300.4, last: last('a', 300) })).toBe(false)
+  })
+
+  it('sends once it has moved a second', () => {
+    expect(shouldReport({ id: 'a', position: 301, last: last('a', 300) })).toBe(true)
+  })
+
+  it('sends when it moved backwards, which is a seek', () => {
+    expect(shouldReport({ id: 'a', position: 30, last: last('a', 300) })).toBe(true)
+  })
+
+  it('never lets one item silence another', () => {
+    // The defect this file already had: leaving one video at 300s and a second at 300.5s
+    // within the same session dropped the second report, and with it the only record of
+    // where that video had been watched to.
+    expect(shouldReport({ id: 'b', position: 300.5, last: last('a', 300) })).toBe(true)
+  })
+
+  it('refuses a playhead that is not a number', () => {
+    expect(shouldReport({ id: 'a', position: NaN, last: last('', -1) })).toBe(false)
+    expect(shouldReport({ id: 'a', position: Infinity, last: last('', -1) })).toBe(false)
   })
 })

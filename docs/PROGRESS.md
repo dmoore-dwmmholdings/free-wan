@@ -2139,3 +2139,35 @@ Two controls to note, because both were wrong on the first attempt and passed:
 
 Verified green: typecheck 4/4, `pnpm -r test` **403** (180 backend + 210 mobile + 11 web +
 2 shared), `pnpm -r build`, both Hermes bundles.
+
+### An hour listened to with the screen off, reported as the minute it was locked
+
+Two features of this app meet badly. A video keeps playing when the phone is locked — that is
+the point of `staysActiveInBackground` and the lock-screen controls — and playback position is
+reported to the server so the web app and this app resume in the same place. The reporting ran
+on a `setInterval` and on leaving the screen, and neither of those is something a backgrounded
+app can count on. So an hour of listening with the screen off could be recorded as the minute
+before the phone was locked, and opening the same video on the web app would start it an hour
+early.
+
+The hole was already known here in a sideways form: `resumeSeek`'s own docstring names "the
+whole stretch of background playback, if the reporting timer was suspended while the audio kept
+going" as a reason not to follow the server's position blindly. That defends against the
+symptom. This closes the source: a position is now reported on every app-state transition. The
+reading on the way out records where the phone was locked; the reading on the way back records
+where playing on regardless got to, and that second one is the one that matters.
+
+Reports arriving on every transition makes the send guard load-bearing in a way it was not
+before — pulling a notification shade down and up must not become two requests — so it is now
+`shouldReport`, split out and tested the way `resumeSeek` was, for the same reason. 7 tests,
+control-tested three ways: dropping the per-item scoping, dropping the `Math.abs` so a backwards
+seek never reports, and dropping the finite check.
+
+What is *not* tested is the wiring itself — that `AppState` fires the report — because that
+needs a renderer this package does not have. And whether a JavaScript timer keeps running in a
+backgrounded app with audio playing is platform behaviour I cannot check from here: the fix is
+correct either way, since an unchanged position is discarded, but which of the two happens is
+now part of step 7 of the device checklist.
+
+Verified green: typecheck 4/4, `pnpm -r test` **410** (180 backend + 217 mobile + 11 web +
+2 shared), `pnpm -r build`, both Hermes bundles.
