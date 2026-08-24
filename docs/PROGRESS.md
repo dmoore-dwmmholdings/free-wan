@@ -2527,3 +2527,32 @@ rendered on the pages it visits under `linen`.
 
 Verified green: typecheck 4/4, `pnpm -r test` **449**, `pnpm -r build`, both Hermes bundles,
 `pnpm test:e2e` **20 passed**.
+
+### Closing the seam three defects came through
+
+Three contrast defects have been found over the last few passes, one at a time and all by hand:
+the primary as the current folder's name at 3.87:1 on the default preset, the accent as the
+"Available offline" label at 3.44:1 on `linen`, and the error red on the Sign out button and
+every error message at 2.34:1 on `paper`. Each survived for the same reason — five or six of the
+seven presets are comfortable, and the default is one of them.
+
+Nothing could have caught them. `tsc` is satisfied by any string. The palette tests prove a
+*token* is readable but not that a readable one is what got used. And the web app's equivalent
+check is an axe audit in a real browser, which this package has no renderer for.
+
+`test/text-colours.test.ts` reads the source instead. It finds every `color:` in a style object —
+lower-case `c` on purpose, since `backgroundColor`, `borderColor` and `tintColor` all capitalise
+it — and asserts that each one is either a token whose contrast is proven against every preset in
+`palette.test.ts`, or a fixed colour in a file that also fixed what sits behind it. There are
+three of those: the duration pill, the playback error overlay and the caption plate, each white
+on a black this app painted, where no preset can reach.
+
+Four checks. One is that the scan found more than thirty uses at all, because a silent empty
+result would pass everything having read nothing. One is that every exemption still has a use
+behind it and a stated reason, since an exemption list that outlives its reasons is how a check
+like this stops meaning anything.
+
+Control-tested by reintroducing two of the three original defects — the accent label and the
+primary folder name — and by moving a fixed white into a file with no exemption. Each fails.
+
+Verified green: typecheck 4/4, `pnpm -r test` **453**, `pnpm -r build`, both Hermes bundles.

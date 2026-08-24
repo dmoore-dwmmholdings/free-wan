@@ -255,7 +255,9 @@ light one. The text on the primary button follows the primary's own lightness, a
 errors are written in follows the background's: Tailwind's `red-400`, which the web app uses
 throughout, sits at 2.34:1 on `paper` and 2.41:1 on `linen`, so the two light presets get
 `red-700` instead. Both choices are checked against every preset by the tests in
-`packages/mobile/test/palette.test.ts`.
+`packages/mobile/test/palette.test.ts`, and `test/text-colours.test.ts` reads the source to check
+that the colours actually written into the screens are ones those tests cover — the web app gets
+this from an axe audit in a real browser, and there is no renderer here to point one at.
 
 Not followed: the fonts an admin picks, which would mean fetching font files at runtime, and
 the installed app's own name and icon, which are fixed at build time in `app.json`. If the
