@@ -100,49 +100,70 @@ function ActiveRow({ item }: { item: ActiveDownload }) {
   )
 }
 
-/** A transfer that stopped short. Tapping starts it again. */
+/**
+ * A transfer that stopped short. Tapping starts it again; the cross gives up on it.
+ *
+ * Both are needed. Failures are listed above everything else because they need a decision, and
+ * for a while the only decision on offer was to retry — so a download that cannot ever succeed,
+ * because the media is no longer in the library or that server is gone for good, held the top
+ * of this tab in front of the downloads that do work.
+ */
 function FailedRow({ item }: { item: FailedDownload }) {
   return (
-    <Pressable
-      onPress={() =>
-        void startDownload({
-          id: item.id,
-          title: item.title,
-          type: item.type,
-          durationSec: item.durationSec,
-        })
-      }
-      accessibilityRole="button"
-      accessibilityLabel={`Retry download ${item.title}`}
-      style={({ pressed }) => ({
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: theme.space(3),
-        opacity: pressed ? 0.7 : 1,
-      })}
-    >
-      <View
-        style={{
-          width: 108,
-          aspectRatio: 16 / 10,
-          borderRadius: theme.radius.sm,
-          backgroundColor: theme.color.surface2,
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space(3) }}>
+      <Pressable
+        onPress={() =>
+          void startDownload({
+            id: item.id,
+            title: item.title,
+            type: item.type,
+            durationSec: item.durationSec,
+          })
+        }
+        accessibilityRole="button"
+        accessibilityLabel={`Retry download ${item.title}`}
+        style={({ pressed }) => ({
+          flex: 1,
+          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
-        }}
+          gap: theme.space(3),
+          opacity: pressed ? 0.7 : 1,
+        })}
       >
-        <Ionicons name="alert-circle-outline" size={20} color={theme.color.danger} />
-      </View>
-      <View style={{ flex: 1, justifyContent: 'center', gap: theme.space(1) }}>
-        <Text numberOfLines={2} style={{ color: theme.color.text, fontSize: 14, fontWeight: '600' }}>
-          {item.title}
-        </Text>
-        <Text style={{ color: theme.color.danger, fontSize: 12 }}>Failed — tap to try again</Text>
-        <Text numberOfLines={1} style={{ color: theme.color.muted, fontSize: 12 }}>
-          {item.error}
-        </Text>
-      </View>
-    </Pressable>
+        <View
+          style={{
+            width: 108,
+            aspectRatio: 16 / 10,
+            borderRadius: theme.radius.sm,
+            backgroundColor: theme.color.surface2,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Ionicons name="alert-circle-outline" size={20} color={theme.color.danger} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', gap: theme.space(1) }}>
+          <Text numberOfLines={2} style={{ color: theme.color.text, fontSize: 14, fontWeight: '600' }}>
+            {item.title}
+          </Text>
+          <Text style={{ color: theme.color.danger, fontSize: 12 }}>Failed — tap to try again</Text>
+          <Text numberOfLines={1} style={{ color: theme.color.muted, fontSize: 12 }}>
+            {item.error}
+          </Text>
+        </View>
+      </Pressable>
+      <Pressable
+        onPress={() => void removeDownload(item.id)}
+        hitSlop={12}
+        accessibilityRole="button"
+        // No confirmation, unlike the trash on a finished download: nothing is deleted here.
+        // The partial file is long gone, and the item is still in the library to download again.
+        accessibilityLabel={`Dismiss failed download ${item.title}`}
+        style={({ pressed }) => ({ padding: theme.space(2), opacity: pressed ? 0.6 : 1 })}
+      >
+        <Ionicons name="close" size={20} color={theme.color.muted} />
+      </Pressable>
+    </View>
   )
 }
 

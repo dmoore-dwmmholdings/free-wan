@@ -447,3 +447,49 @@ describe('what a progress notification means to a reader that is not watching th
     expect(sameDownloadState({ status: 'failed', message: 'a' }, { status: 'failed', message: 'b' })).toBe(false)
   })
 })
+
+describe('giving up on a download that failed', () => {
+  it('clears the failure, and does not need a record to do it', async () => {
+    // The Downloads tab lists failures above everything else, and until this worked the only
+    // way past one was a retry that succeeded — so a download that cannot ever succeed held
+    // the top of the tab for the rest of the session.
+    const { fs, downloads } = await fresh()
+    fs.__fs.failNext()
+    await downloads.startDownload(VIDEO)
+    expect(downloads.__test.snapshot()).toEqual({ activeIds: [], doneIds: [], failedIds: [VIDEO.id] })
+
+    await downloads.removeDownload(VIDEO.id)
+
+    expect(downloads.__test.snapshot()).toEqual({ activeIds: [], doneIds: [], failedIds: [] })
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('none')
+  })
+
+  it('still deletes the files when the item did finish', async () => {
+    // The same entry point does both, so the destructive half has to keep working.
+    const { fs, downloads } = await fresh()
+    await downloads.startDownload(VIDEO)
+    expect(fs.__fs.size()).toBe(2) // media + poster
+
+    await downloads.removeDownload(VIDEO.id)
+
+    expect(fs.__fs.size()).toBe(0)
+    expect(downloads.__test.snapshot().doneIds).toEqual([])
+  })
+
+  it('leaves a transfer in flight alone', async () => {
+    // Dismissing is not cancelling. A retry moves the item out of `failures` and into
+    // `active` before it transfers, so a dismiss arriving late must not stop it.
+    const { fs, downloads } = await fresh()
+    const release = fs.__fs.holdNextDownload()
+    const pending = downloads.startDownload(VIDEO)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('downloading')
+
+    await downloads.removeDownload(VIDEO.id)
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('downloading')
+
+    release()
+    await pending
+    expect(downloads.getDownloadState(VIDEO.id).status).toBe('done')
+  })
+})

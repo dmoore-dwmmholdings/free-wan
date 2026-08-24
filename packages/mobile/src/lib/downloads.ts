@@ -289,16 +289,31 @@ export async function cancelDownload(id: string): Promise<void> {
   emit()
 }
 
-/** Remove a downloaded item and its files. */
+/**
+ * Remove a downloaded item and its files, or clear one that failed.
+ *
+ * Both, because a failure had no other way out. The Downloads tab lists failures first, on the
+ * grounds that they need a decision, and the only decision it offered was to try again — so
+ * something that will never succeed, because the media was deleted from the library or the
+ * server is not coming back, sat at the top of the tab above everything that does work. The
+ * `delete` below was already here and could never run: the early return above it required a
+ * record, and an item with a record is not a failure.
+ *
+ * Nothing to delete from disk in that case. A failed transfer's partial file is already gone —
+ * `cancelDownload` removes it, and a transfer that ended by itself never wrote a record for the
+ * sweep at startup to spare.
+ */
 export async function removeDownload(id: string): Promise<void> {
   await loadDownloads()
   const record = index[id]
-  if (!record) return
-  await FileSystem.deleteAsync(record.localUri, { idempotent: true }).catch(() => {})
-  if (record.posterUri) {
-    await FileSystem.deleteAsync(record.posterUri, { idempotent: true }).catch(() => {})
+  if (!record && !failures[id]) return
+  if (record) {
+    await FileSystem.deleteAsync(record.localUri, { idempotent: true }).catch(() => {})
+    if (record.posterUri) {
+      await FileSystem.deleteAsync(record.posterUri, { idempotent: true }).catch(() => {})
+    }
+    delete index[id]
   }
-  delete index[id]
   delete failures[id]
   await persist()
   emit()

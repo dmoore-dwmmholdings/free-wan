@@ -2076,3 +2076,33 @@ effectively did — each fail the new tests.
 
 Verified green: typecheck 4/4, `pnpm -r test` **397** (180 backend + 204 mobile + 11 web +
 2 shared), `pnpm -r build`, both Hermes bundles.
+
+### A failed download you cannot get rid of
+
+The Downloads tab lists failures above everything else, on the stated grounds that they need a
+decision — and offered exactly one: retry. That is the right decision when the phone dropped off
+the tailnet mid-transfer, which is the case the failure state was written for. It is the wrong
+one when the media has been deleted from the library, or that server is not coming back. Retry
+then fails again, and the row holds the top of the tab in front of the downloads that do work,
+for the rest of the session.
+
+`removeDownload` already had `delete failures[id]` in it, and it could never run: the early
+return above it required a record in the index, and an item with a record is not a failure. So
+the guard now admits either, the delete of the files is skipped when there is nothing on disk,
+and `FailedRow` grew a cross beside the retry area — the same two-control shape a finished
+download's row already had. No confirmation on it, unlike the trash on a finished download,
+because nothing is deleted: the partial file went when the transfer did, and the item is still
+in the library to download again.
+
+3 tests. The first two control-tested by restoring the record-only early return. The third —
+that dismissing does not stop a retry already in flight — needed a second attempt: the obvious
+control (clearing `active` as well) passed, because the early return fires first during a
+transfer and the mutation was unreachable. Removing the guard *and* clearing `active` reaches
+it, and fails the test.
+
+Also corrected a doc line that had said "Three behaviours worth knowing" over a list of four.
+
+Verified green: typecheck 4/4, `pnpm -r test` **400** (180 backend + 207 mobile + 11 web +
+2 shared), `pnpm -r build`, both Hermes bundles. Not verified on a device — the Downloads tab's
+cross and Stop controls are among the few things the browser harness cannot reach, since it
+cannot download anything to fail.

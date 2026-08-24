@@ -137,7 +137,7 @@ screen asks the server for a copy fitted to the phone rather than the whole orig
 a 4032-pixel-wide photo is 54 KB instead of 638 KB. It falls back to the original when that is
 already the smaller file, since the server's resizer will happily enlarge one.
 
-Three behaviours worth knowing:
+What the download store does when things go wrong:
 
 - If the OS reclaims a file to free space, its record is dropped when the app next loads its
   index, rather than leaving an entry that fails to open.
@@ -147,6 +147,11 @@ Three behaviours worth knowing:
 - A failure is shown rather than swallowed. Leaving the tailnet mid-transfer is ordinary, so
   the item says it failed and why, and tapping it starts again. Failures are held in memory
   only: after a restart the item simply offers Download again.
+- A failure can also be dismissed, with the cross beside it. Failures sit above everything else
+  because they need a decision, and retrying is not always the right one — the media may have
+  been deleted from the library, or that server may be gone for good. Nothing is deleted by
+  dismissing: the partial file went with the failure, and the item can still be downloaded
+  again from its own screen.
 
 The Downloads tab lists failures first, then transfers still running, then what is on disk.
 A transfer in progress can be stopped, from the cross on its row in the Downloads tab or the
