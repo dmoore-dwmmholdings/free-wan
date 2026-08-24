@@ -2593,3 +2593,40 @@ heavier, which is a redesign and the user's call, not a defect fix to make unila
 not flag it, which is why the browser audits pass.
 
 Verified green: typecheck 4/4, `pnpm -r test` **456**, `pnpm -r build`, both Hermes bundles.
+
+### Correcting the document that says what this app does
+
+This file has been added to on nearly every pass, and the mobile doc alongside it. Reading the
+latter whole found four claims that used to be true and are not any more — every one of them
+made false by a change made here, which makes it this session's mess rather than anyone else's.
+
+- "Two things are deliberately left alone" listed the subtitle plate and the duration pill.
+  There are three: the message shown when a video will not play is fixed white on a dark scrim
+  too, and has been since it was written. The sentence now names all three and points at the
+  test that holds the app to exactly that list.
+- "the two things that are only icons — the cross that stops a transfer and the speech bubble"
+  was written before the sort sheet, the three filter toggles, the bin on a download, the
+  dismiss cross and the upload button existed. There are eight now, and the list says so.
+- "Those two controls need a device" undercounted for the same reason: the cross on the
+  Downloads tab, the Stop on an item's screen, the Stop beside the upload button and the cross
+  that gives up on a failure are four, not two.
+- The device checklist had no step for three things built over the last few passes — dismissing
+  a failed download, stopping an upload mid-batch, and following a deep link while signed out.
+  It has them now. That gap was the worst of the four: the checklist is the handover, and
+  features were going in without their checks going in beside them.
+
+Renumbering the checklist went wrong once and is worth recording, because the same mistake has
+happened here before. Replacing `^7. **` with `8. **` and working downwards matched the *newly
+inserted* step 7 rather than the old one, leaving two 8s and an untouched 7. Renumbering by
+position instead of by value is the version that works. A check afterwards confirms all
+seventeen steps are sequential and every continuation line is indented to its own step's width —
+one was still on three spaces from when it was single-digit.
+
+Two things were checked this pass and found already correct, recorded so they are not chased
+again: no `Pressable` that toggles is missing an `accessibilityState`, and React Native's
+`Pressable` merges its `disabled` prop into that state itself — `Pressable.js` does
+`disabled != null ? {..._accessibilityState, disabled}` — so the upload button was never wrong,
+and the explicit `accessibilityState={{ disabled }}` on the login button is redundant rather than
+load-bearing.
+
+Verified green: typecheck 4/4, `pnpm -r test` **456**.

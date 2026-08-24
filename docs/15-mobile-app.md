@@ -241,9 +241,13 @@ Branding studio — one of the presets, or a custom palette — the app retunes 
 presets included, and the login screen is already branded before you sign in.
 
 Colours the server does not send are worked out the same way the web app works them out, so
-the two match rather than merely resemble each other. Two things are deliberately left alone:
-subtitles stay white-on-black and the duration badge on a thumbnail stays a dark pill, because
-both sit over arbitrary artwork and have to stay readable whatever the palette is.
+the two match rather than merely resemble each other. Three things are deliberately left alone:
+subtitles stay white-on-black, the duration badge on a thumbnail stays a dark pill, and the
+message shown when a video will not play stays white on a dark scrim. All three sit over
+arbitrary artwork or over the video itself, and have to stay readable whatever the palette is.
+They are the only fixed colours in the app, and `test/text-colours.test.ts` holds them to that —
+anything else written in a fixed colour, or in a token not proven readable on every preset,
+fails it.
 
 The platform's own chrome follows the brand too — the keyboard, system dialogs, action sheets
 and text-selection handles take their look from the app's colour scheme rather than from our
@@ -334,10 +338,18 @@ Deliberate omissions, since this is a companion to the web app rather than a rep
 
 ## Screen readers
 
-Every control the app draws carries a name and announces itself as a button, and the two
-things that are only icons — the cross that stops a transfer and the speech bubble that turns
-subtitles on — say what they do and what state they are in rather than reading as a picture.
-Tiles and rows that open something are links rather than buttons, which is what they are.
+Every control the app draws carries a name and says what kind of thing it is. That matters most
+for the ones that are only an icon, and there are a lot of them: the three filter toggles and the
+sort button beside the search box, the speech bubble that turns subtitles on, the cross that
+stops a transfer, the cross that gives up on a failed one, the bin that deletes a download, and
+the button that uploads. Each says what it does and, where it has one, what state it is in,
+rather than reading as a picture. Tiles and rows that open something are links rather than
+buttons, which is what they are.
+
+`test/pressables.test.ts` keeps it that way, by reading the source: every `Pressable` has to
+carry a role or say explicitly that it is not an element, and a name wherever its children would
+not read. It exists because the Downloads tab's rows had neither for a long time, alone among the
+four screens that list things, and announced as their title and size run together.
 
 The bottom sheets need a note, because React Native's default works against them. A
 `Pressable` is an accessibility element unless it is told not to be, and an element hides its
@@ -422,10 +434,12 @@ arrives when the media file is already written and the record is not. The brandi
 produced has been in *when* things happen rather than in any single line: a first launch with
 no server stored, a sign-in that creates one, a move to a different server, a fetch that
 fails and is retried, and a server that accepts the connection and then says nothing. The cancel path is
-covered this way but its buttons are not: the Downloads tab's cross and the Stop control only
-appear while a transfer is running, and `expo-file-system` has no web implementation, so the
-browser harness used for the rest of the UI cannot reach that state. Those two controls need
-a device. The request-layer tests drive a stubbed `fetch`,
+covered this way but its buttons are not. `expo-file-system` has no web implementation, so the
+browser harness used for the rest of the UI cannot start a transfer at all, and every control
+that only exists while one is running is out of its reach: the cross on the Downloads tab, the
+Stop on an item's own screen, the Stop beside the upload button, and the cross that gives up on
+a transfer that failed. Those four need a device, and each has a step on the checklist below.
+The request-layer tests drive a stubbed `fetch`,
 covering the cases a proxy in front of the server produces — an HTML error page, a 401 that
 is not JSON — which are the ones that used to be mishandled.
 
@@ -516,7 +530,12 @@ what would be worst if it were wrong.
    not open.
 6. **Kill the app, turn the server off, reopen, and play that download.** It should play, and
    resume where you left it if it had been played before.
-7. **Leave the app while a video plays, and lock the phone.** *(needs a build)* The sound
+7. **Make a download fail, then dismiss it.** Start a large one and pull the phone off the
+   network partway. It should appear at the top of the Downloads tab saying why, offer to try
+   again on a tap, and clear when the cross beside it is pressed. Nothing is deleted by
+   dismissing — until that cross existed there was no way past a download that could never
+   succeed except restarting the app.
+8. **Leave the app while a video plays, and lock the phone.** *(needs a build)* The sound
    should carry on, and the lock screen should offer play, pause and the title. Both were asked
    for in the player's settings and granted by nothing until the config plugin was given its
    options, so this is the first run on which either can work. Then unlock after ten minutes or
@@ -524,22 +543,28 @@ what would be worst if it were wrong.
    not where the phone was when it was locked. Position is now reported on every change of app
    state for exactly this, because a backgrounded app cannot count on its timers — which of the
    two actually happens on your phone is one of the things this run is for.
-8. **Send the video to a picture-in-picture window.** *(needs a build)* Same story: the
+9. **Send the video to a picture-in-picture window.** *(needs a build)* Same story: the
    activity flag that allows it on Android arrived with that same fix.
-9. **Follow a `freewan://media/<id>` link from somewhere else on the phone.** *(needs a build)*
-   It should open that item, not the library. Expo Go answers to its own scheme, not this one.
-10. **Open a clip.** It should start at its in-point and hold at its out-point, looping or
+10. **Follow a `freewan://media/<id>` link from somewhere else on the phone.** *(needs a build)*
+    It should open that item, not the library. Expo Go answers to its own scheme, not this one.
+    Then sign out and follow the same link again: it should ask you to sign in and, once you
+    have, open that item rather than dropping you at the library. Nothing used to keep hold of
+    where you were headed, so signing in always ended at the library.
+11. **Open a clip.** It should start at its in-point and hold at its out-point, looping or
     stopping as the clip says.
-11. **Turn subtitles on.** The words should land on the right ones.
-12. **Upload from the camera roll.** The picker, the which-library sheet and the transfer are
+12. **Turn subtitles on.** The words should land on the right ones.
+13. **Upload from the camera roll.** The picker, the which-library sheet and the transfer are
     all untried: `expo-image-picker` opens the platform's own file dialog, and the upload task
-    has no web implementation. Send several at once, including a video.
-13. **Open a big photo.** It should appear quickly; the app asks for a copy fitted to the
+    has no web implementation. Send several at once, including a video. Then start another
+    batch and press **Stop** partway: the file going up should be abandoned along with
+    everything queued behind it, and the summary should say how many had already landed rather
+    than reporting the interrupted one as a failure.
+14. **Open a big photo.** It should appear quickly; the app asks for a copy fitted to the
     screen rather than the original.
-14. **Sign out and back in.** The token goes to the keychain, which has never been written to.
-15. **Point it at a server that is not running.** Every screen should say it cannot reach the
+15. **Sign out and back in.** The token goes to the keychain, which has never been written to.
+16. **Point it at a server that is not running.** Every screen should say it cannot reach the
     server, and none should claim your library is empty.
-16. **Turn on VoiceOver or TalkBack and change your password.** All three fields should name
+17. **Turn on VoiceOver or TalkBack and change your password.** All three fields should name
     themselves.
 
 
