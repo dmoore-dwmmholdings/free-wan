@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { __test, fileNameFor, uploadBlocker } from '@/lib/uploads'
+import { __test, batchSummary, fileNameFor, uploadBlocker } from '@/lib/uploads'
 
 const { outcomeFor } = __test
 
@@ -108,5 +108,63 @@ describe('what stops the upload button opening the picker', () => {
 
   it('lets the picker open when there is somewhere to put things', () => {
     expect(uploadBlocker({ loading: false, targets: [target] })).toBeNull()
+  })
+})
+
+/**
+ * What a batch says when it ends. Uploads can now be stopped mid-batch, and a stop is not a
+ * failure — the file that was in flight really did not finish, but telling someone that the
+ * thing they just asked for went wrong is the kind of small lie this app keeps refusing to tell.
+ */
+describe('what to say when a batch of uploads ends', () => {
+  const ok = (name: string) => ({ name, ok: true as const })
+  const bad = (name: string, reason: string) => ({ name, ok: false as const, reason })
+
+  it('reports plain success without listing anything', () => {
+    const summary = batchSummary([ok('a.jpg'), ok('b.jpg')], false)
+    expect(summary.title).toBe('2 uploaded')
+    expect(summary.body).toContain('Pull down to refresh')
+  })
+
+  it('counts one file in the singular', () => {
+    expect(batchSummary([ok('a.jpg')], false).title).toBe('Uploaded')
+  })
+
+  it('names what was rejected and why', () => {
+    // "3 skipped" alone leaves someone guessing between the file type, the size and the link.
+    const summary = batchSummary([ok('a.jpg'), bad('b.txt', 'unsupported file type')], false)
+    expect(summary.title).toBe('1 uploaded, 1 skipped')
+    expect(summary.body).toBe('b.txt \u2014 unsupported file type')
+  })
+
+  it('lists at most five, and says how many more', () => {
+    const summary = batchSummary(
+      Array.from({ length: 8 }, (_, i) => bad(`f${i}.txt`, 'unsupported file type')),
+      false,
+    )
+    expect(summary.title).toBe('Nothing was uploaded')
+    expect(summary.body.split('\n')).toHaveLength(6)
+    expect(summary.body).toContain('3 more')
+  })
+
+  it('calls a stop a stop, not a failure', () => {
+    // The in-flight file arrives here as a failure and must not be listed as one.
+    const summary = batchSummary([ok('a.jpg')], true)
+    expect(summary.title).toBe('Upload stopped')
+    expect(summary.body).toContain('1 file had already finished')
+    expect(summary.body).not.toContain('skipped')
+  })
+
+  it('says plainly when a stop caught everything', () => {
+    expect(batchSummary([], true)).toEqual({
+      title: 'Upload stopped',
+      body: 'Nothing was uploaded.',
+    })
+  })
+
+  it('reports a stop as a stop even when files really did fail before it', () => {
+    // Otherwise pressing Stop would produce a list of failures, one of which is the stop.
+    const summary = batchSummary([ok('a.jpg'), bad('b.txt', 'unsupported file type')], true)
+    expect(summary.title).toBe('Upload stopped')
   })
 })

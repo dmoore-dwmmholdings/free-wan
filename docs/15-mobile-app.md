@@ -188,6 +188,11 @@ A few things worth knowing:
 - One file failing does not abandon the rest. Anything rejected is listed by name with the
   reason — an unsupported type, or too large — so a single odd clip cannot cost you the whole
   selection.
+- An upload can be stopped, with the Stop control beside the progress button. It stops the file
+  going up now and abandons anything queued behind it; whatever had already finished stays in
+  the library, and that is what the summary says. A phone's uplink is the slower half of its
+  connection and picking the wrong thing out of a camera roll takes one tap, so this is the same
+  argument the Downloads tab has always made for its own Stop, pointing the other way.
 - Photos and videos do not always come out of the picker with a name. Where there is none the
   app makes one, taking the file type from the URI when it carries one and from the kind of
   media when it does not. The name matters: the server uses the extension to decide what a

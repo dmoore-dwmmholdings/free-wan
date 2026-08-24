@@ -2200,3 +2200,33 @@ have — so what is asserted is the property the saving rests on, not the saving
 Verified green: typecheck 4/4, `pnpm -r test` **413** (180 backend + 220 mobile + 11 web +
 2 shared), `pnpm -r build`, both Hermes bundles. Subtitles cannot be seen in the browser harness
 — `expo-video` never requests the stream there — so this is another one for the device run.
+
+### Downloads could be stopped; uploads could not
+
+The Downloads tab has had a Stop from the start, with the reasoning written down beside it: a
+phone on a metered connection needs a way out of a multi-gigabyte transfer it started by
+mistake. Nothing made that argument in the other direction, and it is stronger there. A phone's
+uplink is the slower half of its connection, picking the wrong thing out of a camera roll takes
+one tap, and the batch limit is fifty files — so an upload begun by accident could not be
+stopped short of killing the app.
+
+`uploadFile` now hands the running transfer back through an `onTask` callback, which is all the
+library needed; the batch itself is the component's business, so that is where Stop lives. It
+cancels the file in flight and abandons the queue behind it. The file that was going up when
+Stop was pressed comes back as a failure, because the transfer really did not finish — but it is
+not reported as one, because telling someone the thing they just asked for went wrong is the kind
+of small lie this app keeps refusing to tell.
+
+That decision is now `batchSummary`, split out and tested the way `uploadBlocker` was. 7 tests,
+control-tested three ways: letting a stop fall through to the failure path, listing more than
+five rejections, and dropping the singular case.
+
+Verified green: typecheck 4/4, `pnpm -r test` **420** (180 backend + 227 mobile + 11 web +
+2 shared), `pnpm -r build`, both Hermes bundles. Not seen working: uploads need a picker and a
+real file, so the browser harness cannot reach this — the same gap the Downloads tab's Stop has.
+It belongs on the device run.
+
+Also worth recording: the re-render sweep this pass was deliberate rather than incidental, and
+it came back clean. The only remaining handler firing at 4 Hz is the clip screen's `timeUpdate`,
+which sets no state at all, and both `statusChange` handlers write values React bails on. Three
+findings in that family and it is done.

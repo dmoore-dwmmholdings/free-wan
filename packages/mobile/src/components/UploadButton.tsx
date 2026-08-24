@@ -1,14 +1,16 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import * as ImagePicker from 'expo-image-picker'
 import { useQueryClient } from '@tanstack/react-query'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import {
+  batchSummary,
   fileNameFor,
   MAX_FILES_PER_BATCH,
   uploadFile,
   uploadBlocker,
   useUploadTargets,
+  type Cancellable,
   type UploadOutcome,
   type UploadTarget,
 } from '@/lib/uploads'
@@ -25,31 +27,6 @@ function toPicked(asset: ImagePicker.ImagePickerAsset, i: number): Picked {
   return { uri: asset.uri, name: fileNameFor(asset, i), mimeType: asset.mimeType }
 }
 
-function reportOutcomes(results: UploadOutcome[]): void {
-  const ok = results.filter((r) => r.ok)
-  const failed = results.filter((r) => !r.ok)
-
-  if (failed.length === 0) {
-    Alert.alert(
-      ok.length === 1 ? 'Uploaded' : `${ok.length} uploaded`,
-      'Your server is indexing them now, so they may take a moment to appear. Pull down to refresh.',
-    )
-    return
-  }
-
-  // Naming what was rejected and why: "3 skipped" alone leaves someone to guess whether it
-  // was the file type, the size, or the connection.
-  const detail = failed
-    .slice(0, 5)
-    .map((r) => `${r.name} — ${r.reason}`)
-    .join('\n')
-  const more = failed.length > 5 ? `\n…and ${failed.length - 5} more` : ''
-  Alert.alert(
-    ok.length > 0 ? `${ok.length} uploaded, ${failed.length} skipped` : 'Nothing was uploaded',
-    detail + more,
-  )
-}
-
 /** Floating action button that puts photos and videos from this phone into the library. */
 export function UploadButton() {
   const qc = useQueryClient()
@@ -58,39 +35,66 @@ export function UploadButton() {
   const [progress, setProgress] = useState<{ done: number; total: number; fraction: number } | null>(
     null,
   )
+  // The transfer running now, so Stop has something to act on, and whether Stop was pressed, so
+  // the files queued behind it are abandoned too. Refs rather than state: the loop below reads
+  // them between files, and would otherwise be looking at the values it closed over.
+  const task = useRef<Cancellable | null>(null)
+  const stopped = useRef(false)
 
   const available = targets.data?.data ?? []
+
+  function stop(): void {
+    stopped.current = true
+    void task.current?.cancelAsync().catch(() => {
+      // Already finished, or the platform refused. Either way the loop stops after this file.
+    })
+  }
 
   async function send(target: UploadTarget, files: Picked[]): Promise<void> {
     setChoosing(null)
     setProgress({ done: 0, total: files.length, fraction: 0 })
+    stopped.current = false
 
     const results: UploadOutcome[] = []
     for (const [i, file] of files.entries()) {
+      if (stopped.current) break
       setProgress({ done: i, total: files.length, fraction: 0 })
       try {
         results.push(
-          await uploadFile(target.id, file, (fraction) =>
-            setProgress({ done: i, total: files.length, fraction }),
+          await uploadFile(
+            target.id,
+            file,
+            (fraction) => setProgress({ done: i, total: files.length, fraction }),
+            (running) => {
+              task.current = running
+            },
           ),
         )
       } catch (err) {
-        // One file failing must not abandon the rest — losing a whole camera roll to a single
-        // unsupported clip would be worse than skipping it.
+        // The file in flight when Stop was pressed comes back as a failure, because the
+        // transfer really did not finish — but it is not one to report. Everything else is:
+        // one file failing must not abandon the rest, since losing a whole camera roll to a
+        // single unsupported clip would be worse than skipping it.
+        if (stopped.current) break
         results.push({
           name: file.name,
           ok: false,
           reason: err instanceof Error ? err.message : 'Upload failed',
         })
+      } finally {
+        task.current = null
       }
     }
 
+    const wasStopped = stopped.current
     setProgress(null)
     // The server queues a scan, so how soon they appear depends on how fast that runs;
-    // refetching is still the only way new items show up without a restart.
+    // refetching is still the only way new items show up without a restart. Worth doing after a
+    // stop too: whatever finished before it is in the library.
     void qc.invalidateQueries({ queryKey: ['media'], exact: false })
     void qc.invalidateQueries({ queryKey: ['categories'], exact: false })
-    reportOutcomes(results)
+    const summary = batchSummary(results, wasStopped)
+    Alert.alert(summary.title, summary.body)
   }
 
   async function pick(): Promise<void> {
@@ -186,6 +190,36 @@ export function UploadButton() {
           <Ionicons name="add" size={24} color="#fff" />
         )}
       </Pressable>
+
+      {busy ? (
+        <Pressable
+          onPress={stop}
+          accessibilityRole="button"
+          accessibilityLabel="Stop uploading"
+          // Its own control rather than a second tap on the button above, which is busy showing
+          // the progress and has to stay unpressable: stopping a transfer by accident while
+          // trying to read how far along it is would be its own small disaster.
+          hitSlop={12}
+          style={({ pressed }) => ({
+            position: 'absolute',
+            right: theme.space(4),
+            bottom: theme.space(15),
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: theme.space(2),
+            backgroundColor: theme.color.surface,
+            borderColor: theme.color.border,
+            borderWidth: 1,
+            borderRadius: theme.radius.full,
+            paddingVertical: theme.space(2.5),
+            paddingHorizontal: theme.space(4),
+            opacity: pressed ? 0.7 : 1,
+          })}
+        >
+          <Ionicons name="close" size={16} color={theme.color.muted} />
+          <Text style={{ color: theme.color.muted, fontWeight: '700', fontSize: 13 }}>Stop</Text>
+        </Pressable>
+      ) : null}
 
       <Modal
         visible={choosing !== null}
