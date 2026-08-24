@@ -2343,3 +2343,44 @@ green tests were not the whole check.
 Verified green: typecheck 4/4, `pnpm -r test` **432** (180 backend + 238 mobile + 12 web +
 2 shared), `pnpm -r build`, both Hermes bundles. The colours themselves have not been *seen* —
 the browser extension has now failed to connect three passes running.
+
+### The primary colour where it is read rather than filled
+
+Comparing the mobile palette against the web's token block turned up three derived tokens the
+phone never got: `--fw-primary-strong`, `--fw-primary-line` and `--fw-accent-tint`. The first
+carries a comment saying why it exists — the raw primary lacks AA contrast against its own tint,
+so anything drawn *as text or as an icon* rather than as a fill needs the primary pushed towards
+the text colour. The phone used the raw primary in both such places.
+
+Measured across the seven presets, worst case is `midnight`, which is the default:
+
+- the current folder's name in the category row: **3.87:1** on the background, at 13px bold —
+  which WCAG counts as normal text, so it wants 4.5:1
+- the icon in an active filter chip: **3.45:1** on the primary's own 15% tint
+
+The icon clears the 3:1 that graphical objects need, so it is not a failure; the folder name
+does not. `primaryStrong` is now in the palette as `mix(primary, text, 0.6)`, mirroring the web
+exactly, and both places use it. Every preset now clears 4.5:1 in both spots.
+
+`primaryLine` and `accentTint` were deliberately left out. The first would only change a border
+from full-strength to 40%, which is cosmetic and not a legibility question; the second has no
+element on the phone that uses it, and an unused token is the kind of speculative addition this
+project keeps declining.
+
+5 tests asserting ratios rather than hex values, control-tested three ways: leaving it as the raw
+primary, pushing it all the way to the text colour, and only going 15% of the way.
+
+**Found and not fixed:** the web app's category bar has the same 3.87:1 on `midnight` — it uses
+`font-semibold text-primary` for the current crumb, though `--fw-primary-strong` exists for
+precisely this. That is a web change, and there is already one unrequested web change from the
+previous pass awaiting a view, so it is reported rather than made.
+
+Two process notes. A patch script opened `test/palette.test.ts` in write mode and truncated it
+when the write itself then failed; restored from git and the tests appended directly instead.
+And `pnpm -r test` failed once in the API package, 114 of 180, then passed 180/180 on four
+subsequent runs including a full recursive one — the API suite spawns real servers and the
+update-reconcile test alone takes over three seconds, so contention under the recursive run is
+the likely cause. Recorded because a test that fails once is still a flaky test, not nothing.
+
+Verified green: typecheck 4/4, `pnpm -r test` **437** (180 backend + 243 mobile + 12 web +
+2 shared), `pnpm -r build`, both Hermes bundles.

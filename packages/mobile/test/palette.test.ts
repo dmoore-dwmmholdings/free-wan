@@ -304,3 +304,66 @@ describe('what goes on top of the primary colour', () => {
     expect(light.onPrimary).toBe('#ffffff')
   })
 })
+
+/**
+ * The primary colour drawn as a glyph rather than as a fill: the current folder's name in the
+ * category row, and the icon in an active filter chip. A fill only has to be distinguishable;
+ * something you read has to be readable, and the raw primary is neither dark nor light enough
+ * against its own backdrops on every preset.
+ */
+describe('the primary colour where it is read rather than filled', () => {
+  function lum(hex: string): number {
+    const h = hex.replace('#', '')
+    const ch = (i: number) => {
+      const x = parseInt(h.slice(i, i + 2), 16) / 255
+      return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+    }
+    return 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4)
+  }
+  function ratio(a: string, b: string): number {
+    const [la, lb] = [lum(a), lum(b)]
+    const [hi, lo] = la > lb ? [la, lb] : [lb, la]
+    return (hi + 0.05) / (lo + 0.05)
+  }
+
+  it('holds 4.5:1 against the background on every preset', () => {
+    // The folder name is 13px bold, which WCAG counts as normal text rather than large, so the
+    // 4.5:1 threshold applies. The raw primary managed 3.87:1 on `midnight` — the default.
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      expect(ratio(p.primaryStrong, p.bg), `${id} folder name`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('holds 4.5:1 against the primary tint it sits on in an active chip', () => {
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      const tintOverBg = mix(p.primary, p.bg, 0.15)
+      expect(ratio(p.primaryStrong, tintOverBg), `${id} active chip`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('beats the raw primary everywhere it replaces it', () => {
+    // Otherwise this is a different colour rather than a better one.
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      expect(ratio(p.primaryStrong, p.bg), `${id}`).toBeGreaterThan(ratio(p.primary, p.bg))
+    }
+  })
+
+  it('still reads as the brand rather than as body text', () => {
+    // 60% primary against 40% text. If it drifted all the way to the text colour the active
+    // state would stop being visible at all, which is worse than the contrast it fixes.
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      expect(p.primaryStrong, `${id}`).not.toBe(p.text)
+      expect(ratio(p.primaryStrong, p.text), `${id} vs body text`).toBeGreaterThan(1.2)
+    }
+  })
+
+  it('matches the web token it mirrors', () => {
+    // --fw-primary-strong: color-mix(in srgb, var(--fw-primary) 60%, var(--fw-text))
+    const p = derivePalette(BRANDING_PRESETS.midnight!.colors)
+    expect(p.primaryStrong).toBe(mix('#6e4cff', '#e9e9ee', 0.6))
+  })
+})

@@ -56,7 +56,10 @@ function FilterToggle({
         opacity: pressed ? 0.7 : 1,
       })}
     >
-      <Ionicons name={icon} size={18} color={on ? theme.color.primary : theme.color.muted} />
+      {/* The active chip's icon sits on the primary's own 15% tint, which is exactly the case
+          `primaryStrong` exists for — the raw primary reaches 3.45:1 there on the default
+          preset, and this reaches 6.26:1. It is what the web app's `.fw-chip-active` uses. */}
+      <Ionicons name={icon} size={18} color={on ? theme.color.primaryStrong : theme.color.muted} />
     </Pressable>
   )
 }

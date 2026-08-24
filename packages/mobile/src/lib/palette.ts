@@ -155,6 +155,7 @@ export interface Palette {
   border: string
   primary: string
   primaryTint: string
+  primaryStrong: string
   accent: string
   text: string
   muted: string
@@ -175,6 +176,16 @@ export function derivePalette(colors: Branding['colors']): Palette {
     primary,
     // --fw-primary-tint: color-mix(in srgb, primary 15%, transparent)
     primaryTint: withAlpha(primary, 0.15),
+    // --fw-primary-strong: color-mix(in srgb, primary 60%, text)
+    //
+    // The primary pushed towards the text colour, for the places that draw it *as text or as an
+    // icon* rather than as a fill. The web app has had this token from the start, with a note
+    // saying the raw primary lacks AA contrast against its own tint; the phone never got it and
+    // used the raw primary in both such places. Measured on `midnight`, which is the default and
+    // the worst of the seven: the active filter icon sat at 3.45:1 on its tint and the current
+    // folder's name at 3.87:1 on the background — the latter is 13px bold, which is normal text
+    // by WCAG's reckoning and wants 4.5:1. This clears both comfortably.
+    primaryStrong: mix(primary, text, 0.6),
     accent,
     text,
     // --fw-muted: 65% text against the background — the share that holds muted text at WCAG AA

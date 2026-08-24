@@ -85,7 +85,10 @@ export function CategoryChips({
               paddingHorizontal: theme.space(1),
             }}
           >
-            <Text style={{ color: theme.color.primary, fontSize: 13, fontWeight: '700' }}>
+            {/* `primaryStrong`, not `primary`: this is 13px bold, which WCAG counts as normal
+                text and holds to 4.5:1, and the raw primary manages 3.87:1 on the default
+                preset's background. */}
+            <Text style={{ color: theme.color.primaryStrong, fontSize: 13, fontWeight: '700' }}>
               {trail[trail.length - 1]!.name}
             </Text>
           </View>
