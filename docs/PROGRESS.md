@@ -2230,3 +2230,31 @@ Also worth recording: the re-render sweep this pass was deliberate rather than i
 it came back clean. The only remaining handler firing at 4 Hz is the clip screen's `timeUpdate`,
 which sets no state at all, and both `statusChange` handlers write values React bails on. Three
 findings in that family and it is done.
+
+### A pass spent checking rather than changing
+
+Every request layer test in this package drives a stubbed `fetch`, and `api-contract.test.ts`
+proves a path exists in the routes source. Neither proves the server answers. So this pass ran
+the mobile app's whole API surface against a live server on port 8180, signing in the way the
+app does — `client: "native"`, a 43-character bearer token, and every subsequent request
+carrying it as a header rather than a cookie. That auth path had never been exercised end to end
+outside a stub.
+
+Everything answered: branding, me, the media list under four different filter and sort
+combinations, categories, tags, collections, clips, upload targets, one item's detail, playback,
+poster, progress with and without a duration, and like and unlike. The three rejections the app
+depends on all came back 422 — a negative position, a zero duration, and a sort value that is
+not one of the seven.
+
+The photo fitting was measured rather than argued for the first time. On a 1600x1200 photo the
+original is 110 KB and the fitted 1280 an iPhone asks for is 60 KB. The more interesting number
+is the other branch: asking for 2560 on that same photo returns **164 KB**, half again as large
+as the original and no sharper, which is exactly what `displayWidthFor` returns null to avoid.
+A tablet is what would ask for it, and `supportsTablet` is on. That figure is now in the
+docstring beside the claim it supports.
+
+Not done, and worth being plain about: the browser extension would not connect this session, so
+none of the four screens changed over the last few passes has been *looked at*. The dev bundle
+was exported and served, and the API was up, but the check itself did not happen. What can be
+established by reading — that no hook in any changed component sits after an early return, which
+is the fault a dev bundle would catch — was established that way instead.

@@ -135,7 +135,10 @@ const MAX_WIDTH = 2560
  * tell whether a request would be a downscale or an upscale. And when it is known to be no
  * larger than what would be asked for, the original *is* the smaller file: the server resizes
  * with `scale=w:-2`, which enlarges just as happily as it shrinks, and would answer with a
- * bigger, softer image than the one it started from.
+ * bigger, softer image than the one it started from. Measured against a live server on a
+ * 1600x1200 photo: 110 KB whole, 60 KB at 1280 — and 164 KB if 2560 is asked for, half again
+ * as large as the original for no more detail than it started with. A tablet is what would ask,
+ * since `supportsTablet` is on.
  */
 export function displayWidthFor(input: {
   /** Screen width in density-independent points. */
