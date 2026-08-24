@@ -181,13 +181,13 @@ export function UploadButton() {
       >
         {busy ? (
           <>
-            <ActivityIndicator size="small" color="#fff" />
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>
+            <ActivityIndicator size="small" color={theme.color.onPrimary} />
+            <Text style={{ color: theme.color.onPrimary, fontWeight: '700', fontSize: 14 }}>
               {progress.total > 1 ? `${progress.done + 1} of ${progress.total} · ${pct}%` : `${pct}%`}
             </Text>
           </>
         ) : (
-          <Ionicons name="add" size={24} color="#fff" />
+          <Ionicons name="add" size={24} color={theme.color.onPrimary} />
         )}
       </Pressable>
 

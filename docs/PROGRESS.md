@@ -2295,3 +2295,51 @@ Verified green: typecheck 4/4, `pnpm -r test` **427** (180 backend + 234 mobile 
 
 Still blocked: the browser extension would not connect again this pass, so the four screens
 changed over recent passes remain unlooked-at.
+
+### White text on a green button, at 2.5:1
+
+`derivePalette` returned `onPrimary: '#ffffff'` with a comment saying it was "fixed in the web
+tokens too". The web app has never fixed it — `applyBrandingVars` derives it from the primary's
+luminance — and on two of the seven shipped presets it derives the opposite. That comment is why
+nobody looked: five presets happen to want white, so the wrong ones were never the ones checked.
+
+Measured across all seven, white against each primary:
+
+| preset | primary | white | dark | web chose | mobile chose |
+|---|---|---|---|---|---|
+| midnight | `#6e4cff` | 5.07 | 3.68 | white | white |
+| slate | `#5b8def` | **3.23** | 5.79 | white | white |
+| forest | `#3fb873` | **2.53** | 7.40 | dark | **white** |
+| ember | `#ff7a3c` | **2.59** | 7.21 | dark | **white** |
+| neon | `#ff2e88` | **3.50** | 5.34 | white | white |
+| paper | `#b8442b` | 5.38 | 3.47 | white | white |
+| linen | `#1f6f5c` | 6.02 | 3.10 | white | white |
+
+Two separate faults. Mobile disagreed with the web on `forest` and `ember` and landed at 2.53:1
+and 2.59:1 — under even the 3:1 that large text needs — on the Sign in button, the Change
+password button and the floating upload button. And the web's own rule was wrong on `slate` and
+`neon`, which it gave white at 3.23:1 and 3.50:1 where dark reaches 5.79:1 and 5.34:1.
+
+The web rule was the same mistake `isLight` already carries a comment about: it averaged the raw
+gamma-encoded channels and thresholded at 0.55, which is a number on the wrong scale. Both apps
+now use the WCAG relative luminance and the crossover at 0.1791, so all seven presets agree and
+every one lands at 5.07:1 or better. `UploadButton` was also painting `#fff` directly on the
+primary in three places, bypassing the token; it uses `onPrimary` now.
+
+**This changes the web app's rendering**, which is worth stating plainly rather than burying: the
+primary button label goes from white to `#15120c` on `slate` and `neon`. That was not asked for,
+but the whole claim in `palette.ts` is that a preset resolves to the same values in both apps,
+and fixing only the phone would have left them disagreeing on a different two presets instead of
+the same two.
+
+4 tests on mobile asserting contrast rather than hex values, plus one on the web pinning the
+seven answers so the two cannot drift apart silently. Control-tested five ways: unconditional
+white, unconditional dark, deciding from the background instead of the primary, the old
+midpoint-of-the-scale threshold, and reverting the web to 0.55.
+
+`tsc` caught a duplicate import that vitest was happy with — the third time this session that
+green tests were not the whole check.
+
+Verified green: typecheck 4/4, `pnpm -r test` **432** (180 backend + 238 mobile + 12 web +
+2 shared), `pnpm -r build`, both Hermes bundles. The colours themselves have not been *seen* —
+the browser extension has now failed to connect three passes running.

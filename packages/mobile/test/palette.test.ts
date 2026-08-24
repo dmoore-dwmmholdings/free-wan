@@ -234,3 +234,73 @@ describe('a base colour written with an alpha channel, which the server accepts'
     expect(mix('#241f18', '#f3efe6', 0.65)).toBe('#6c6860')
   })
 })
+
+/**
+ * The label on the primary button — Sign in, Change password, and the upload button's icon and
+ * percentage. It used to be `#ffffff` unconditionally, with a comment claiming the web tokens
+ * fixed it the same way. The web app has always derived it, and on two of the seven presets it
+ * derived the opposite.
+ */
+describe('what goes on top of the primary colour', () => {
+  /** WCAG contrast ratio, so the assertions are about legibility rather than about a hex. */
+  function ratio(a: string, b: string): number {
+    const lum = (hex: string) => {
+      const h = hex.replace('#', '')
+      const ch = (i: number) => {
+        const x = parseInt(h.slice(i, i + 2), 16) / 255
+        return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+      }
+      return 0.2126 * ch(0) + 0.7152 * ch(2) + 0.0722 * ch(4)
+    }
+    const [la, lb] = [lum(a), lum(b)]
+    const [hi, lo] = la > lb ? [la, lb] : [lb, la]
+    return (hi + 0.05) / (lo + 0.05)
+  }
+
+  it('reaches WCAG AA on every preset that ships', () => {
+    // 4.5:1 is the threshold for normal text. Before this, `forest` sat at 2.53:1 and `ember`
+    // at 2.59:1 — under even the 3:1 that large text needs.
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      expect(ratio(preset.colors.primary, p.onPrimary), `${id} on-primary`).toBeGreaterThanOrEqual(4.5)
+    }
+  })
+
+  it('picks the better of the two, not merely an adequate one', () => {
+    // A rule that always returned dark would also pass the check above on some presets. This
+    // says the choice is the higher-contrast one every time.
+    for (const [id, preset] of Object.entries(BRANDING_PRESETS)) {
+      const p = derivePalette(preset.colors)
+      const other = p.onPrimary === '#ffffff' ? '#15120c' : '#ffffff'
+      expect(
+        ratio(preset.colors.primary, p.onPrimary),
+        `${id}: ${p.onPrimary} should beat ${other}`,
+      ).toBeGreaterThan(ratio(preset.colors.primary, other))
+    }
+  })
+
+  it('gives dark text to the light primaries and white to the dark ones', () => {
+    // Named so a change of rule has to face which presets it moves.
+    const chosen = Object.fromEntries(
+      Object.entries(BRANDING_PRESETS).map(([id, p]) => [id, derivePalette(p.colors).onPrimary]),
+    )
+    expect(chosen).toEqual({
+      midnight: '#ffffff',
+      slate: '#15120c',
+      forest: '#15120c',
+      ember: '#15120c',
+      neon: '#15120c',
+      paper: '#ffffff',
+      linen: '#ffffff',
+    })
+  })
+
+  it('follows the primary rather than the background', () => {
+    // A light app with a dark primary still wants white on the button.
+    const light = derivePalette({
+      primary: '#1f6f5c', accent: '#c2682f',
+      background: '#f3efe6', surface: '#fbf8f2', text: '#241f18',
+    })
+    expect(light.onPrimary).toBe('#ffffff')
+  })
+})

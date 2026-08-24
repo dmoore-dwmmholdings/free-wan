@@ -145,6 +145,9 @@ export function isLight(color: string): boolean {
   return luminance > TEXT_CROSSOVER_LUMINANCE
 }
 
+/** The dark half of the on-primary pair, shared with the web app's `--fw-on-primary`. */
+const ON_PRIMARY_DARK = '#15120c'
+
 export interface Palette {
   bg: string
   surface: string
@@ -180,8 +183,19 @@ export function derivePalette(colors: Branding['colors']): Palette {
     // normal text needs. Kept in step with the web token by hand; the point of this file is
     // that a preset resolves to the same values in both apps, not merely similar ones.
     muted: mix(text, bg, 0.65),
-    // Fixed in the web tokens too — every preset's primary is dark enough for white on it.
-    onPrimary: '#ffffff',
+    // Decided, not fixed. This used to be `#ffffff` with a comment saying the web tokens fixed
+    // it too, which was simply untrue — the web app has always derived it — and the claim went
+    // unchecked because five of the seven presets happen to want white anyway. `forest` and
+    // `ember` do not: white on their primary is 2.53:1 and 2.59:1, under even the 3:1 that
+    // large text needs, and those tokens are the label on the Sign in button, the Change
+    // password button and the upload button. The web app put dark text on both.
+    //
+    // `isLight` rather than the web's old rule, because that rule was wrong in the other
+    // direction too: it thresholds a plain channel average at 0.55, and called `slate` and
+    // `neon` white at 3.23:1 and 3.50:1 where dark gives 5.79:1 and 5.34:1. The crossover
+    // luminance below is right for all seven, and the web app now uses the same one — the
+    // point of this file is that a preset resolves to the same values in both apps.
+    onPrimary: isLight(primary) ? ON_PRIMARY_DARK : '#ffffff',
     danger: '#f87171',
   }
 }
