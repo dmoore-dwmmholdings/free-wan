@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from 'react-native'
-import { useRouter } from 'expo-router'
 import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useLogin } from '@/lib/auth'
 import { getServerUrl } from '@/lib/session'
@@ -61,7 +60,6 @@ function Field(props: {
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets()
-  const router = useRouter()
   const login = useLogin()
   const [server, setServer] = useState('')
   const [username, setUsername] = useState('')
@@ -79,10 +77,11 @@ export default function LoginScreen() {
 
   const submit = () => {
     if (!canSubmit) return
-    login.mutate(
-      { server, username, password },
-      { onSuccess: () => router.replace('/') },
-    )
+    // Where to go next is the gate's decision, not this screen's: it is the thing that knows
+    // whether the password still has to be changed, and what was being asked for before it
+    // intervened. Navigating from here as well raced it, and the library appeared for a frame
+    // on the way to somewhere else.
+    login.mutate({ server, username, password })
   }
 
   return (

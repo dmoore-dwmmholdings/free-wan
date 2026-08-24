@@ -81,3 +81,74 @@ describe('deciding where the gate sends someone', () => {
     }
   })
 })
+
+/**
+ * Where the gate puts someone once it lets them through.
+ *
+ * Always `/` was wrong twice over. Following a `freewan://` link to an item while signed out
+ * opened the library, because signing in navigated there and nothing had kept hold of what was
+ * asked for. And a session expiring mid-use ends the same way: the 401 clears it, the gate sends
+ * you to sign in, and signing back in drops you at the library instead of the video you were
+ * halfway through.
+ */
+describe('coming back to what was asked for', () => {
+  it('returns to the route the gate turned someone away from', () => {
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: '/media/abc' })).toBe('/media/abc')
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: '/clip/xyz' })).toBe('/clip/xyz')
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: '/collection/1' })).toBe('/collection/1')
+  })
+
+  it('survives a forced password change on the way', () => {
+    // A change of password is a detour, not a destination.
+    expect(at({ signedIn: true, segment: 'change-password', pendingRoute: '/media/abc' })).toBe('/media/abc')
+  })
+
+  it('falls back to the library when there was nothing to return to', () => {
+    expect(at({ signedIn: true, segment: 'login' })).toBe('/')
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: null })).toBe('/')
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: '' })).toBe('/')
+  })
+
+  it('never returns to a gate screen', () => {
+    // Returning to /login puts someone back where they just came from; returning to
+    // /change-password asks again for something that has already happened.
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: '/login' })).toBe('/')
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: '/change-password' })).toBe('/')
+  })
+
+  it('refuses anything that is not an absolute route of ours', () => {
+    // The pending value comes from the router rather than from a URL bar, but a destination is
+    // a destination and this is the one place that decides one.
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: 'media/abc' })).toBe('/')
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: 'https://elsewhere.example' })).toBe('/')
+    expect(at({ signedIn: true, segment: 'login', pendingRoute: '//elsewhere.example' })).toBe('/')
+  })
+
+  it('does not resume anyone who is not through the gate yet', () => {
+    // Signed out, or still blocked: the pending route must not pull them past either.
+    expect(at({ segment: 'media', pendingRoute: '/media/abc' })).toBe('/login')
+    expect(
+      at({ signedIn: true, mustChangePassword: true, segment: 'login', pendingRoute: '/media/abc' }),
+    ).toBe('/change-password')
+  })
+
+  it('still never sends anywhere that would immediately send somewhere else', () => {
+    // The same fixed-point property as above, now that a destination can be any route.
+    for (const pendingRoute of [null, '/media/abc', '/login', '/change-password', 'nonsense']) {
+      for (const signedIn of [true, false]) {
+        for (const mustChangePassword of [true, false]) {
+          for (const segment of [undefined, 'login', 'change-password', 'media']) {
+            const state = { ready: true, signedIn, mustChangePassword, segment, pendingRoute }
+            const to = gateRedirect(state)
+            if (!to) continue
+            const landedOn = to === '/' ? undefined : to.split('/')[1]
+            expect(
+              gateRedirect({ ...state, segment: landedOn }),
+              `${JSON.stringify(state)} → ${to}`,
+            ).toBeNull()
+          }
+        }
+      }
+    }
+  })
+})

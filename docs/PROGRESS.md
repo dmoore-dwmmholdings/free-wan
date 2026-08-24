@@ -2384,3 +2384,42 @@ the likely cause. Recorded because a test that fails once is still a flaky test,
 
 Verified green: typecheck 4/4, `pnpm -r test` **437** (180 backend + 243 mobile + 12 web +
 2 shared), `pnpm -r build`, both Hermes bundles.
+
+### Signing in threw away where you were going
+
+`login.tsx` finished with `router.replace('/')`, and nothing anywhere recorded an intended
+route. Two ordinary situations ended badly because of it. Following a `freewan://` link to an
+item while signed out — a first install, or a link from someone else — opened the library.
+And a session expiring mid-use ends the same way: the 401 clears the session, the gate sends you
+to sign in, and signing back in drops you at the library rather than the video you were halfway
+through. Deep links are one of the two things that were asked for under "native feel", and step
+9 of the device checklist.
+
+This app has met the same loss before from a different direction. `useBranding`'s docstring
+records a remount discarding a deep link "a moment after it arrived", and the whole shape of that
+hook exists to avoid it. The cause was fixed; this second cause was not.
+
+The gate now owns it, which is where it belongs — it is the thing that knows whether the password
+still has to be changed and what was being asked for. `gateRedirect` takes a `pendingRoute` and
+returns it instead of `/` when it releases a gate screen; the effect in the root layout remembers
+the path as it redirects to sign-in, keeps it across a forced password change, and drops it once
+used. `login.tsx` no longer navigates at all — doing both raced, and the library appeared for a
+frame on the way elsewhere.
+
+7 tests, control-tested three ways: always returning `/`, allowing a gate screen as a
+destination, and accepting any string. The existing fixed-point property test — that no
+destination immediately redirects again — was extended to cover a destination that can now be any
+route.
+
+One of the new tests failed on the first run and was right to: `//elsewhere.example` passes a
+bare `startsWith('/')` and would have been returned as a destination. It is a protocol-relative
+URL, not a route of ours. Guarded.
+
+**Noted, not changed:** `app.json` lists the `expo-font` plugin and nothing uses it — there is no
+`useFonts`, no `assets/fonts`, and the docs say plainly that admin-chosen fonts are not followed.
+It is probably inert, since autolinking covers the native module either way, but "probably inert"
+is not something worth acting on blind for no gain.
+
+Verified green: typecheck 4/4, `pnpm -r test` **444** (180 backend + 250 mobile + 12 web +
+2 shared), `pnpm -r build`, both Hermes bundles. Not seen working: deep links need a real build,
+and the browser extension has now failed to connect four passes running.

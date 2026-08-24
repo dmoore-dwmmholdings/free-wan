@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { ActivityIndicator, Pressable, Text, View } from 'react-native'
-import { Stack, useRouter, useSegments } from 'expo-router'
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
@@ -9,7 +9,7 @@ import { createQueryClient } from '@/lib/query'
 import { useBranding } from '@/lib/branding'
 import { useRefetchOnForeground } from '@/lib/focus'
 import { isLight } from '@/lib/palette'
-import { gateRedirect } from '@/lib/gate'
+import { clearPendingRoute, gateRedirect, pendingRoute, rememberRoute } from '@/lib/gate'
 import { theme } from '@/theme'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import type { ErrorBoundaryProps } from 'expo-router'
@@ -19,6 +19,7 @@ const queryClient = createQueryClient()
 function Gate() {
   const { ready, server, token } = useStoredSession()
   const segments = useSegments()
+  const pathname = usePathname()
   const router = useRouter()
 
   const signedIn = Boolean(server && token)
@@ -28,9 +29,21 @@ function Gate() {
   const mustChangePassword = me?.mustChangePassword === true
 
   useEffect(() => {
-    const to = gateRedirect({ ready, signedIn, mustChangePassword, segment: segments[0] })
-    if (to) router.replace(to)
-  }, [ready, signedIn, mustChangePassword, segments, router])
+    const to = gateRedirect({
+      ready,
+      signedIn,
+      mustChangePassword,
+      segment: segments[0],
+      pendingRoute: pendingRoute(),
+    })
+    if (!to) return
+    // Hold on to where they were going, so signing in returns them to it rather than to the
+    // library. Kept across a forced password change, which is a detour rather than a
+    // destination, and dropped once it has been used.
+    if (to === '/login') rememberRoute(pathname)
+    else if (to !== '/change-password') clearPendingRoute()
+    router.replace(to as Parameters<typeof router.replace>[0])
+  }, [ready, signedIn, mustChangePassword, segments, pathname, router])
 
   if (!ready) {
     return (

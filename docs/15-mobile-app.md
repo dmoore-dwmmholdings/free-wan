@@ -112,6 +112,12 @@ cannot mint one without the password. See `resolveSession` in
 
 The token is stored in `expo-secure-store` — the iOS Keychain and the Android Keystore.
 
+Signing in returns you to whatever you were trying to open. Following a `freewan://` link to an
+item while signed out used to end at the library, because signing in navigated there and nothing
+had kept hold of what was asked for; the same happened when a session expired mid-use and you
+signed back in. The gate holds the route it turned you away from, keeps it across a forced
+password change, and drops it once it has been used.
+
 If the account still carries the password it was created with, the app asks for a new one
 before it will show anything, the same as the web app does. Changing your own password is the
 only account action here; everything else stays on the web app. If the server cannot be
