@@ -27,7 +27,14 @@ function Row({ item }: { item: DownloadRecord }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.space(3) }}>
       <Link href={`/media/${item.id}`} asChild>
-        <Pressable style={({ pressed }) => ({ flex: 1, flexDirection: 'row', gap: theme.space(3), opacity: pressed ? 0.7 : 1 })}>
+        <Pressable
+          accessibilityRole="link"
+          // Named for the same reason a grid tile is: left alone, the name is the children run
+          // together, so this announced as the title and the size with nothing between them —
+          // and never said it was a link at all.
+          accessibilityLabel={[item.title, duration, formatBytes(item.bytes)].filter(Boolean).join(', ')}
+          style={({ pressed }) => ({ flex: 1, flexDirection: 'row', gap: theme.space(3), opacity: pressed ? 0.7 : 1 })}
+        >
           <AuthImage
             localUri={item.posterUri}
             style={{ width: 108, aspectRatio: 16 / 10, borderRadius: theme.radius.sm, backgroundColor: theme.color.surface2 }}

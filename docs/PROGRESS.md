@@ -2556,3 +2556,40 @@ Control-tested by reintroducing two of the three original defects — the accent
 primary folder name — and by moving a fixed white into a file with no exemption. Each fails.
 
 Verified green: typecheck 4/4, `pnpm -r test` **453**, `pnpm -r build`, both Hermes bundles.
+
+### A row that never said it was a link, and two things checked and found fine
+
+The Downloads tab lists finished downloads as a `Link` wrapping a `Pressable`, and alone among
+the four screens that list things it gave that Pressable neither a role nor a name. React Native
+makes a Pressable an accessibility element unless told otherwise, and builds an unnamed element's
+name from its children — so the row announced as its title and its size run together, and never
+said it was a link at all. Every other list in the app names its rows, with a comment in
+`MediaTile` explaining why. This one was missed.
+
+Fixed, and then guarded: `test/pressables.test.ts` reads the source for every `<Pressable`, parses
+its opening tag by counting brace depth — a style prop is an arrow function returning an object,
+so a naive scan for `>` ends the tag on the fat arrow — and requires each one to carry a role or
+an explicit `accessible={false}`. A second check requires a label wherever the children would not
+read, with the six exceptions listed by file rather than counted: each is a control whose only
+child is a plain `Text` saying exactly what it does, where a name would be the same words twice.
+
+Control-tested by removing the role and then the label from the row just fixed. Both fail.
+
+Two things were checked this pass and found fine, which is worth recording so they are not
+checked again:
+
+- **Large system font sizes.** No `Text` in this app sits in a container with a fixed height, and
+  nothing overrides `allowFontScaling`, so text grows with the phone's setting and every
+  container grows with it. That is the correct behaviour and it was already there.
+- **Non-text contrast on controls**, WCAG 1.4.11, which wants 3:1 for the visual boundary of a
+  user-interface component. Measured: `border` against what it sits on is 1.24–1.34:1 across the
+  seven presets, and `surface` against `bg` is 1.07–1.18:1. So a text input, a chip or a card is
+  delineated by neither its edge nor its fill at that threshold.
+
+That last one is **reported and deliberately not changed**. It is identical in the web app —
+`--fw-border` is the same 11% mix — and it is the visual signature of the whole design rather
+than an oversight. Bringing it to 3:1 means every border in both apps roughly three times
+heavier, which is a redesign and the user's call, not a defect fix to make unilaterally. axe does
+not flag it, which is why the browser audits pass.
+
+Verified green: typecheck 4/4, `pnpm -r test` **456**, `pnpm -r build`, both Hermes bundles.
