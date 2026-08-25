@@ -24,7 +24,12 @@ export default function TabsLayout() {
           backgroundColor: theme.color.surface,
           borderTopColor: theme.color.border,
         },
-        tabBarActiveTintColor: theme.color.primary,
+        // `primaryStrong`, not `primary`. React Navigation paints the icon and the label with
+        // this one colour, and the label is 11px — normal text by WCAG's reckoning, holding to
+        // 4.5:1. The raw primary reaches 3.55:1 against the bar on the default preset, which is
+        // fine for the icon and not for the word under it. Measured in a browser: the active
+        // label was 3.55:1 where every inactive one was 6.51:1.
+        tabBarActiveTintColor: theme.color.primaryStrong,
         tabBarInactiveTintColor: theme.color.muted,
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
       }}

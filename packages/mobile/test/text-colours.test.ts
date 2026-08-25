@@ -63,9 +63,20 @@ interface Use {
 }
 
 /**
- * Every `color:` in a style object. Lower-case `c` on purpose: `backgroundColor`, `borderColor`,
- * `tintColor` and the rest all capitalise it, so this matches the text colour and nothing else.
+ * Every `color:` in a style object, and every navigator prop that paints text without going
+ * through one.
+ *
+ * The second half was added after the first missed something a browser found immediately.
+ * React Navigation's `tabBarActiveTintColor` colours the icon *and* the label with one value,
+ * and the label is 11px — normal text, holding to 4.5:1. It was set to the raw primary, which
+ * measures 3.55:1 against the bar on the default preset, and this file said nothing because the
+ * colour never appears as a `color:` in a style. Every inactive label sat at 6.51:1 beside it.
+ *
+ * That is the third time a check here has missed the case that mattered by only understanding
+ * the shape in front of it at the time. The lesson taken in `stubs.test.ts` applies: list the
+ * props that paint text, and fail on one that is not recognised rather than passing in silence.
  */
+const TEXT_PAINTING_PROPS = ['tabBarActiveTintColor', 'tabBarInactiveTintColor', 'headerTintColor']
 function textColourUses(): Use[] {
   const uses: Use[] = []
   for (const root of ROOTS) {
@@ -74,9 +85,10 @@ function textColourUses(): Use[] {
       readFileSync(file, 'utf8')
         .split('\n')
         .forEach((text, i) => {
-          const at = text.indexOf('color:')
-          if (at === -1) return
-          const value = text.slice(at + 'color:'.length)
+          const prop = TEXT_PAINTING_PROPS.find((p) => text.includes(`${p}:`))
+          const at = prop ? text.indexOf(`${prop}:`) + prop.length + 1 : text.indexOf('color:')
+          if (!prop && text.indexOf('color:') === -1) return
+          const value = prop ? text.slice(at) : text.slice(at + 'color:'.length)
           uses.push({
             file: file.replace(/.*packages./, 'packages/'),
             base,

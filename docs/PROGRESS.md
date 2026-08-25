@@ -2836,3 +2836,31 @@ URL of different extension" until the tab was reloaded, so a failure there is wo
 before concluding anything. And `read_page` shows the Sign in button with no accessible name,
 because react-native-web does not compute a name from children the way a phone does — not a
 finding about the app, but a reason not to audit names through this harness.
+
+### The tab bar was the fourth one, and looking is what found it
+
+With the browser working, the one element on every screen turned out to have the same defect
+already fixed three times. React Navigation paints an active tab's icon *and* its label with a
+single `tabBarActiveTintColor`, and that was the raw primary. Measured in the browser on the
+default preset: the word "Browse" at 11px, weight 600, `rgb(110, 76, 255)` on `rgb(22, 22, 29)` —
+**3.55:1**. Every inactive label beside it sat at 6.51:1. Normal text holds to 4.5:1.
+
+Fine for the icon, which is a graphical object and holds to 3:1. Not fine for the word under it,
+and the tab bar is the one thing visible from every screen in the app.
+
+`tabBarActiveTintColor` is `primaryStrong` now, which is what the two earlier fixes used, and the
+browser reports **6.45:1** after the change — still plainly the brand colour beside the muted
+labels rather than blending into them.
+
+The point worth recording is how it was found. `test/text-colours.test.ts` was written two passes
+ago precisely to catch this class, and it did not, because it only matched `color:` inside a style
+object — and this colour never appears as one. Three separate guards have now missed the case
+that mattered by understanding only the shape in front of me when I wrote them: the stub check
+missed namespace imports, then default imports; this one missed navigator props. It now reads
+`tabBarActiveTintColor`, `tabBarInactiveTintColor` and `headerTintColor` as well, control-tested
+by putting the raw primary back.
+
+A guard is worth having and is not a substitute for looking at the thing.
+
+Verified green: typecheck 4/4, `pnpm -r test` **475**, and the fix measured on rendered pixels in
+the browser it was found in.
