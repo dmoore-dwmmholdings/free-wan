@@ -2798,3 +2798,41 @@ on the strength of a hunch is what this pass just spent its time not doing.
 
 Verified: typecheck 4/4, the API suite three times over at 180, and `pnpm -r test` at 475 across
 the four packages.
+
+### Seeing it, at last — and why the harness had never worked with real data
+
+The browser extension connected for the first time in seven passes, so the screens changed over
+the last dozen or so were finally looked at rather than reasoned about.
+
+The first thing found was that the harness as documented cannot work. `docs/15-mobile-app.md`
+gave the export command and nothing else, and a static server on one port pointed at the API on
+another is refused by the browser before a single request leaves: the API sets no
+`Access-Control-Allow-Origin` and does set `Cross-Origin-Resource-Policy: same-origin`, because
+in a real deployment it serves the web app itself. The failure looks exactly like a server that
+is up and empty — no data, no error from the server, nothing but failures in the network tab.
+Every claim in that section about filters, pagination and empty states being checkable this way
+depended on something the section never said.
+
+`packages/mobile/scripts/serve-web.mjs` serves the export and forwards `/api` to a real server,
+so the page sees one origin. The doc says to use it and why.
+
+With that, the app ran against the preview server with its fifteen real items: search, folder
+chips with counts, the three filter toggles and the sort button, the tab bar, the upload button.
+Then the two contrast fixes that had only ever been arithmetic:
+
+- **Error text on a light preset.** Switching branding to `linen` and measuring the rendered Sign
+  out button: `rgb(185, 28, 28)` on `rgb(243, 239, 230)`, **5.64:1**. That is `#b91c1c` — the
+  value chosen for `DANGER_ON_LIGHT` — and 5.64 is exactly what the unit test predicts. Before
+  the fix it was 2.41:1.
+- **The current folder's name on the default preset**, which is where that defect actually was.
+  On `midnight`: `rgb(159, 139, 248)` at **7.03:1**, and the raw primary measured in the same
+  browser against the same background at **3.87:1**. Both match the unit tests to two decimals.
+
+So two changes made from contrast arithmetic are now confirmed against rendered pixels, along
+with the defect each replaced. Light mode has also simply been *seen* for the first time.
+
+Two smaller notes. The extension refused several calls with "Cannot access a chrome-extension://
+URL of different extension" until the tab was reloaded, so a failure there is worth one reload
+before concluding anything. And `read_page` shows the Sign in button with no accessible name,
+because react-native-web does not compute a name from children the way a phone does — not a
+finding about the app, but a reason not to audit names through this harness.

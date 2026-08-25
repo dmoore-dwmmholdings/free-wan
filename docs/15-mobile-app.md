@@ -450,7 +450,16 @@ they are being changed:
 
 ```bash
 pnpm --filter @free-wan/mobile exec expo export --platform web --output-dir <dir>
+node packages/mobile/scripts/serve-web.mjs <dir> --port 4400 --api http://localhost:8080
 ```
+
+Serve it through that script rather than any static file server, because the two have to share
+an origin. The API is same-origin by design — it sets no `Access-Control-Allow-Origin` and does
+set `Cross-Origin-Resource-Policy: same-origin`, since in a real deployment it serves the web app
+itself. A bundle on one port pointed at an API on another has every request refused by the
+browser before it is sent, which looks exactly like a server that is up and empty: no data, no
+error from the server, nothing in the network tab but failures. The script forwards `/api` to the
+real server so the page sees one origin.
 
 `expo-video` cannot play here and `expo-file-system` does nothing, so playback, downloads and
 uploads are all out of reach. Posters do not load either, and the console fills with
