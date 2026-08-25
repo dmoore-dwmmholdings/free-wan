@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { __test, batchSummary, fileNameFor, uploadBlocker } from '@/lib/uploads'
 
 const { outcomeFor } = __test
@@ -166,5 +166,104 @@ describe('what to say when a batch of uploads ends', () => {
     // Otherwise pressing Stop would produce a list of failures, one of which is the stop.
     const summary = batchSummary([ok('a.jpg'), bad('b.txt', 'unsupported file type')], true)
     expect(summary.title).toBe('Upload stopped')
+  })
+})
+
+/**
+ * `uploadFile` itself, which until now had no test at all: the filesystem stub was missing
+ * `createUploadTask` and `FileSystemUploadType`, and both reach it through a namespace import,
+ * so they arrived as `undefined` and nothing complained because nothing ever called them.
+ *
+ * It matters more than most of this file. It reads the server's own answer rather than
+ * inferring one, it treats 202 and 422 as answers and everything else as an error, and it hands
+ * the running transfer back so the Stop control has something to act on.
+ */
+describe('sending one file', () => {
+  async function fresh() {
+    vi.resetModules()
+    const fs = await import('./stubs/expo-file-system')
+    fs.__uploads.reset()
+    const session = await import('@/lib/session')
+    await session.saveSession('https://media.example.com', 'token-abc')
+    const uploads = await import('@/lib/uploads')
+    return { fs, uploads }
+  }
+  const FILE = { uri: 'file:///photo.jpg', name: 'photo.jpg', mimeType: 'image/jpeg' }
+
+  it('sends it to the repository, authenticated, as multipart', async () => {
+    const { fs, uploads } = await fresh()
+    await uploads.uploadFile('repo-1', FILE)
+
+    const call = fs.__uploads.calls[0]!
+    expect(call.url).toBe('https://media.example.com/api/repositories/repo-1/upload')
+    expect(call.fileUri).toBe('file:///photo.jpg')
+    expect(call.options.uploadType).toBe('multipart')
+    expect(call.options.headers).toMatchObject({ authorization: 'Bearer token-abc' })
+  })
+
+  it('reports the name the server saved, which is not always the one sent', async () => {
+    // Uploading IMG_0001.jpg twice leaves the second as "IMG_0001 (1).jpg".
+    const { fs, uploads } = await fresh()
+    fs.__uploads.reply(202, { files: ['IMG_0001 (1).jpg'], skipped: [] })
+    await expect(uploads.uploadFile('repo-1', { ...FILE, name: 'IMG_0001.jpg' })).resolves.toEqual({
+      name: 'IMG_0001 (1).jpg',
+      ok: true,
+    })
+  })
+
+  it('treats a 422 as an answer, with the server’s reason', async () => {
+    // Every file rejected. That is the route reporting, not the request failing.
+    const { fs, uploads } = await fresh()
+    fs.__uploads.reply(422, { files: [], skipped: [{ name: 'clip.avi', reason: 'unsupported file type' }] })
+    await expect(uploads.uploadFile('repo-1', { ...FILE, name: 'clip.avi' })).resolves.toEqual({
+      name: 'clip.avi',
+      ok: false,
+      reason: 'unsupported file type',
+    })
+  })
+
+  it('throws on a status that is neither', async () => {
+    const { fs, uploads } = await fresh()
+    fs.__uploads.reply(500, 'upstream exploded')
+    await expect(uploads.uploadFile('repo-1', FILE)).rejects.toThrow(/HTTP 500/)
+  })
+
+  it('throws when the answer is not JSON, rather than reporting a false success', async () => {
+    // A proxy in front of the server answers with HTML; parsing it would bury the real problem.
+    const { fs, uploads } = await fresh()
+    fs.__uploads.reply(202, '<html>Gateway Timeout</html>')
+    await expect(uploads.uploadFile('repo-1', FILE)).rejects.toThrow(/could not read/)
+  })
+
+  it('leaves out a mime type the picker did not know', async () => {
+    // The route falls back to the extension, so an unknown type is better absent than guessed.
+    const { fs, uploads } = await fresh()
+    await uploads.uploadFile('repo-1', { uri: 'file:///x', name: 'x.jpg', mimeType: null })
+    expect('mimeType' in fs.__uploads.calls[0]!.options).toBe(false)
+  })
+
+  it('reports progress as a fraction', async () => {
+    const { uploads } = await fresh()
+    const seen: number[] = []
+    await uploads.uploadFile('repo-1', FILE, (f) => seen.push(f))
+    expect(seen).toEqual([0.5, 1])
+  })
+
+  it('hands the running transfer back, which is what Stop acts on', async () => {
+    // Without this the upload could not be stopped at all — the task stayed inside uploadFile.
+    const { fs, uploads } = await fresh()
+    const release = fs.__uploads.hold()
+    let task: { cancelAsync: () => Promise<void> } | null = null
+    const pending = uploads.uploadFile('repo-1', FILE, undefined, (t) => {
+      task = t
+    })
+    await new Promise((r) => setTimeout(r, 10))
+
+    expect(task).not.toBeNull()
+    await task!.cancelAsync()
+    // A cancelled transfer resolves to undefined, which uploadFile turns into a throw for the
+    // batch loop to recognise.
+    await expect(pending).rejects.toThrow(/cancelled/i)
+    release()
   })
 })

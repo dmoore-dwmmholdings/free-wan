@@ -555,7 +555,9 @@ what would be worst if it were wrong.
 12. **Turn subtitles on.** The words should land on the right ones.
 13. **Upload from the camera roll.** The picker, the which-library sheet and the transfer are
     all untried: `expo-image-picker` opens the platform's own file dialog, and the upload task
-    has no web implementation. Send several at once, including a video. Then start another
+    has no web implementation — though the transfer's own logic is covered now, so what is
+    untried here is the picker, the sheet and the platform's upload task rather than the
+    handling of what comes back. Send several at once, including a video. Then start another
     batch and press **Stop** partway: the file going up should be abandoned along with
     everything queued behind it, and the summary should say how many had already landed rather
     than reporting the interrupted one as a failure.

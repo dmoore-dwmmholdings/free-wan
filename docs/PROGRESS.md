@@ -2702,3 +2702,40 @@ particular that `disableHierarchicalLookup` is deliberately not set, and `babel.
 
 Verified green: typecheck 4/4, `pnpm -r test` **462** (180 backend + 268 mobile + 12 web +
 2 shared).
+
+### The upload path had no tests, and could not have had any
+
+Last pass found the `react-native` stub silently missing `AppState`. Looking for the same shape
+elsewhere found a worse one: the filesystem stub had neither `createUploadTask` nor
+`FileSystemUploadType`, and `uploads.ts` reaches both through a namespace import — so they were
+`undefined` at the call site rather than an error at load. Nothing noticed because no test had
+ever called `uploadFile`. It could not: the two things it needs were not there.
+
+That left the whole transfer untested — the multipart options, the bearer header, reading the
+name the server actually saved, treating 202 and 422 as answers and anything else as an error,
+refusing a body that is not JSON, and the `onTask` handoff the Stop control was built on a few
+passes ago. All of it, on the one path that moves a user's own files off their phone.
+
+The guard written last pass would not have caught this. It said, in as many words, that a
+namespace import "takes everything, so there is nothing to check name by name" — which is wrong
+in the way that matters: an absent member of a namespace object is `undefined` and silent,
+exactly like an absent named export. It now resolves the binding from `import * as X` and
+requires the stub to provide every `X.member` the library touches. Control-tested by removing
+`createUploadTask` again; it names `uploads.ts`.
+
+The stub grew an upload task that records what was sent, can be told what to answer with, and
+can be held open so a cancel arrives mid-flight. 8 tests on `uploadFile`, control-tested three
+ways: dropping the `onTask` handoff, accepting any status as an answer, and guessing a mime type
+the picker did not know.
+
+Also checked this pass and found clean: no `.only`, `.skip` or `.todo` anywhere in the suite; all
+twenty test files on disk are executed by the include pattern, and their per-file counts sum to
+the reported total. A test that never runs is the same kind of lie as a stub that hands over
+nothing, and neither is happening.
+
+What this does not do: the picker, the platform's own upload task, and the Stop button itself
+still need a device. What changed is that everything between the button and the server is now
+covered.
+
+Verified green: typecheck 4/4, `pnpm -r test` **470** (180 backend + 276 mobile + 12 web +
+2 shared), `pnpm -r build`, both Hermes bundles.

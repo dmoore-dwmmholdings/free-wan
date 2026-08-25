@@ -135,3 +135,81 @@ export function createDownloadResumable(
 export async function deleteAsync(uri: string): Promise<void> {
   files.delete(uri)
 }
+
+// ---- uploads -----------------------------------------------------------------
+//
+// Absent until now, along with `FileSystemUploadType`. Both reach `uploads.ts` through a
+// namespace import, so a missing one is `undefined` at the call site rather than an error at
+// load — and since no test had ever driven `uploadFile`, nothing noticed. `stubs.test.ts` now
+// checks namespace members too, which is what turned this up.
+
+export const FileSystemUploadType = { MULTIPART: 'multipart', BINARY_CONTENT: 'binary' } as const
+
+interface UploadOptions {
+  httpMethod?: string
+  uploadType?: string
+  fieldName?: string
+  mimeType?: string
+  headers?: Record<string, string>
+}
+
+let uploadReply: { status: number; body: string } = {
+  status: 202,
+  body: JSON.stringify({ files: ['photo.jpg'], skipped: [] }),
+}
+let uploadHold: Promise<void> | null = null
+let releaseUpload: (() => void) | null = null
+
+export const __uploads = {
+  /** What the next `uploadAsync` answers with. The route replies 202 or 422 and nothing else. */
+  reply(status: number, body: unknown) {
+    uploadReply = { status, body: typeof body === 'string' ? body : JSON.stringify(body) }
+  },
+  /** Hold the next transfer open so a cancel can arrive mid-flight. Returns a release. */
+  hold() {
+    let release!: () => void
+    uploadHold = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    releaseUpload = release
+    return release
+  },
+  reset() {
+    uploadReply = { status: 202, body: JSON.stringify({ files: ['photo.jpg'], skipped: [] }) }
+    uploadHold = null
+    releaseUpload = null
+    this.calls = []
+  },
+  /** Every upload attempted, so a test can check what was sent and in what order. */
+  calls: [] as { url: string; fileUri: string; options: UploadOptions }[],
+}
+
+export function createUploadTask(
+  url: string,
+  fileUri: string,
+  options: UploadOptions,
+  onProgress?: (p: { totalBytesSent: number; totalBytesExpectedToSend: number }) => void,
+) {
+  let isCancelled = false
+  return {
+    async uploadAsync() {
+      __uploads.calls.push({ url, fileUri, options })
+      onProgress?.({ totalBytesSent: 512, totalBytesExpectedToSend: 1024 })
+      if (uploadHold) {
+        const pending = uploadHold
+        uploadHold = null
+        await pending
+      }
+      // expo resolves to undefined for a cancelled transfer rather than rejecting, the same as
+      // it does for a download.
+      if (isCancelled) return undefined
+      onProgress?.({ totalBytesSent: 1024, totalBytesExpectedToSend: 1024 })
+      return uploadReply
+    },
+    async cancelAsync() {
+      isCancelled = true
+      uploadHold = null
+      releaseUpload?.()
+    },
+  }
+}

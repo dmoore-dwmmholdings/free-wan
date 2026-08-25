@@ -59,7 +59,18 @@ function namesImportedFrom(pkg: string): { name: string; file: string }[] {
         found.push({ name: clean.split(/\s+as\s+/)[0]!.trim(), file: file.replace(/.*packages./, 'packages/') })
       }
     }
-    // Namespace imports take everything, so there is nothing to check name by name.
+    // A namespace import needs the same check, by a different route. `import * as FileSystem`
+    // binds an object, so a member the stub lacks is `undefined` at the call site rather than
+    // an error at load — which is how `createUploadTask` and `FileSystemUploadType` went
+    // missing from the filesystem stub without anything failing. Nothing had ever called
+    // `uploadFile`, so nothing ever reached them.
+    const ns = new RegExp(`import\\s*\\*\\s*as\\s+(\\w+)\\s*from\\s*['"]${pkg.replace(/[/\\]/g, '\\$&')}['"]`)
+    const bound = ns.exec(src)?.[1]
+    if (bound) {
+      for (const m of src.matchAll(new RegExp(`\\b${bound}\\.(\\w+)`, 'g'))) {
+        found.push({ name: m[1]!, file: file.replace(/.*packages./, 'packages/') })
+      }
+    }
   }
   return found
 }
