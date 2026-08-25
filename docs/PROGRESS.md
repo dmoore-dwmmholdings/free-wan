@@ -2662,3 +2662,43 @@ because prebuild had created it here.
 
 Everything on this branch has been verified green at each step: typecheck 4/4, `pnpm -r test`
 456, `pnpm -r build` with both Hermes bundles, and `pnpm test:e2e` 20 flows.
+
+### A stub that quietly handed over nothing
+
+`src/lib/progress.ts` began importing `AppState` from `react-native` a few passes ago, to report
+a playback position when the app leaves and returns. The test stub for `react-native` provides
+only what the library needs, and nobody added it — its docstring still said "Only `Appearance` is
+needed".
+
+That did not fail. ESM through Vite hands the importer `undefined` for a name a module does not
+export and carries on, so `progress.ts` loaded, `AppState` was nothing, and the whole suite went
+on passing. It never bit because the only thing that touches it is a hook and there is no
+renderer in this package to call one — so `focus.ts` has been importing the same missing name for
+much longer. A test that did drive either would have failed on `undefined.addEventListener`, for
+a reason with nothing to do with what it was testing.
+
+The stub has an `AppState` now: it records its listeners, hands back the `{ remove }` shape the
+real one does — that shape is what callers store and call, so a stub without it would pass a
+subscription and fail a teardown — and can emit a change, which is what a future test of the
+reporting wiring will need.
+
+`test/stubs.test.ts` stops it recurring. It reads every named import in `src/lib` from each of
+the four stubbed packages, excluding `type` ones since a type is erased before anything runs, and
+requires the stub to provide each. A second check requires the name to be something rather than
+`undefined`, because present-and-nothing reads to the calling code exactly as absent does — which
+is the whole failure. Scoped to `src/lib` on purpose: the components import half of React Native,
+and demanding stubs for all of it would be asking for a second React Native.
+
+Control-tested by removing `AppState` again — it names both `focus.ts` and `progress.ts` — and by
+leaving it in place as `undefined`, which the second check catches.
+
+Worth being plain that this does not test the wiring. Whether `AppState` actually fires the
+progress report still needs a renderer, and remains step 8 of the device checklist. What changed
+is that the harness no longer lies about the name existing.
+
+Also read this pass and found correct: `metro.config.js` matches what the docs claim of it, in
+particular that `disableHierarchicalLookup` is deliberately not set, and `babel.config.js`,
+`tsconfig.json` and `vitest.config.ts` hold nothing surprising.
+
+Verified green: typecheck 4/4, `pnpm -r test` **462** (180 backend + 268 mobile + 12 web +
+2 shared).
