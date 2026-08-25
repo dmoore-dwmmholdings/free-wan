@@ -2766,3 +2766,35 @@ that the check now says so for a reason rather than by luck.
 
 Verified green: typecheck 4/4, `pnpm -r test` **475** (180 backend + 281 mobile + 12 web +
 2 shared).
+
+### Chasing the API flake, and being wrong twice about it
+
+Several passes ago `pnpm -r test` failed once in the API package — 114 of 180 — and passed on
+every run since. It was recorded rather than chased. This pass chased it.
+
+Two hypotheses, both wrong, both checked rather than acted on:
+
+1. **A fixed sleep before asserting a spawned process is running.** `commands.test.ts` waits a
+   flat 150ms after starting a real `node -e …` and then cancels it, which is exactly the shape
+   that fails under the CPU contention `pnpm -r` creates by running four suites at once. Dropping
+   the wait to 1ms should then have failed it. It passed.
+2. **The run not having started when the cancel arrives.** Instrumenting it says the run reports
+   `running` at 1ms, 101ms and 201ms alike — the status is set before the process is really up,
+   so the cancel has something to act on either way.
+
+Neither is the cause, and the failure has not recurred in roughly fifteen full runs since. The
+honest position is that it is unexplained and rare, not fixed. Recorded that way rather than
+attributed to the first plausible suspect.
+
+One thing did come out of it. The 150ms was measured to be arbitrary — the state it waits for
+arrives in a millisecond — so it was telling nobody anything, and would have been the wrong
+number on a slower machine. It now polls for the run to actually report `running`, with a
+five-second ceiling, which is what the test is named for. Control-tested by making that state
+unreachable: the test fails and says which status it got stuck on instead.
+
+The other two fixed sleeps in the suite (25ms in `gallery.test.ts`, 50ms in `realtime.test.ts`)
+are left alone. They pass, nothing has been shown wrong with them, and changing tests that work
+on the strength of a hunch is what this pass just spent its time not doing.
+
+Verified: typecheck 4/4, the API suite three times over at 180, and `pnpm -r test` at 475 across
+the four packages.
