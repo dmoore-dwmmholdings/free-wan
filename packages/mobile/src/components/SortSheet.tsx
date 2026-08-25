@@ -1,6 +1,7 @@
 import { Modal, Pressable, Text, View } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import { SORT_CHOICES, type SortChoice } from '@/lib/media'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '@/theme'
 
 /**
@@ -22,6 +23,7 @@ export function SortSheet({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const insets = useSafeAreaInsets()
   return (
     <>
       <Pressable
@@ -59,7 +61,13 @@ export function SortSheet({
               backgroundColor: theme.color.surface,
               borderTopLeftRadius: theme.radius.md,
               borderTopRightRadius: theme.radius.md,
-              paddingVertical: theme.space(5),
+              paddingTop: theme.space(5),
+              // The home indicator sits in the bottom inset, and a modal gets none of it for
+              // free — `Modal` is full-screen and React Navigation's own insetting stops at the
+              // tab bar. Without this the last row of the sheet has twenty points beneath it on
+              // a phone that reserves thirty-four, so it sits under the gesture area: hard to
+              // read and, worse, hard to tap, since the system takes touches near that edge.
+              paddingBottom: insets.bottom + theme.space(5),
               paddingHorizontal: theme.space(4),
               gap: theme.space(1),
             }}

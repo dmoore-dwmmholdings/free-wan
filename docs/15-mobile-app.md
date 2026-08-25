@@ -351,7 +351,13 @@ carry a role or say explicitly that it is not an element, and a name wherever it
 not read. It exists because the Downloads tab's rows had neither for a long time, alone among the
 four screens that list things, and announced as their title and size run together.
 
-The bottom sheets need a note, because React Native's default works against them. A
+The three bottom sheets — sort, subtitles, and which library to upload to — pad their bottom by
+the safe-area inset as well as their own spacing. A `Modal` is full-screen and gets none of that
+for free, and React Navigation's own insetting stops at the tab bar, so without it the last row
+of a sheet has twenty points beneath it on a phone that reserves thirty-four for the home
+indicator: under the gesture area, where it is hard to read and harder to tap.
+
+The bottom sheets need a second note, because React Native's default works against them. A
 `Pressable` is an accessibility element unless it is told not to be, and an element hides its
 own children, so the two sheets — choosing a library to upload to, choosing a subtitle track —
 were each announced as one shape with nothing reachable inside. Both the backdrop and the

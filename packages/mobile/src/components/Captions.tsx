@@ -5,6 +5,7 @@ import type { VideoPlayer } from 'expo-video'
 import Ionicons from '@expo/vector-icons/Ionicons'
 import type { CaptionTrack } from '@free-wan/shared'
 import { cueAt, useCaptionCues, type Cue } from '@/lib/captions'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
 import { theme } from '@/theme'
 
 /**
@@ -100,6 +101,7 @@ export function CaptionPicker({
   open: boolean
   onOpenChange: (open: boolean) => void
 }) {
+  const insets = useSafeAreaInsets()
   if (tracks.length === 0) return null
 
   const on = selectedId !== null
@@ -163,7 +165,13 @@ export function CaptionPicker({
               backgroundColor: theme.color.surface,
               borderTopLeftRadius: theme.radius.md,
               borderTopRightRadius: theme.radius.md,
-              paddingVertical: theme.space(5),
+              paddingTop: theme.space(5),
+              // The home indicator sits in the bottom inset, and a modal gets none of it for
+              // free — `Modal` is full-screen and React Navigation's own insetting stops at the
+              // tab bar. Without this the last row of the sheet has twenty points beneath it on
+              // a phone that reserves thirty-four, so it sits under the gesture area: hard to
+              // read and, worse, hard to tap, since the system takes touches near that edge.
+              paddingBottom: insets.bottom + theme.space(5),
               paddingHorizontal: theme.space(4),
               gap: theme.space(1),
             }}

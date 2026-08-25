@@ -2864,3 +2864,31 @@ A guard is worth having and is not a substitute for looking at the thing.
 
 Verified green: typecheck 4/4, `pnpm -r test` **475**, and the fix measured on rendered pixels in
 the browser it was found in.
+
+### Three sheets that would sit under the home indicator
+
+Opening the sort sheet in a browser — a control built several passes ago and never once looked
+at — showed it rendering correctly: seven orderings, the current one checked, the grid dimmed
+behind it. What it also showed was the last row sitting flat against the bottom of the viewport
+with only its own padding beneath it.
+
+None of the three bottom sheets applies the safe-area inset. A `Modal` is full-screen and gets
+none of it for free, and React Navigation's insetting stops at the tab bar. So on a phone that
+reserves thirty-four points for the home indicator, the last row of the sort sheet, the subtitle
+picker and the upload-target sheet each had twenty — under the gesture area, which is both hard
+to read and harder to tap, since the system claims touches near that edge.
+
+The app already knew to do this. `login.tsx`, `change-password.tsx` and the media screen all call
+`useSafeAreaInsets`; the sheets were written later and did not. All three now pad by
+`insets.bottom` on top of their own spacing, with the hook called before each component's early
+return.
+
+Confirmed as a no-regression in the browser, which is the most it can show: `insets.bottom` is 0
+there, so the computed `padding-bottom` is the same twenty pixels it was. The change only has an
+effect where the inset is not zero, and that is the device run.
+
+This is the second finding in two passes that came from looking rather than from reading, and
+neither was reachable by any check in the suite. The sheets are drawn correctly by every measure
+a test can take.
+
+Verified green: typecheck 4/4, `pnpm -r test` **475**.
