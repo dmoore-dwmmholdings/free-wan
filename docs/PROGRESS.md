@@ -2630,3 +2630,35 @@ and the explicit `accessibilityState={{ disabled }}` on the login button is redu
 load-bearing.
 
 Verified green: typecheck 4/4, `pnpm -r test` **456**.
+
+### What the unpushed commits contain, checked before anyone pushes them
+
+`main` is 98 commits ahead of `origin/main`, all of them made in this session. None has been
+pushed, and none will be from here without being asked: a yes at the start of a session is not
+standing authorisation for ninety-eight commits made autonomously over the hours since, and one
+of them changes the *web* app's rendering on two presets — a change offered for reversal, which
+pushing would make awkward to honour.
+
+What is in them, so the decision does not need this dug up again:
+
+- **95 files, +17,878 / −624.** The bulk is not code: `pnpm-lock.yaml` (+6,371, the Expo
+  dependency tree arriving), `docs/PROGRESS.md` (+1,733) and `docs/15-mobile-app.md` (+579).
+- **No secrets.** A scan of every added line for credential-shaped values finds one literal,
+  `admin-pass-123`, and every occurrence is a fixture in `packages/api/test/*` that boots an
+  in-memory server — all pre-existing, none added here.
+- **No bloat.** The only binaries are three PNG icons, 2.8–5.5 KB between them.
+- **No generated output.** `packages/mobile/ios/`, `packages/mobile/android/` and `dist/` are all
+  covered by the root `.gitignore` and none is tracked.
+- `.env.example` is a template with no values, and the two `.pem` files are pre-existing TLS
+  fixtures for the API tests.
+
+One check misfired and is worth writing down. `git check-ignore packages/mobile/ios` reported the
+path as *not* ignored, which read as a real gap — the docs say the generated native projects are
+never committed, and a `git add -A` on a Mac after `expo prebuild` would otherwise sweep in an
+entire Xcode project. It is ignored. The pattern ends in a slash so it matches directories only,
+and the directory does not exist on this machine, so git had nothing to match against. Asking
+about a path *inside* it answers correctly. `android/` looked fine in the same command purely
+because prebuild had created it here.
+
+Everything on this branch has been verified green at each step: typecheck 4/4, `pnpm -r test`
+456, `pnpm -r build` with both Hermes bundles, and `pnpm test:e2e` 20 flows.
