@@ -24,6 +24,24 @@ describe('Phase 9 — custom commands (sandboxed runner)', () => {
     const res = await app.inject({ method: 'POST', url: '/api/admin/commands', cookies: admin, payload: body })
     return res
   }
+  /**
+   * Wait until a run reports the status being waited for, rather than for a fixed stretch of
+   * time. A constant here is a guess about how fast the machine is: too small and the test is
+   * flaky under load, too large and it is slow for everyone. This suite runs alongside three
+   * others under `pnpm -r`, so the machine is not idle.
+   */
+  async function waitForStatus(runId: string, want: string, timeoutMs = 5000): Promise<string> {
+    const deadline = Date.now() + timeoutMs
+    let status = ''
+    while (Date.now() < deadline) {
+      const res = await app.inject({ method: 'GET', url: `/api/command-runs/${runId}`, cookies: admin })
+      status = res.json().status as string
+      if (status === want) return status
+      await new Promise((r) => setTimeout(r, 10))
+    }
+    return status
+  }
+
   async function runAndWait(id: string, args: Record<string, unknown>, cookies = admin) {
     const res = await app.inject({ method: 'POST', url: `/api/commands/${id}/run`, cookies, payload: { args } })
     if (res.statusCode !== 202) return { res, run: null }
@@ -107,7 +125,11 @@ describe('Phase 9 — custom commands (sandboxed runner)', () => {
     const c = await createCmd({ name: 'sleeper2', executable: NODE, argTemplate: ['-e', SLEEP], timeoutS: 30, params: [] })
     const start = await app.inject({ method: 'POST', url: `/api/commands/${c.json().id}/run`, cookies: admin, payload: { args: {} } })
     const runId = start.json().runId
-    await new Promise((r) => setTimeout(r, 150)) // let it start
+    // Cancel it once it is actually running, which is what this test is named for. The wait
+    // used to be a flat 150ms; measuring showed the run reports `running` within a millisecond
+    // here, so the number was telling nobody anything and would have been the wrong number on a
+    // slower machine.
+    expect(await waitForStatus(runId, 'running')).toBe('running')
     const cancel = await app.inject({ method: 'POST', url: `/api/command-runs/${runId}/cancel`, cookies: admin })
     expect(cancel.statusCode).toBe(202)
     await app.worker.onIdle()
