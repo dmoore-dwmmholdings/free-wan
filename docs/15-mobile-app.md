@@ -459,6 +459,12 @@ pnpm --filter @free-wan/mobile exec expo export --platform web --output-dir <dir
 node packages/mobile/scripts/serve-web.mjs <dir> --port 4400 --api http://localhost:8080
 ```
 
+Stopping these afterwards needs care. `pnpm --filter … dev` is a wrapper: killing it leaves the
+server it spawned listening, so a run that reports the task as stopped can leave the port held.
+Check with `Get-NetTCPConnection -LocalPort <port> -State Listen` and kill the owning process by
+id, or the next run picks a new port and the old one is still there — nine of them accumulated
+across one session before anyone looked.
+
 Serve it through that script rather than any static file server, because the two have to share
 an origin. The API is same-origin by design — it sets no `Access-Control-Allow-Origin` and does
 set `Cross-Origin-Resource-Policy: same-origin`, since in a real deployment it serves the web app

@@ -2892,3 +2892,35 @@ neither was reachable by any check in the suite. The sheets are drawn correctly 
 a test can take.
 
 Verified green: typecheck 4/4, `pnpm -r test` **475**.
+
+### A sweep through the screens, a measurement that lied, and nine servers left running
+
+Continuing to look rather than read. The media detail screen, the Downloads empty state, the
+Clips tab and the sort sheet had none of them been seen before; all four render correctly. The
+`PlaybackError` overlay, built several passes ago, shows the player's own message over the frame
+as intended — visible here because `expo-video`'s web build does attempt playback and fails with
+a format error, which is worth noting since the doc says it never requests the stream at all.
+
+Two things came out of it, neither of them about the app.
+
+**A measuring script that produced a plausible false finding.** Sweeping the detail screen for
+contrast reported the Download button's label at 4.19:1 — just under AA, exactly the shape of the
+four real defects found this session. It was wrong. The script composited a translucent
+*foreground* over its background but treated a translucent *background* as opaque, so it measured
+the label against solid `#6e4cff` rather than against the fifteen-percent tint over the app's
+background. Composited properly the backdrop is `rgb(26, 21, 52)` and the label is at **14.48:1**.
+Nothing to fix. Worth recording because the number looked entirely believable, and reporting it
+would have sent someone after a defect that does not exist.
+
+**Nine leaked server processes.** Every pass that used the browser harness ended by calling
+TaskStop on the API and reporting the servers stopped. That was not true. `pnpm --filter … dev`
+is a wrapper, and killing it leaves the server it spawned holding the port — one on 8180 since
+the previous day, and one on each of 4400 through 4407. They were found only because an attempt
+to see the unreachable-server state failed: the API was supposed to be down and answered anyway.
+All nine are gone and every port is released. The doc now says how to check, because the next
+person will hit the same thing.
+
+The unreachable-server state is therefore still unseen — the check that found the leak is the one
+it prevented.
+
+Verified green: typecheck 4/4, `pnpm -r test` **475**.
