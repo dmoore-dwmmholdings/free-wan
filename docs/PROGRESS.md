@@ -2739,3 +2739,30 @@ covered.
 
 Verified green: typecheck 4/4, `pnpm -r test` **470** (180 backend + 276 mobile + 12 web +
 2 shared), `pnpm -r build`, both Hermes bundles.
+
+### Making the stub check stop being wrong in the same way
+
+Twice now a stub has been silently missing something the app imports, and both times the check
+meant to catch it did not, because it only understood the import form that happened to be in
+front of me when I wrote it.
+
+- Written for **named** imports. It missed `import * as FileSystem`, and `createUploadTask` was
+  absent for the entire life of the upload feature.
+- Extended to **namespace** imports. It still missed `import AsyncStorage from …`, so nothing
+  checked `getItem` or `setItem` either.
+
+Three rounds, and each time the form left out was the one that was actually wrong. Writing a
+third parser this pass and calling it done would have been the same move a third time.
+
+So the default form is covered — and a fourth check now asserts that every `import` or `require`
+of a stubbed package matches one of the forms this file knows how to read. `import X, { a } from
+'pkg'` matches none of the three parsers, and rather than guess that a fourth parser is the last
+one needed, an unrecognised statement fails and says which line it could not read. Control-tested
+by introducing exactly that import; it names the line.
+
+The two stubs examined this pass — `expo-secure-store` and `@react-native-async-storage/
+async-storage` — turned out to match what the app calls on them. No third defect. The value is
+that the check now says so for a reason rather than by luck.
+
+Verified green: typecheck 4/4, `pnpm -r test` **475** (180 backend + 281 mobile + 12 web +
+2 shared).
