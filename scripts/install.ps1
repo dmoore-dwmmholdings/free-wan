@@ -74,7 +74,7 @@ SESSION_SECRET=$secret
 TS_AUTHKEY=$authkey
 COMMAND_ALLOWED_EXECUTABLES=
 "@)
-    Write-Host "==> Wrote .env. First-login admin password: $adminpw" -ForegroundColor Yellow
+    Write-Host '==> Wrote .env (secrets generated)'
   }
 
   if (-not (Test-Path docker-compose.override.yml)) {
@@ -113,10 +113,33 @@ if (Test-Path $settings) {
   Write-Host 'Turn on Docker Desktop -> Settings -> General -> "Start Docker Desktop when you sign in".' -ForegroundColor Yellow
 }
 
+# The node can take a few seconds to register; its name gets a suffix (free-wan-1) when
+# another machine on the tailnet already uses free-wan.
+Write-Host '==> Waiting for Tailscale to register the server'
+$url = $null
+$ErrorActionPreference = 'Continue'
+foreach ($i in 1..30) {
+  $status = docker exec free-wan-ts tailscale status --json --peers=false 2>$null | Out-String
+  if ($status -match '"DNSName":\s*"([^"]+)\.?"') { $url = "https://$($Matches[1].TrimEnd('.'))"; break }
+  Start-Sleep 2
+}
+$ErrorActionPreference = 'Stop'
+
+$envText = [IO.File]::ReadAllText((Join-Path $dir '.env'))
+$user = if ($envText -match '(?m)^ADMIN_USERNAME=(.+)$') { $Matches[1].Trim() } else { 'admin' }
+$pass = if ($envText -match '(?m)^ADMIN_PASSWORD=(.+)$') { $Matches[1].Trim() } else { 'printed in: docker logs free-wan' }
+if (-not $url) { $url = 'https://free-wan.<your-tailnet>.ts.net (not registered yet; run: docker logs free-wan-ts)' }
+
 Write-Host @"
 
-==> Up. Free-WAN is at https://free-wan.<your-tailnet>.ts.net once Tailscale registers it.
-    Sign in as "admin"; you are asked to change the password on first login.
+==> Free-WAN is running.
+
+    Open:      $url
+    Username:  $user
+    Password:  $pass
+
+    You are asked to choose a new password on first sign-in. Until then, the password
+    above is also in $dir\.env.
 
     Media drives: edit $dir\docker-compose.override.yml, then re-run this installer.
     Update later: re-run the same irm ... | iex command.

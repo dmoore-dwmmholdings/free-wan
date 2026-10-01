@@ -76,7 +76,7 @@ TS_AUTHKEY=$authkey
 COMMAND_ALLOWED_EXECUTABLES=
 ENV
   umask 022
-  echo "==> Wrote .env. First-login admin password: $adminpw"
+  echo "==> Wrote .env (secrets generated)"
 fi
 
 if [ ! -f docker-compose.override.yml ]; then
@@ -107,10 +107,29 @@ elif command -v systemctl >/dev/null && ! systemctl is-enabled docker >/dev/null
   echo "Docker does not start at boot. Run: sudo systemctl enable docker"
 fi
 
+# The node can take a few seconds to register; its name gets a suffix (free-wan-1) when
+# another machine on the tailnet already uses free-wan.
+echo "==> Waiting for Tailscale to register the server"
+url=""
+for _ in $(seq 1 30); do
+  dns="$(docker exec free-wan-ts tailscale status --json --peers=false 2>/dev/null     | grep -o '"DNSName": *"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+  if [ -n "$dns" ]; then url="https://${dns%.}"; break; fi
+  sleep 2
+done
+
+user="$(grep '^ADMIN_USERNAME=' .env | cut -d= -f2- || true)"
+pass="$(grep '^ADMIN_PASSWORD=' .env | cut -d= -f2- || true)"
+
 cat <<DONE
 
-==> Up. Free-WAN is at https://free-wan.<your-tailnet>.ts.net once Tailscale registers it.
-    Sign in as "admin"; you are asked to change the password on first login.
+==> Free-WAN is running.
+
+    Open:      ${url:-https://free-wan.<your-tailnet>.ts.net (not registered yet; run: docker logs free-wan-ts)}
+    Username:  ${user:-admin}
+    Password:  ${pass:-printed in: docker logs free-wan}
+
+    You are asked to choose a new password on first sign-in. Until then, the password
+    above is also in $dir/.env.
 
     Media drives: edit $dir/docker-compose.override.yml, then re-run this installer.
     Update later: re-run the same curl ... | bash command.
