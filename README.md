@@ -73,14 +73,31 @@ Read in order for a full picture; each doc is self-contained and cross-linked.
 | 14 | [`docs/14-build-plan.md`](docs/14-build-plan.md) | Phased milestones with acceptance criteria the agent should build to. |
 | 15 | [`docs/15-mobile-app.md`](docs/15-mobile-app.md) | The native iOS/Android app: running it, signing in, offline downloads, and building one you keep. |
 
-## Quick start (target end state)
+## Quick start
+
+Install on any machine with Docker (on Windows, run it in Git Bash):
 
 ```bash
-git clone <your-fork> free-wan && cd free-wan
-cp .env.example .env            # set admin creds, JWT secret, Tailscale auth key
+curl -fsSL https://raw.githubusercontent.com/dmoore-dwmmholdings/free-wan/main/scripts/install.sh | bash
+```
+
+It downloads and builds the latest source, generates secrets, prompts for a Tailscale auth
+key, and starts the app behind a Tailscale sidecar in `~/free-wan`. It ends by printing the
+server's tailnet URL and the first-login admin credentials; you are asked to change the
+password on first sign-in.
+
+Mount your drives read-only in `~/free-wan/docker-compose.override.yml`, then add them in
+**Admin -> Repositories** using the container path (e.g. `/media/movies`).
+
+To update, run the same command again. `.env`, `data/` and the override file are kept.
+
+### From source
+
+```bash
+git clone https://github.com/dmoore-dwmmholdings/free-wan && cd free-wan
+cp .env.example .env            # set ADMIN_PASSWORD, SESSION_SECRET, TS_AUTHKEY
 # edit config/repositories.yaml to point at your drives
-docker compose up -d            # starts app + Tailscale sidecar
-# open the printed https://free-wan.<your-tailnet>.ts.net URL from any device
+docker compose up -d --build    # starts app + Tailscale sidecar
 ```
 
 > Status: **v1 feature-complete — all 11 build-plan phases (0–10) done.** (scaffold, auth,

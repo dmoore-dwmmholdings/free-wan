@@ -1,11 +1,13 @@
+# Free-WAN, installed from published images — no source checkout needed.
+# Runs the image published to GHCR by .github/workflows/release.yml instead of building from
+# source: `FW_VERSION=0.7.0 docker compose -f docker-compose.release.yml up -d`.
 services:
   # Tailscale sidecar — provides private HTTPS for the app over your tailnet via Serve.
   # The app shares this container's network namespace, so Serve proxies to localhost:8080.
-  # Set TS_AUTHKEY in .env. To expose publicly, switch serve.json to Funnel (opt-in).
   tailscale:
     image: tailscale/tailscale:latest
     container_name: free-wan-ts
-    hostname: free-wan
+    hostname: ${TS_HOSTNAME:-free-wan}
     environment:
       - TS_AUTHKEY=${TS_AUTHKEY:?set TS_AUTHKEY in .env}
       - TS_STATE_DIR=/var/lib/tailscale
@@ -20,7 +22,7 @@ services:
     restart: unless-stopped
 
   free-wan:
-    build: .
+    image: ghcr.io/dmoore-dwmmholdings/free-wan:${FW_VERSION:-latest}
     container_name: free-wan
     restart: unless-stopped
     depends_on:
@@ -33,7 +35,9 @@ services:
       - HOST=127.0.0.1
       - DATA_DIR=/app/data
       - TRUST_PROXY=true
-      # Lets an in-app update restart the process; `restart: unless-stopped` reloads the new code.
+      # Lets an in-app update restart the process itself; `restart: unless-stopped` then
+      # brings it back on the new code. Without this an update stages files but keeps
+      # serving the old build until you restart the container by hand.
       - FW_SUPERVISED=1
       - SESSION_SECRET=${SESSION_SECRET:?set a long random SESSION_SECRET in .env}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
@@ -44,9 +48,3 @@ services:
       # Mount your media drives read-only and list them in config/repositories.yaml:
       # - /path/to/drive-a:/media/drive-a:ro
       # - /path/to/drive-b:/media/drive-b:ro
-
-# ── Notes ─────────────────────────────────────────────────────────────────────
-# • LAN-only (no Tailscale)? Remove the `tailscale` service and `network_mode`,
-#   set HOST=0.0.0.0, and add `ports: ["8080:8080"]` to the free-wan service.
-# • GPU transcoding: add the override → `docker compose -f docker-compose.yml \
-#   -f docker-compose.gpu.yml up -d` (needs an nvenc-capable ffmpeg image).

@@ -1,0 +1,58 @@
+name: Release
+
+# Tag-driven: `git tag v0.7.0 && git push --tags` builds the update package, publishes it
+# as a GitHub Release asset (consumed by scripts/update.sh), and pushes the container image
+# to GHCR.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # create the release
+  packages: write # push to ghcr.io
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # The tag names the version users will install; refuse to ship a package labelled
+      # differently from package.json rather than publish a confusing artifact.
+      - name: Check tag matches package.json
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "Tag $GITHUB_REF_NAME implies $tag but package.json is $pkg — bump one of them." >&2
+            exit 1
+          fi
+
+      - run: pnpm package
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/free-wan-*.zip
+          generate_release_notes: true
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
