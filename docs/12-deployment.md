@@ -4,6 +4,14 @@ One `docker compose up` brings up Free-WAN plus a Tailscale sidecar that publish
 HTTPS to the owner's tailnet — no port forwarding, no public exposure unless explicitly
 chosen. Cross-platform (Windows, Linux, NAS) per NFR-04.
 
+**Windows one-liner** (needs Docker Desktop running). Installs into `%USERPROFILE%\free-wan`,
+builds the latest `main`, and keeps it running across reboots. Re-run it to update; `.env`,
+`data\` and `docker-compose.override.yml` (your drive mounts) are kept:
+
+```powershell
+irm https://raw.githubusercontent.com/dmoore-dwmmholdings/free-wan/main/scripts/install.ps1 | iex
+```
+
 ## 1. Topology
 
 ```mermaid
