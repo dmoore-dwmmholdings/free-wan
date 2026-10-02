@@ -92,8 +92,11 @@ public final class APIClient: @unchecked Sendable {
         try await send("GET", path, as: type)
     }
 
+    /// `signOutOn401: false` is for requests where a 401 means wrong input, not a dead session,
+    /// such as checking the current password.
     public func send<T: Decodable>(
-        _ method: String, _ path: String, body: (any Encodable)? = nil, as type: T.Type = T.self
+        _ method: String, _ path: String, body: (any Encodable)? = nil, as type: T.Type = T.self,
+        signOutOn401: Bool = true
     ) async throws -> T {
         var request = URLRequest(url: try url(path), timeoutInterval: Self.requestTimeout)
         request.httpMethod = method
@@ -108,7 +111,7 @@ public final class APIClient: @unchecked Sendable {
         let (data, response) = try await transport.send(request)
         guard (200..<300).contains(response.statusCode) else {
             // A revoked or expired session must not leave the app on screens that 401 forever.
-            if response.statusCode == 401 { onUnauthorized() }
+            if response.statusCode == 401 && signOutOn401 { onUnauthorized() }
             throw Self.error(status: response.statusCode, body: data)
         }
         if data.isEmpty, let empty = NoContent() as? T { return empty }

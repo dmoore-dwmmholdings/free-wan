@@ -47,6 +47,13 @@ final class AppModel {
         state = .signedIn(me)
     }
 
+    /// Clearing `mustChangePassword` is what releases the forced change screen.
+    func passwordChanged() {
+        guard case .signedIn(let me) = state else { return }
+        state = .signedIn(Me(id: me.id, username: me.username, role: me.role,
+                             canRunCommands: me.canRunCommands, mustChangePassword: false))
+    }
+
     func signOut() async {
         _ = try? await client?.send("POST", "/api/auth/logout", as: NoContent.self)
         signedOutByServer()

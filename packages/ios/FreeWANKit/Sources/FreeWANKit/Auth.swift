@@ -46,3 +46,31 @@ public enum Auth {
         return (response.user, token)
     }
 }
+
+public enum PasswordChange {
+    /// Mirrors `passwordSchema` in packages/shared/src/auth.ts.
+    public static let minLength = 8
+    public static let maxLength = 200
+
+    /// Why the form cannot be submitted yet, or nil when it can. Only complains about a field
+    /// once something has been typed into it.
+    public static func problem(current: String, new: String, confirm: String) -> String? {
+        if !new.isEmpty && new.count < minLength { return "At least \(minLength) characters." }
+        if new.count > maxLength { return "At most \(maxLength) characters." }
+        if !confirm.isEmpty && new != confirm { return "These do not match." }
+        return nil
+    }
+
+    public static func canSubmit(current: String, new: String, confirm: String) -> Bool {
+        !current.isEmpty && new.count >= minLength && new == confirm
+            && problem(current: current, new: new, confirm: confirm) == nil
+    }
+
+    /// The server answers a wrong current password with 401, which must not end the session.
+    public static func submit(client: APIClient, current: String, new: String) async throws {
+        struct Body: Encodable { let currentPassword: String; let newPassword: String }
+        let _: NoContent = try await client.send(
+            "POST", "/api/auth/password", body: Body(currentPassword: current, newPassword: new),
+            signOutOn401: false)
+    }
+}

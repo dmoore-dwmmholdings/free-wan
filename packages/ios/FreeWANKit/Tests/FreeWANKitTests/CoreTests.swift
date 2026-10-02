@@ -96,3 +96,26 @@ import Testing
         #expect(session.server == server)
     }
 }
+
+@Suite struct PasswordChangeTests {
+    @Test func validation() {
+        #expect(PasswordChange.problem(current: "", new: "", confirm: "") == nil)
+        #expect(PasswordChange.problem(current: "a", new: "short", confirm: "") == "At least 8 characters.")
+        #expect(PasswordChange.problem(current: "a", new: "longenough", confirm: "longenougX") == "These do not match.")
+        #expect(PasswordChange.canSubmit(current: "a", new: "longenough", confirm: "longenough"))
+        #expect(!PasswordChange.canSubmit(current: "", new: "longenough", confirm: "longenough"))
+        #expect(!PasswordChange.canSubmit(current: "a", new: "short", confirm: "short"))
+    }
+
+    @Test func wrongCurrentPasswordKeepsSession() async {
+        let stub = StubTransport(status: 401, json: #"{"error":{"code":"unauthorized","message":"Current password is incorrect"}}"#)
+        let flag = MemoryStore()
+        let client = APIClient(baseURL: server, transport: stub, token: { "t" }, onUnauthorized: { flag.set("hit", "1") })
+        await #expect(throws: APIError(status: 401, code: "unauthorized", message: "Current password is incorrect")) {
+            try await PasswordChange.submit(client: client, current: "bad", new: "longenough")
+        }
+        #expect(flag.get("hit") == nil)
+        let sent = try? JSONSerialization.jsonObject(with: stub.requests[0].httpBody!) as? [String: String]
+        #expect(sent == ["currentPassword": "bad", "newPassword": "longenough"])
+    }
+}

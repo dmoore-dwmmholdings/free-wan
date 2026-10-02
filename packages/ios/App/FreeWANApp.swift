@@ -26,6 +26,8 @@ struct RootView: View {
                 .task { await model.restore() }
         case .signedOut:
             LoginView()
+        case .signedIn(let me) where me.mustChangePassword:
+            ChangePasswordView(forced: true)
         case .signedIn(let me):
             HomeView(me: me)
         }
