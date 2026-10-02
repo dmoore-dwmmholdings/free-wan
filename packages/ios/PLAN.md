@@ -26,7 +26,7 @@ part of one) per pass.
 - [x] Tab shell: Library, Collections, Clips, Downloads, Settings
 
 ### Library
-- [ ] Media list models and query building (`/api/media` paging, search, type filters, the sort orderings, categories `/api/categories`, tags `/api/tags`)
+- [x] Media list models and query building (`/api/media` paging, search, type filters, the sort orderings, categories `/api/categories`, tags `/api/tags`)
 - [ ] Library grid with authenticated posters (`/api/media/:id/poster`) and an image cache; search, filter toggles, sort sheet, category and tag chips; infinite scroll; pull to refresh
 - [ ] Media detail: metadata, like (`/api/media/:id/like`), tags
 - [ ] Video playback: `/api/media/:id/playback` (direct or HLS), AVPlayer with bearer header, resume and report progress (`/api/media/:id/progress`), Picture in Picture, background audio, playback error overlay
@@ -53,3 +53,4 @@ part of one) per pass.
 - Forced password change: PasswordChange (rules, submit without signing out on a wrong current password, which the Expo app did); ChangePasswordView gates the app.
 - Branding: RGBA colour maths and Palette derivation matching the web tokens (all 7 presets tested at 4.5:1); observable ThemeStore, cached per server; system fonts as before.
 - Tab shell: MainTabs with a NavigationStack per tab, themed bars, placeholders for unbuilt tabs; Settings shows server, user and Sign out.
+- Media list models: MediaCard, CategoryNode, Tag, SortChoice (7 orderings), MediaListQuery building `/api/media` paths with strict percent-encoding (a literal + survives), MediaAPI, duration formatting.
