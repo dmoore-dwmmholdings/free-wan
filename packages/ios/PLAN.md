@@ -29,7 +29,7 @@ part of one) per pass.
 - [x] Media list models and query building (`/api/media` paging, search, type filters, the sort orderings, categories `/api/categories`, tags `/api/tags`)
 - [x] Library grid with authenticated posters (`/api/media/:id/poster`) and an image cache; search, filter toggles, sort sheet, category and tag chips; infinite scroll; pull to refresh
 - [x] Media detail: metadata, like (`/api/media/:id/like`), tags
-- [ ] Video playback: `/api/media/:id/playback` (direct or HLS), AVPlayer with bearer header, resume and report progress (`/api/media/:id/progress`), Picture in Picture, background audio, playback error overlay
+- [x] Video playback: `/api/media/:id/playback` (direct or HLS), AVPlayer with bearer header, resume and report progress (`/api/media/:id/progress`), Picture in Picture, background audio, playback error overlay
 - [ ] Subtitles: track list and picker (see `captions.ts`)
 - [ ] Photo viewer: `/raw` with width parameter (`image-width` logic), zoom and swipe
 
@@ -57,3 +57,4 @@ part of one) per pass.
 - Library grid, part 1: generic Pager (stale pages dropped, duplicates across pages skipped), APIClient.data, AuthImage with a decoded-image cache, adaptive grid with search, infinite scroll, pull to refresh, empty and error states. Left: filter toggles, sort sheet, category and tag chips.
 - Library grid, part 2: liked/video/photo toggles, sort menu, folder trail chips, tag chips; CategoryTrail and filter-specific empty messages in the kit.
 - Media detail: MediaDetail model, like via PUT/DELETE with optimistic update and rollback that also updates the grid tile, tags, file details; poster stands in for the player until playback lands.
+- Video playback: PlaybackDescriptor, progress reporting policy (10 s, on pause, on background, on leaving) and resume rule in the kit; AVPlayer with the token on every request via AVURLAssetHTTPHeaderFieldsKey, AVPlayerViewController (PiP, AirPlay), audio session and background mode, error overlay with retry. Leaving the detail screen stops playback, PiP included.

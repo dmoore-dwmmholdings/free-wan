@@ -1,8 +1,7 @@
 import FreeWANKit
 import SwiftUI
 
-/// One item: its picture, title, like button, tags and file details. Playback, subtitles and
-/// downloads attach here as their PLAN.md items land.
+/// One item: the player or picture, title, like button, tags and file details.
 struct MediaDetailView: View {
     @Environment(AppModel.self) private var model
     let card: MediaCard
@@ -25,10 +24,14 @@ struct MediaDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Color.clear
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .overlay { AuthImage(path: card.posterUrl, contentMode: .fit) }
-                    .background(.black)
+                if card.type == .video {
+                    PlayerArea(card: card)
+                } else {
+                    Color.clear
+                        .aspectRatio(16 / 9, contentMode: .fit)
+                        .overlay { AuthImage(path: card.posterUrl, contentMode: .fit) }
+                        .background(.black)
+                }
 
                 VStack(alignment: .leading, spacing: 16) {
                     header

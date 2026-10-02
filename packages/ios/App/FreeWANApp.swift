@@ -1,8 +1,15 @@
+import AVFoundation
 import SwiftUI
 
 @main
 struct FreeWANApp: App {
     @State private var model = AppModel()
+
+    init() {
+        // Playback audio ignores the silent switch, keeps playing with the screen locked and
+        // lets Picture in Picture continue in the background.
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+    }
 
     var body: some Scene {
         WindowGroup {
