@@ -55,10 +55,6 @@ struct ComingSoon: View {
     }
 }
 
-struct ClipsView: View {
-    var body: some View { ComingSoon(title: "Clips", symbol: "scissors") }
-}
-
 struct DownloadsView: View {
     var body: some View { ComingSoon(title: "Downloads", symbol: "arrow.down.circle") }
 }

@@ -35,7 +35,7 @@ part of one) per pass.
 
 ### Other tabs
 - [x] Collections list and detail (read-only)
-- [ ] Clips list and clip player looping between in and out points (`/api/clips/:id/preview`)
+- [x] Clips list and clip player looping between in and out points (`/api/clips/:id/preview`)
 - [ ] Downloads: background URLSession with bearer header, progress, cancel, retry, delete, offline playback, survives relaunch
 - [ ] Upload from the photo library (`/api/upload/targets`, `/api/repositories/:id/upload`) with target picker and progress
 - [ ] Settings: server, user, change password, sign out, version
@@ -61,3 +61,4 @@ part of one) per pass.
 - Subtitles: WebVTT parser and cue lookup in the kit (ported edge cases), 120 s fetch timeout for on-demand extraction; captions drawn in AVPlayerViewController.contentOverlayView so they show in full screen; picker under the video, off by default.
 - Photo viewer: PhotoSize width buckets in the kit; detail shows a screen-sized copy in its own aspect; full-screen pager over the loaded photos with UIScrollView pinch and double-tap zoom, swapping in the original past 1.5x.
 - Collections: MediaCollection (not Collection, which clashes with the Swift protocol), list with cover and counts, detail as a media grid in the collection's own order.
+- Clips: Clip, ClipPreview and the loop rule in the kit; list with poster, span and orphaned notice; player seeks to the in point and loops or stops at the out point via a 0.1 s time observer.
