@@ -74,7 +74,8 @@ final class PlayerModel {
             player.play()
             state = .playing
         } catch {
-            state = .failed(error.localizedDescription)
+            let text = ErrorText(error)
+            state = .failed("\(text.title). \(text.message)")
         }
     }
 

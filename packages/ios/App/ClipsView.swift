@@ -9,7 +9,7 @@ struct ClipsView: View {
     @Environment(AppModel.self) private var model
     @State private var clips: [Clip] = []
     @State private var loaded = false
-    @State private var error: String?
+    @State private var error: Error?
 
     var body: some View {
         List(clips) { clip in
@@ -21,6 +21,9 @@ struct ClipsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .overlay { status }
+        .safeAreaInset(edge: .top) {
+            if let error, !clips.isEmpty { ErrorBanner(error: error) { await load() } }
+        }
         .refreshable { await load() }
         .task { if !loaded { await load() } }
         .navigationTitle("Clips")
@@ -31,13 +34,7 @@ struct ClipsView: View {
     private var status: some View {
         if clips.isEmpty {
             if let error {
-                ContentUnavailableView {
-                    Label("Cannot reach the server", systemImage: "wifi.exclamationmark")
-                } description: {
-                    Text(error)
-                } actions: {
-                    Button("Try again") { Task { await load() } }
-                }
+                ErrorStateView(error: error) { await load() }
             } else if loaded {
                 ContentUnavailableView("No clips", systemImage: "scissors",
                                        description: Text("Cut clips on the web app; they show up here."))
@@ -53,7 +50,7 @@ struct ClipsView: View {
             clips = try await MediaAPI.clips(client)
             error = nil
         } catch {
-            self.error = error.localizedDescription
+            self.error = error
         }
         loaded = true
     }

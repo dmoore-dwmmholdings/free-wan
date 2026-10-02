@@ -6,7 +6,7 @@ struct CollectionsView: View {
     @Environment(AppModel.self) private var model
     @State private var collections: [MediaCollection] = []
     @State private var loaded = false
-    @State private var error: String?
+    @State private var error: Error?
 
     var body: some View {
         List(collections) { collection in
@@ -18,6 +18,9 @@ struct CollectionsView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .overlay { status }
+        .safeAreaInset(edge: .top) {
+            if let error, !collections.isEmpty { ErrorBanner(error: error) { await load() } }
+        }
         .refreshable { await load() }
         .task { if !loaded { await load() } }
         .navigationTitle("Collections")
@@ -28,13 +31,7 @@ struct CollectionsView: View {
     private var status: some View {
         if collections.isEmpty {
             if let error {
-                ContentUnavailableView {
-                    Label("Cannot reach the server", systemImage: "wifi.exclamationmark")
-                } description: {
-                    Text(error)
-                } actions: {
-                    Button("Try again") { Task { await load() } }
-                }
+                ErrorStateView(error: error) { await load() }
             } else if loaded {
                 ContentUnavailableView("No collections", systemImage: "rectangle.stack",
                                        description: Text("Make collections on the web app; they show up here."))
@@ -50,7 +47,7 @@ struct CollectionsView: View {
             collections = try await MediaAPI.collections(client)
             error = nil
         } catch {
-            self.error = error.localizedDescription
+            self.error = error
         }
         loaded = true
     }
@@ -105,6 +102,9 @@ struct CollectionDetailView: View {
                     if let description = collection.description, !description.isEmpty {
                         Text(description).font(.subheadline).foregroundStyle(Theme.muted)
                     }
+                    if let error = pager.error, !pager.items.isEmpty {
+                        ErrorBanner(error: error) { await pager.reload() }.padding(.horizontal, -12)
+                    }
                     MediaGrid(pager: pager)
                 }
                 .padding(12)
@@ -113,8 +113,7 @@ struct CollectionDetailView: View {
         .overlay {
             if let pager, pager.items.isEmpty {
                 if let error = pager.error {
-                    ContentUnavailableView("Cannot reach the server", systemImage: "wifi.exclamationmark",
-                                           description: Text(error.localizedDescription))
+                    ErrorStateView(error: error) { await pager.reload() }
                 } else if pager.loaded {
                     ContentUnavailableView("This collection is empty", systemImage: "rectangle.stack")
                 } else {

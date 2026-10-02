@@ -42,7 +42,7 @@ part of one) per pass.
 
 ### Finish
 - [x] Deep links `freewan://media/<id>` etc., kept through sign-in (`gate.ts`)
-- [ ] Error, empty, offline and unreachable states on every screen; 20 s timeout surfaced
+- [x] Error, empty, offline and unreachable states on every screen; 20 s timeout surfaced
 - [ ] Accessibility: labels and traits on icon-only controls, Dynamic Type, sheets clear of the home indicator
 - [ ] Docs: rewrite `docs/15-mobile-app.md` for the Swift app; update README and CHANGELOG
 - [ ] Remove `legacy/mobile-expo` and every reference to it (`packages/web/src/lib/theme.ts`, `packages/web/test/on-primary.test.ts`, `packages/web/tsconfig.json`, `.gitignore`); stop the loop
@@ -67,3 +67,4 @@ part of one) per pass.
 - Upload: targets, outcome reading (202 saved, 422 skipped, both with a body), batch summary and an on-disk multipart writer in the kit; PhotosPicker (no permission prompt), library choice when there are several, one file at a time with progress and Stop, summary alert, grid reloads after.
 - Settings: account and role, change password, server address and version (/api/health), downloads count and storage, app version, sign out with a confirmation that downloads stay.
 - Deep links: DeepLink parsing (both freewan://kind/id and freewan:///kind/id) and MediaDetail.card in the kit; AppModel holds the link through sign-in and a forced password change; tabs switch and push the item, with an alert when it is gone.
+- Error states: ErrorText in the kit (timeout names the 20 s limit, unreachable, signed out, not found, server fault, unexpected answer); ErrorStateView with Try again and the downloads hint when offline, ErrorBanner for failed refreshes and pages over existing content, on every list; shared wording on sign-in, detail and playback; ComingSoon removed.

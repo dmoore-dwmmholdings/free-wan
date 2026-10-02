@@ -87,15 +87,3 @@ struct MainTabs: View {
     }
 }
 
-/// Stand-in for a tab whose screen has not been built yet (PLAN.md).
-struct ComingSoon: View {
-    let title: String
-    let symbol: String
-
-    var body: some View {
-        ContentUnavailableView(title, systemImage: symbol, description: Text("Not built yet."))
-            .foregroundStyle(Theme.muted)
-            .navigationTitle(title)
-    }
-}
-

@@ -127,7 +127,8 @@ struct MediaDetailView: View {
             likeCount = fresh.likeCount
             error = nil
         } catch {
-            self.error = error.localizedDescription
+            let text = ErrorText(error)
+            self.error = "\(text.title). \(text.message)"
         }
     }
 
@@ -147,7 +148,7 @@ struct MediaDetailView: View {
         } catch {
             liked = before
             likeCount = beforeCount
-            self.error = error.localizedDescription
+            self.error = "Could not save the like. \(ErrorText(error).title)."
         }
     }
 }

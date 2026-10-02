@@ -13,6 +13,9 @@ struct LibraryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 LibraryFilters(query: $query, trail: $trail)
+                if let pager, let error = pager.error, !pager.items.isEmpty {
+                    ErrorBanner(error: error) { await pager.reload() }.padding(.horizontal, -12)
+                }
                 if let pager { MediaGrid(pager: pager) }
             }
             .padding(12)
@@ -114,15 +117,7 @@ struct LibraryStatus: View {
             if !pager.loaded && pager.error == nil {
                 ProgressView()
             } else if let error = pager.error {
-                ContentUnavailableView {
-                    Label("Cannot reach the server", systemImage: "wifi.exclamationmark")
-                } description: {
-                    Text([error.localizedDescription,
-                          Format.offlineHint(downloads: DownloadManager.shared.index.records.count)]
-                        .compactMap { $0 }.joined(separator: " "))
-                } actions: {
-                    Button("Try again") { Task { await pager.reload() } }
-                }
+                ErrorStateView(error: error) { await pager.reload() }
             } else if pager.loaded {
                 ContentUnavailableView("Nothing here", systemImage: "square.grid.2x2",
                                        description: Text(emptyMessage))

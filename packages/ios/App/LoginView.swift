@@ -78,8 +78,12 @@ struct LoginView: View {
             defer { busy = false }
             do {
                 try await model.signIn(address: address, username: username, password: password)
+            } catch let error as APIError where error.status > 0 || error.code == "bad_address" {
+                // The server's own words, such as wrong username or password.
+                self.error = error.message
             } catch {
-                self.error = error.localizedDescription
+                let text = ErrorText(error)
+                self.error = "\(text.title). \(text.message)"
             }
         }
     }
