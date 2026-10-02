@@ -34,7 +34,7 @@ struct RootView: View {
         case .signedIn(let me) where me.mustChangePassword:
             ChangePasswordView(forced: true)
         case .signedIn(let me):
-            HomeView(me: me)
+            MainTabs(me: me)
         }
     }
 }

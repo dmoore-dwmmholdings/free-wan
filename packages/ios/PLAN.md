@@ -23,7 +23,7 @@ part of one) per pass.
 - [x] Scaffold: kit package, XcodeGen spec, sign-in, Keychain session, 401 signs out
 - [x] Forced password change when `mustChangePassword` (`/api/auth/password`), before anything else shows
 - [x] Branding: `/api/branding` presets and colours into a theme (match on-primary rule in `legacy/.../palette.ts` and `packages/web/src/lib/theme.ts`), app name; cache last branding for offline launch
-- [ ] Tab shell: Library, Collections, Clips, Downloads, Settings
+- [x] Tab shell: Library, Collections, Clips, Downloads, Settings
 
 ### Library
 - [ ] Media list models and query building (`/api/media` paging, search, type filters, the sort orderings, categories `/api/categories`, tags `/api/tags`)
@@ -52,3 +52,4 @@ part of one) per pass.
 - Scaffold: FreeWANKit (ServerAddress, APIClient, Auth, Session, Keychain) with 10 tests; app with sign-in and a placeholder home.
 - Forced password change: PasswordChange (rules, submit without signing out on a wrong current password, which the Expo app did); ChangePasswordView gates the app.
 - Branding: RGBA colour maths and Palette derivation matching the web tokens (all 7 presets tested at 4.5:1); observable ThemeStore, cached per server; system fonts as before.
+- Tab shell: MainTabs with a NavigationStack per tab, themed bars, placeholders for unbuilt tabs; Settings shows server, user and Sign out.
