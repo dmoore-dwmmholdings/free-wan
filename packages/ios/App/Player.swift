@@ -16,6 +16,15 @@ final class PlayerModel {
     private(set) var state: State = .idle
     let player = AVPlayer()
 
+    /// Tracks the server offers for this video, known once playback starts.
+    private(set) var captionTracks: [PlaybackDescriptor.Caption] = []
+    /// Off by default, as on the web.
+    private(set) var selectedCaption: String?
+    private(set) var captionText: String?
+    private(set) var captionError: String?
+    private var cues: [Cue] = []
+    private var captionObserver: Any?
+
     private var client: APIClient?
     private var mediaID = ""
     private var duration: Double?
@@ -37,6 +46,7 @@ final class PlayerModel {
             let descriptor = try await MediaAPI.playback(client, id: mediaID)
             duration = descriptor.duration
             resumeAt = descriptor.resumeAt
+            captionTracks = descriptor.captions
             // AVPlayer makes its own requests, including every HLS segment; this asset option
             // puts the session token on all of them.
             let asset = AVURLAsset(url: try client.url(descriptor.url),
@@ -64,6 +74,11 @@ final class PlayerModel {
         ) { [weak self] _ in
             Task { @MainActor in self?.report() }
         }
+        captionObserver = player.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.2, preferredTimescale: 600), queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.syncCaption() }
+        }
         backgroundObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -86,6 +101,30 @@ final class PlayerModel {
         }
     }
 
+    /// Turns captions on with `id`, or off with nil.
+    func selectCaption(_ id: String?) async {
+        selectedCaption = id
+        captionError = nil
+        cues = []
+        captionText = nil
+        guard let id, let client, let track = captionTracks.first(where: { $0.id == id }) else { return }
+        do {
+            let loaded = try await Captions.fetch(client, path: track.url)
+            guard selectedCaption == id else { return }
+            cues = loaded
+            syncCaption()
+        } catch {
+            guard selectedCaption == id else { return }
+            captionError = "Subtitles could not be loaded: \(error.localizedDescription)"
+        }
+    }
+
+    private func syncCaption() {
+        let time = player.currentTime().seconds
+        let text = time.isFinite ? Captions.cue(in: cues, at: time)?.text : nil
+        if text != captionText { captionText = text }
+    }
+
     /// Sends the position if it moved enough to matter. Failures are dropped: the next report
     /// carries a newer position anyway.
     func report() {
@@ -101,6 +140,8 @@ final class PlayerModel {
         report()
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
+        if let captionObserver { player.removeTimeObserver(captionObserver) }
+        captionObserver = nil
         if let backgroundObserver { NotificationCenter.default.removeObserver(backgroundObserver) }
         timeObserver = nil
         backgroundObserver = nil
@@ -109,23 +150,94 @@ final class PlayerModel {
         player.replaceCurrentItem(with: nil)
         state = .idle
         resumed = false
+        captionTracks = []
+        selectedCaption = nil
+        captionText = nil
+        captionError = nil
+        cues = []
     }
 }
 
-/// The system player: standard controls, full screen, AirPlay and Picture in Picture.
+/// The system player: standard controls, full screen, AirPlay and Picture in Picture. Captions
+/// are drawn in its content overlay, so they stay visible in full screen too.
 struct VideoPlayerView: UIViewControllerRepresentable {
-    let player: AVPlayer
+    let model: PlayerModel
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
-        controller.player = player
+        controller.player = model.player
         controller.allowsPictureInPicturePlayback = true
         controller.canStartPictureInPictureAutomaticallyFromInline = true
+
+        let captions = UIHostingController(rootView: CaptionOverlay(model: model))
+        captions.view.backgroundColor = .clear
+        captions.view.isUserInteractionEnabled = false
+        if let overlay = controller.contentOverlayView {
+            captions.view.frame = overlay.bounds
+            captions.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            overlay.addSubview(captions.view)
+        }
+        context.coordinator.captions = captions
         return controller
     }
 
-    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {
-        if controller.player !== player { controller.player = player }
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    /// Keeps the hosting controller alive for as long as the player view.
+    final class Coordinator {
+        var captions: UIHostingController<CaptionOverlay>?
+    }
+}
+
+struct CaptionOverlay: View {
+    let model: PlayerModel
+
+    var body: some View {
+        VStack {
+            Spacer()
+            if let text = model.captionText {
+                Text(text)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 6))
+                    .padding(.horizontal, 16)
+                    // Clear of the player's own controls along the bottom edge.
+                    .padding(.bottom, 44)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+    }
+}
+
+/// Picks a subtitle track or turns them off.
+struct CaptionPicker: View {
+    let model: PlayerModel
+
+    var body: some View {
+        Menu {
+            Picker("Subtitles", selection: Binding(
+                get: { model.selectedCaption },
+                set: { id in Task { await model.selectCaption(id) } }
+            )) {
+                Text("Off").tag(String?.none)
+                ForEach(model.captionTracks) { track in
+                    Text(track.label).tag(String?.some(track.id))
+                }
+            }
+        } label: {
+            Image(systemName: model.selectedCaption == nil ? "captions.bubble" : "captions.bubble.fill")
+                .foregroundStyle(model.selectedCaption == nil ? Theme.muted : Theme.primaryStrong)
+                .frame(width: 48, height: 40)
+                .background(model.selectedCaption == nil ? Theme.surface : Theme.primaryTint, in: Capsule())
+                .overlay(Capsule().stroke(model.selectedCaption == nil ? Theme.border : Theme.primary))
+        }
+        .accessibilityLabel(model.selectedCaption == nil ? "Subtitles, off" : "Subtitles, on")
     }
 }
 
@@ -137,10 +249,22 @@ struct PlayerArea: View {
     @State private var playback = PlayerModel()
 
     var body: some View {
-        Color.black
-            .aspectRatio(16 / 9, contentMode: .fit)
-            .overlay { content }
-            .onDisappear { playback.stop() }
+        VStack(spacing: 10) {
+            Color.black
+                .aspectRatio(16 / 9, contentMode: .fit)
+                .overlay { content }
+            if !playback.captionTracks.isEmpty {
+                HStack(alignment: .center) {
+                    if let error = playback.captionError {
+                        Text(error).font(.footnote).foregroundStyle(Theme.danger)
+                    }
+                    Spacer()
+                    CaptionPicker(model: playback)
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .onDisappear { playback.stop() }
     }
 
     @ViewBuilder
@@ -168,7 +292,7 @@ struct PlayerArea: View {
                 ProgressView().tint(.white)
             }
         case .playing:
-            VideoPlayerView(player: playback.player)
+            VideoPlayerView(model: playback)
         case .failed(let message):
             VStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle")

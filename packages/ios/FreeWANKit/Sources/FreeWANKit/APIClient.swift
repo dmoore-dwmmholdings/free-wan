@@ -124,8 +124,9 @@ public final class APIClient: @unchecked Sendable {
     }
 
     /// Raw bytes for a path, such as a poster image, with the same auth and error handling.
-    public func data(_ path: String) async throws -> Data {
-        var request = URLRequest(url: try url(path), timeoutInterval: Self.requestTimeout)
+    /// Pass a longer `timeout` for work the server does on demand, like extracting captions.
+    public func data(_ path: String, timeout: TimeInterval = requestTimeout) async throws -> Data {
+        var request = URLRequest(url: try url(path), timeoutInterval: timeout)
         for (name, value) in authHeaders {
             request.setValue(value, forHTTPHeaderField: name)
         }
