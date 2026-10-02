@@ -85,3 +85,33 @@ import Testing
         #expect(q.emptyMessage.hasPrefix("No photos"))
     }
 }
+
+@Suite struct DetailTests {
+    static let json = ##"{"id":"m1","type":"video","title":"Film","durationS":5400,"width":1920,"height":1080,"posterUrl":"/api/media/m1/poster","repositoryId":"r","categoryPath":"Films/Old","liked":true,"likeCount":3,"ext":"mkv","sizeBytes":1500000000,"frameRate":23.976,"bitrate":null,"container":"matroska","videoCodec":"h264","audioCodec":"aac","audioTracks":1,"playbackMode":"direct","capturedAt":null,"addedAt":1700000000000,"relPath":"Films/Old/Film.mkv","categories":[{"id":"c","name":"Old","path":"Films/Old"}],"subtitles":[{"id":"s","kind":"sidecar","language":"en","label":null,"format":"srt"}],"tags":[{"id":"t","name":"Fav","color":"#ff0000"}]}"##
+
+    @Test func decodes() async throws {
+        let stub = StubTransport(json: Self.json)
+        let d = try await MediaAPI.detail(APIClient(baseURL: server, transport: stub), id: "m1")
+        #expect(d.resolution == "1920 x 1080")
+        #expect(d.tags.first?.itemCount == nil)
+        #expect(d.subtitles.count == 1)
+        #expect(stub.requests[0].url?.path == "/api/media/m1")
+    }
+
+    @Test func likeUsesPutAndDelete() async throws {
+        let stub = StubTransport(json: #"{"liked":true,"likeCount":4}"#)
+        let client = APIClient(baseURL: server, transport: stub)
+        #expect(try await MediaAPI.setLiked(client, id: "m1", liked: true) == LikeResponse(liked: true, likeCount: 4))
+        _ = try await MediaAPI.setLiked(client, id: "m1", liked: false)
+        #expect(stub.requests.map(\.httpMethod) == ["PUT", "DELETE"])
+        #expect(stub.requests[0].url?.path == "/api/media/m1/like")
+    }
+
+    @Test func bytes() {
+        #expect(Format.bytes(0) == "0 KB")
+        #expect(Format.bytes(200) == "1 KB")
+        #expect(Format.bytes(12_400) == "12 KB")
+        #expect(Format.bytes(340_000_000) == "340 MB")
+        #expect(Format.bytes(1_500_000_000) == "1.5 GB")
+    }
+}

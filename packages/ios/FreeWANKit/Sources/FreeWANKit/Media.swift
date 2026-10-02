@@ -189,3 +189,75 @@ extension MediaListQuery {
         return "Your library is empty, or the server is still scanning."
     }
 }
+
+/// `mediaDetailSchema`: a card plus file details, folders, subtitles and tags.
+public struct MediaDetail: Codable, Equatable, Sendable {
+    public struct CategoryRef: Codable, Equatable, Sendable {
+        public let id: String
+        public let name: String
+        public let path: String
+    }
+
+    public struct Subtitle: Codable, Equatable, Identifiable, Sendable {
+        public let id: String
+        public let kind: String
+        public let language: String?
+        public let label: String?
+        public let format: String?
+    }
+
+    public let id: String
+    public let type: MediaType
+    public let title: String
+    public let durationS: Double?
+    public let width: Double?
+    public let height: Double?
+    public let posterUrl: String
+    public let repositoryId: String
+    public let categoryPath: String?
+    public var liked: Bool
+    public var likeCount: Int
+    public let ext: String
+    public let sizeBytes: Double
+    public let frameRate: Double?
+    public let videoCodec: String?
+    public let audioCodec: String?
+    public let playbackMode: String?
+    public let capturedAt: Double?
+    public let addedAt: Double
+    public let categories: [CategoryRef]
+    public let subtitles: [Subtitle]
+    public let tags: [Tag]
+
+    /// "1920 x 1080", or nil when unknown.
+    public var resolution: String? {
+        guard let width, let height, width > 0, height > 0 else { return nil }
+        return "\(Int(width)) x \(Int(height))"
+    }
+}
+
+public struct LikeResponse: Codable, Equatable, Sendable {
+    public let liked: Bool
+    public let likeCount: Int
+}
+
+extension MediaAPI {
+    public static func detail(_ client: APIClient, id: String) async throws -> MediaDetail {
+        try await client.get("/api/media/\(Query.escape(id))")
+    }
+
+    /// Likes or unlikes. The server answers with the real state and count.
+    public static func setLiked(_ client: APIClient, id: String, liked: Bool) async throws -> LikeResponse {
+        try await client.send(liked ? "PUT" : "DELETE", "/api/media/\(Query.escape(id))/like")
+    }
+}
+
+extension Format {
+    /// "1.2 GB", "340 MB", "12 KB". Decimal units, as Finder and the web app use.
+    public static func bytes(_ bytes: Double) -> String {
+        if bytes >= 1e9 { return String(format: "%.1f GB", bytes / 1e9) }
+        if bytes >= 1e6 { return "\(Int((bytes / 1e6).rounded())) MB" }
+        if bytes <= 0 { return "0 KB" }
+        return "\(max(1, Int((bytes / 1e3).rounded()))) KB"
+    }
+}

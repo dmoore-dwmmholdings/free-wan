@@ -27,7 +27,9 @@ struct LibraryView: View {
         .task(id: query) { await load() }
         .navigationTitle(Theme.siteName)
         .navigationDestination(for: MediaCard.self) { card in
-            ComingSoon(title: card.title, symbol: "play.rectangle")
+            MediaDetailView(card: card) { liked, count in
+                pager?.update(card.id) { $0.liked = liked; $0.likeCount = count }
+            }
         }
     }
 
