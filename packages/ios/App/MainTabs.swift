@@ -55,10 +55,6 @@ struct ComingSoon: View {
     }
 }
 
-struct CollectionsView: View {
-    var body: some View { ComingSoon(title: "Collections", symbol: "rectangle.stack") }
-}
-
 struct ClipsView: View {
     var body: some View { ComingSoon(title: "Clips", symbol: "scissors") }
 }

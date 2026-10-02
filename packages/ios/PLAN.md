@@ -34,7 +34,7 @@ part of one) per pass.
 - [x] Photo viewer: `/raw` with width parameter (`image-width` logic), zoom and swipe
 
 ### Other tabs
-- [ ] Collections list and detail (read-only)
+- [x] Collections list and detail (read-only)
 - [ ] Clips list and clip player looping between in and out points (`/api/clips/:id/preview`)
 - [ ] Downloads: background URLSession with bearer header, progress, cancel, retry, delete, offline playback, survives relaunch
 - [ ] Upload from the photo library (`/api/upload/targets`, `/api/repositories/:id/upload`) with target picker and progress
@@ -60,3 +60,4 @@ part of one) per pass.
 - Video playback: PlaybackDescriptor, progress reporting policy (10 s, on pause, on background, on leaving) and resume rule in the kit; AVPlayer with the token on every request via AVURLAssetHTTPHeaderFieldsKey, AVPlayerViewController (PiP, AirPlay), audio session and background mode, error overlay with retry. Leaving the detail screen stops playback, PiP included.
 - Subtitles: WebVTT parser and cue lookup in the kit (ported edge cases), 120 s fetch timeout for on-demand extraction; captions drawn in AVPlayerViewController.contentOverlayView so they show in full screen; picker under the video, off by default.
 - Photo viewer: PhotoSize width buckets in the kit; detail shows a screen-sized copy in its own aspect; full-screen pager over the loaded photos with UIScrollView pinch and double-tap zoom, swapping in the original past 1.5x.
+- Collections: MediaCollection (not Collection, which clashes with the Swift protocol), list with cover and counts, detail as a media grid in the collection's own order.
