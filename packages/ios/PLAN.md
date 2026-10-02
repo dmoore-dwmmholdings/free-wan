@@ -41,7 +41,7 @@ part of one) per pass.
 - [x] Settings: server, user, change password, sign out, version
 
 ### Finish
-- [ ] Deep links `freewan://media/<id>` etc., kept through sign-in (`gate.ts`)
+- [x] Deep links `freewan://media/<id>` etc., kept through sign-in (`gate.ts`)
 - [ ] Error, empty, offline and unreachable states on every screen; 20 s timeout surfaced
 - [ ] Accessibility: labels and traits on icon-only controls, Dynamic Type, sheets clear of the home indicator
 - [ ] Docs: rewrite `docs/15-mobile-app.md` for the Swift app; update README and CHANGELOG
@@ -66,3 +66,4 @@ part of one) per pass.
 - Downloads, part 2: Downloads tab (in progress with stop/retry/dismiss, downloaded with sizes and swipe to delete, offline player and photo view), download button on the detail screen, player prefers the downloaded file and falls back to it when the server is unreachable, offline hint on the library error.
 - Upload: targets, outcome reading (202 saved, 422 skipped, both with a body), batch summary and an on-disk multipart writer in the kit; PhotosPicker (no permission prompt), library choice when there are several, one file at a time with progress and Stop, summary alert, grid reloads after.
 - Settings: account and role, change password, server address and version (/api/health), downloads count and storage, app version, sign out with a confirmation that downloads stay.
+- Deep links: DeepLink parsing (both freewan://kind/id and freewan:///kind/id) and MediaDetail.card in the kit; AppModel holds the link through sign-in and a forced password change; tabs switch and push the item, with an alert when it is gone.

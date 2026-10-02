@@ -12,6 +12,9 @@ final class AppModel {
     }
 
     private(set) var state: State = .launching
+    /// A link opened from outside, held until the app is signed in and past any forced
+    /// password change, then opened by the tabs.
+    private(set) var pendingLink: DeepLink?
     private(set) var client: APIClient?
     let session = Session(store: KeychainStore())
 
@@ -50,6 +53,17 @@ final class AppModel {
         Task { await ThemeStore.shared.refresh(from: server) }
         use(makeClient(server))
         state = .signedIn(me)
+    }
+
+    func open(_ url: URL) {
+        if let link = DeepLink(url: url) { pendingLink = link }
+    }
+
+    /// The held link, once; nil until the tabs are showing.
+    func takePendingLink() -> DeepLink? {
+        guard case .signedIn(let me) = state, !me.mustChangePassword else { return nil }
+        defer { pendingLink = nil }
+        return pendingLink
     }
 
     /// Clearing `mustChangePassword` is what releases the forced change screen.

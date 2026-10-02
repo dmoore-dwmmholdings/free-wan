@@ -29,6 +29,7 @@ struct RootView: View {
         content
             .tint(Theme.primary)
             .preferredColorScheme(Theme.colorScheme)
+            .onOpenURL { model.open($0) }
     }
 
     @ViewBuilder
