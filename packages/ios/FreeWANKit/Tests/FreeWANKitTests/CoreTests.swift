@@ -1,0 +1,98 @@
+import Foundation
+import Testing
+@testable import FreeWANKit
+
+@Suite struct ServerAddressTests {
+    @Test(arguments: [
+        ("media.tail1234.ts.net", "https://media.tail1234.ts.net"),
+        ("  Media.Tail1234.ts.net/  ", "https://media.tail1234.ts.net"),
+        ("http://192.168.1.10:8080", "http://192.168.1.10:8080"),
+        ("https://media.ts.net/library?x=1", "https://media.ts.net"),
+        ("https://media.ts.net:443", "https://media.ts.net"),
+        ("HTTP://host:80/", "http://host"),
+    ])
+    func normalizes(input: String, expected: String) {
+        #expect(ServerAddress.normalize(input)?.absoluteString == expected)
+    }
+
+    @Test(arguments: ["", "   ", "https://", "not a host"])
+    func rejects(input: String) {
+        #expect(ServerAddress.normalize(input) == nil)
+    }
+}
+
+@Suite struct APIClientTests {
+    @Test func sendsBearerToken() async throws {
+        let stub = StubTransport(json: #"{"id":"1","username":"admin","role":"admin","canRunCommands":true,"mustChangePassword":false}"#)
+        let client = APIClient(baseURL: server, transport: stub, token: { "abc" })
+        let me: Me = try await client.get("/api/auth/me")
+        #expect(me.username == "admin")
+        #expect(stub.requests.first?.value(forHTTPHeaderField: "Authorization") == "Bearer abc")
+        #expect(stub.requests.first?.url?.absoluteString == "https://media.example.ts.net/api/auth/me")
+    }
+
+    @Test func readsErrorEnvelope() async {
+        let stub = StubTransport(status: 422, json: #"{"error":{"code":"validation_error","message":"Bad input"}}"#)
+        let client = APIClient(baseURL: server, transport: stub)
+        await #expect(throws: APIError(status: 422, code: "validation_error", message: "Bad input")) {
+            let _: NoContent = try await client.send("POST", "/api/x")
+        }
+    }
+
+    @Test func survivesHTMLErrorBody() async {
+        let stub = StubTransport(status: 502, json: "<html>Bad Gateway</html>")
+        let client = APIClient(baseURL: server, transport: stub)
+        do {
+            let _: NoContent = try await client.get("/api/x")
+            Issue.record("expected an error")
+        } catch let error as APIError {
+            #expect(error.status == 502)
+            #expect(error.code == "internal")
+        } catch {
+            Issue.record("unexpected \(error)")
+        }
+    }
+
+    @Test func unauthorizedSignsOut() async {
+        let stub = StubTransport(status: 401, json: #"{"error":{"code":"unauthorized","message":"Authentication required"}}"#)
+        let flag = MemoryStore()
+        let client = APIClient(baseURL: server, transport: stub, onUnauthorized: { flag.set("hit", "1") })
+        _ = try? await client.get("/api/auth/me", as: NoContent.self)
+        #expect(flag.get("hit") == "1")
+    }
+
+    @Test func acceptsEmptyBody() async throws {
+        let stub = StubTransport(status: 204, json: "")
+        let client = APIClient(baseURL: server, transport: stub)
+        let _: NoContent = try await client.send("DELETE", "/api/x")
+    }
+}
+
+@Suite struct AuthTests {
+    @Test func loginAsksForNativeToken() async throws {
+        let stub = StubTransport(json: #"{"user":{"id":"1","username":"admin","role":"admin","canRunCommands":true,"mustChangePassword":true},"token":"tok"}"#)
+        let result = try await Auth.login(server: server, username: "admin", password: "pw", transport: stub)
+        #expect(result.token == "tok")
+        #expect(result.user.mustChangePassword)
+        let sent = try JSONSerialization.jsonObject(with: stub.requests[0].httpBody!) as! [String: String]
+        #expect(sent == ["username": "admin", "password": "pw", "client": "native"])
+    }
+
+    @Test func loginWithoutTokenFails() async {
+        let stub = StubTransport(json: #"{"user":{"id":"1","username":"a","role":"user","canRunCommands":false,"mustChangePassword":false}}"#)
+        await #expect(throws: APIError.self) {
+            _ = try await Auth.login(server: server, username: "a", password: "b", transport: stub)
+        }
+    }
+}
+
+@Suite struct SessionTests {
+    @Test func clearKeepsServer() {
+        let session = Session(store: MemoryStore())
+        session.save(server: server, token: "t")
+        #expect(session.token == "t")
+        session.clear()
+        #expect(session.token == nil)
+        #expect(session.server == server)
+    }
+}

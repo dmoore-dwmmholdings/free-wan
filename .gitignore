@@ -45,7 +45,15 @@ playwright-report/
 
 # Expo / React Native build state (prebuild output is regenerated, never committed)
 .expo/
-packages/mobile/android/
-packages/mobile/ios/
+legacy/mobile-expo/android/
+legacy/mobile-expo/ios/
 *.jks
 *.keystore
+
+# iOS app: the Xcode project is generated from packages/ios/project.yml by XcodeGen
+packages/ios/*.xcodeproj/
+packages/ios/App/Info.plist
+packages/ios/FreeWANKit/.build/
+packages/ios/FreeWANKit/.swiftpm/
+xcuserdata/
+DerivedData/

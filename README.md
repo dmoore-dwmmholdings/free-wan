@@ -43,10 +43,9 @@ A TypeScript stack end to end: **React + Vite** frontend, **Node.js (Fastify)** 
 Compose** app with a Tailscale sidecar. Full rationale in
 [`docs/02-architecture.md`](docs/02-architecture.md).
 
-There is also a native **iOS/Android app** (`packages/mobile`, Expo + React Native) that
-speaks the same API. It keeps media on the device for offline playback, uploads photos and
-video from the phone, shows subtitles, and takes its name and colours from your server's
-branding — see [`docs/15-mobile-app.md`](docs/15-mobile-app.md).
+A native **iOS app** (`packages/ios`, SwiftUI) is being rewritten to replace the Expo app,
+which stays in `legacy/mobile-expo` until the rewrite reaches parity — see
+[`packages/ios/PLAN.md`](packages/ios/PLAN.md).
 
 ---
 
