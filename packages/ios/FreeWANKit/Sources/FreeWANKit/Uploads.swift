@@ -11,6 +11,12 @@ public struct UploadOutcome: Equatable, Sendable {
     public let name: String
     public let ok: Bool
     public let reason: String?
+
+    public init(name: String, ok: Bool, reason: String?) {
+        self.name = name
+        self.ok = ok
+        self.reason = reason
+    }
 }
 
 public enum Uploads {
