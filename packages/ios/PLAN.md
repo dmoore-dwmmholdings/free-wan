@@ -37,7 +37,7 @@ part of one) per pass.
 - [x] Collections list and detail (read-only)
 - [x] Clips list and clip player looping between in and out points (`/api/clips/:id/preview`)
 - [x] Downloads: background URLSession with bearer header, progress, cancel, retry, delete, offline playback, survives relaunch
-- [ ] Upload from the photo library (`/api/upload/targets`, `/api/repositories/:id/upload`) with target picker and progress
+- [x] Upload from the photo library (`/api/upload/targets`, `/api/repositories/:id/upload`) with target picker and progress
 - [ ] Settings: server, user, change password, sign out, version
 
 ### Finish
@@ -64,3 +64,4 @@ part of one) per pass.
 - Clips: Clip, ClipPreview and the loop rule in the kit; list with poster, span and orphaned notice; player seeks to the in point and loops or stops at the out point via a 0.1 s time observer.
 - Downloads, part 1: DownloadJob/Record/Index/file naming in the kit (extension kept so AVPlayer recognises local files); DownloadManager on a background URLSession with the job in taskDescription, reconnect on launch, orphan sweep, cancel, retry, delete, poster cached; AppDelegate hands over background wake-ups. Left: Downloads tab, download button, offline playback.
 - Downloads, part 2: Downloads tab (in progress with stop/retry/dismiss, downloaded with sizes and swipe to delete, offline player and photo view), download button on the detail screen, player prefers the downloaded file and falls back to it when the server is unreachable, offline hint on the library error.
+- Upload: targets, outcome reading (202 saved, 422 skipped, both with a body), batch summary and an on-disk multipart writer in the kit; PhotosPicker (no permission prompt), library choice when there are several, one file at a time with progress and Stop, summary alert, grid reloads after.
