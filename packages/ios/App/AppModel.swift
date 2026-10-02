@@ -31,12 +31,12 @@ final class AppModel {
         let client = makeClient(server)
         do {
             let me: Me = try await client.get("/api/auth/me")
-            self.client = client
+            use(client)
             state = .signedIn(me)
         } catch let error as APIError where error.status == 401 {
             state = .signedOut
         } catch {
-            self.client = client
+            use(client)
             state = .signedIn(Me.offline)
         }
     }
@@ -48,7 +48,7 @@ final class AppModel {
         let (me, token) = try await Auth.login(server: server, username: username, password: password)
         session.save(server: server, token: token)
         Task { await ThemeStore.shared.refresh(from: server) }
-        client = makeClient(server)
+        use(makeClient(server))
         state = .signedIn(me)
     }
 
@@ -66,8 +66,14 @@ final class AppModel {
 
     private func signedOutByServer() {
         session.clear()
-        client = nil
+        use(nil)
         state = .signedOut
+    }
+
+    /// The client for requests and for downloads, which run outside any one screen.
+    private func use(_ client: APIClient?) {
+        self.client = client
+        DownloadManager.shared.client = client
     }
 
     private func makeClient(_ server: URL) -> APIClient {
