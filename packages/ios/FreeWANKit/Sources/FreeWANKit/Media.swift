@@ -5,7 +5,7 @@ public enum MediaType: String, Codable, Sendable {
 }
 
 /// Mirrors `mediaCardSchema` in packages/shared/src/media.ts.
-public struct MediaCard: Codable, Equatable, Identifiable, Sendable {
+public struct MediaCard: Codable, Hashable, Identifiable, Sendable {
     public let id: String
     public let type: MediaType
     public let title: String

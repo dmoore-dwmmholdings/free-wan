@@ -1,0 +1,126 @@
+import FreeWANKit
+import SwiftUI
+
+/// The Browse tab: the library as a grid, searchable, paged as you scroll.
+struct LibraryView: View {
+    @Environment(AppModel.self) private var model
+    @State private var query = MediaListQuery()
+    @State private var searchText = ""
+    @State private var pager: Pager<MediaCard>?
+
+    var body: some View {
+        ScrollView {
+            if let pager {
+                MediaGrid(pager: pager)
+                    .padding(12)
+            }
+        }
+        .overlay { if let pager { LibraryStatus(pager: pager, query: query) } }
+        .refreshable { await pager?.reload() }
+        .searchable(text: $searchText, prompt: "Search your library")
+        .onSubmit(of: .search) { query.search = searchText }
+        .onChange(of: searchText) { _, text in
+            if text.trimmingCharacters(in: .whitespaces).isEmpty { query.search = "" }
+        }
+        .task(id: query) { await load() }
+        .navigationTitle(Theme.siteName)
+        .navigationDestination(for: MediaCard.self) { card in
+            ComingSoon(title: card.title, symbol: "play.rectangle")
+        }
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        let fresh = MediaAPI.pager(client, query)
+        pager = fresh
+        await fresh.reload()
+    }
+}
+
+/// Tiles for every loaded item; reaching the last one loads the next page.
+struct MediaGrid: View {
+    let pager: Pager<MediaCard>
+
+    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 10)]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 14) {
+            ForEach(pager.items) { item in
+                NavigationLink(value: item) {
+                    MediaTile(item: item)
+                }
+                .buttonStyle(.plain)
+                .onAppear {
+                    if item.id == pager.items.last?.id {
+                        Task { await pager.loadMore() }
+                    }
+                }
+            }
+        }
+        if pager.loadingMore {
+            ProgressView().padding(24)
+        }
+    }
+}
+
+struct MediaTile: View {
+    let item: MediaCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Color.clear
+                .aspectRatio(16 / 10, contentMode: .fit)
+                .overlay { AuthImage(path: item.posterUrl) }
+                .overlay(alignment: .bottomTrailing) {
+                    if let duration = Format.duration(item.durationS) {
+                        Text(duration)
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 5))
+                            .padding(6)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusSmall))
+            Text(item.title)
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Theme.text)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Format.duration(item.durationS).map { "\(item.title), \($0)" } ?? item.title)
+        .accessibilityAddTraits(.isLink)
+    }
+}
+
+/// Spinner, error or empty message over the grid when there is nothing to show.
+struct LibraryStatus: View {
+    let pager: Pager<MediaCard>
+    let query: MediaListQuery
+
+    var body: some View {
+        if pager.items.isEmpty {
+            if !pager.loaded && pager.error == nil {
+                ProgressView()
+            } else if let error = pager.error {
+                ContentUnavailableView {
+                    Label("Cannot reach the server", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text(error.localizedDescription)
+                } actions: {
+                    Button("Try again") { Task { await pager.reload() } }
+                }
+            } else if pager.loaded {
+                ContentUnavailableView("Nothing here", systemImage: "square.grid.2x2",
+                                       description: Text(emptyMessage))
+            }
+        }
+    }
+
+    private var emptyMessage: String {
+        if !query.search.isEmpty { return "No results for \"\(query.search)\"." }
+        return "Your library is empty, or the server is still scanning."
+    }
+}

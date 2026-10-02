@@ -123,6 +123,20 @@ public final class APIClient: @unchecked Sendable {
         }
     }
 
+    /// Raw bytes for a path, such as a poster image, with the same auth and error handling.
+    public func data(_ path: String) async throws -> Data {
+        var request = URLRequest(url: try url(path), timeoutInterval: Self.requestTimeout)
+        for (name, value) in authHeaders {
+            request.setValue(value, forHTTPHeaderField: name)
+        }
+        let (data, response) = try await transport.send(request)
+        guard (200..<300).contains(response.statusCode) else {
+            if response.statusCode == 401 { onUnauthorized() }
+            throw Self.error(status: response.statusCode, body: data)
+        }
+        return data
+    }
+
     /// An error body is not necessarily JSON: Tailscale Serve, a gateway or a captive portal
     /// answers with HTML, and the status is then all there is.
     static func error(status: Int, body: Data) -> APIError {

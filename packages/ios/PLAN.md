@@ -54,3 +54,4 @@ part of one) per pass.
 - Branding: RGBA colour maths and Palette derivation matching the web tokens (all 7 presets tested at 4.5:1); observable ThemeStore, cached per server; system fonts as before.
 - Tab shell: MainTabs with a NavigationStack per tab, themed bars, placeholders for unbuilt tabs; Settings shows server, user and Sign out.
 - Media list models: MediaCard, CategoryNode, Tag, SortChoice (7 orderings), MediaListQuery building `/api/media` paths with strict percent-encoding (a literal + survives), MediaAPI, duration formatting.
+- Library grid, part 1: generic Pager (stale pages dropped, duplicates across pages skipped), APIClient.data, AuthImage with a decoded-image cache, adaptive grid with search, infinite scroll, pull to refresh, empty and error states. Left: filter toggles, sort sheet, category and tag chips.

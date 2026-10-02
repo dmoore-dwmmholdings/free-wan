@@ -55,10 +55,6 @@ struct ComingSoon: View {
     }
 }
 
-struct LibraryView: View {
-    var body: some View { ComingSoon(title: Theme.siteName, symbol: "square.grid.2x2") }
-}
-
 struct CollectionsView: View {
     var body: some View { ComingSoon(title: "Collections", symbol: "rectangle.stack") }
 }
