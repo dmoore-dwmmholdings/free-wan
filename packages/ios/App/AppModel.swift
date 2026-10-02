@@ -20,6 +20,10 @@ final class AppModel {
     /// Reopens the last session. An unreachable server keeps it, so offline downloads stay
     /// usable; only the server saying the token is invalid signs out.
     func restore() async {
+        if let server = session.server {
+            ThemeStore.shared.applyCached(for: server)
+            Task { await ThemeStore.shared.refresh(from: server) }
+        }
         guard let server = session.server, session.token != nil else {
             state = .signedOut
             return
@@ -43,6 +47,7 @@ final class AppModel {
         }
         let (me, token) = try await Auth.login(server: server, username: username, password: password)
         session.save(server: server, token: token)
+        Task { await ThemeStore.shared.refresh(from: server) }
         client = makeClient(server)
         state = .signedIn(me)
     }

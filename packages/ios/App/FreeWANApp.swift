@@ -8,8 +8,6 @@ struct FreeWANApp: App {
         WindowGroup {
             RootView()
                 .environment(model)
-                .tint(Theme.primary)
-                .preferredColorScheme(.dark)
         }
     }
 }
@@ -18,6 +16,13 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
+        content
+            .tint(Theme.primary)
+            .preferredColorScheme(Theme.colorScheme)
+    }
+
+    @ViewBuilder
+    private var content: some View {
         switch model.state {
         case .launching:
             ProgressView()

@@ -24,7 +24,7 @@ struct ChangePasswordView: View {
                     .foregroundStyle(Theme.text)
                 if forced {
                     Text("This account still has the password it was created with. Pick a new one to carry on.")
-                        .foregroundStyle(Theme.text.opacity(0.7))
+                        .foregroundStyle(Theme.muted)
                 }
 
                 secure("Current password", text: $current, content: .password)
@@ -32,11 +32,11 @@ struct ChangePasswordView: View {
                 secure("Confirm new password", text: $confirm, content: .newPassword)
 
                 if let problem = PasswordChange.problem(current: current, new: new, confirm: confirm) {
-                    Text(problem).font(.footnote).foregroundStyle(Theme.text.opacity(0.7))
+                    Text(problem).font(.footnote).foregroundStyle(Theme.muted)
                 }
                 if let error {
                     Text(error)
-                        .foregroundStyle(Color(hex: 0xFF8A8A))
+                        .foregroundStyle(Theme.danger)
                         .accessibilityLabel("Error: \(error)")
                 }
                 if done {
@@ -45,9 +45,10 @@ struct ChangePasswordView: View {
 
                 Button(action: submit) {
                     HStack {
-                        if busy { ProgressView().tint(.white) }
+                        if busy { ProgressView().tint(Theme.onPrimary) }
                         Text("Save password").bold()
                     }
+                    .foregroundStyle(Theme.onPrimary)
                     .frame(maxWidth: .infinity)
                     .padding(14)
                 }
@@ -67,12 +68,13 @@ struct ChangePasswordView: View {
 
     private func secure(_ label: String, text: Binding<String>, content: UITextContentType) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(label).font(.subheadline).foregroundStyle(Theme.text.opacity(0.7))
+            Text(label).font(.subheadline).foregroundStyle(Theme.muted)
             SecureField("", text: text)
                 .textContentType(content)
                 .accessibilityLabel(label)
                 .padding(12)
-                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radius / 2))
+                .foregroundStyle(Theme.text)
+                .background(Theme.surface, in: RoundedRectangle(cornerRadius: Theme.radiusSmall))
         }
     }
 
