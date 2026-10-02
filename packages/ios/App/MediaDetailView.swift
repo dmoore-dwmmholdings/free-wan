@@ -1,10 +1,13 @@
 import FreeWANKit
 import SwiftUI
+import UIKit
 
 /// One item: the player or picture, title, like button, tags and file details.
 struct MediaDetailView: View {
     @Environment(AppModel.self) private var model
     let card: MediaCard
+    /// The photos around this one, for swiping in the full-screen viewer.
+    var photos: [MediaCard] = []
     /// Tells the list the item came from about a like, so its tile agrees.
     var onLikeChange: (Bool, Int) -> Void = { _, _ in }
 
@@ -13,9 +16,12 @@ struct MediaDetailView: View {
     @State private var liked: Bool
     @State private var likeCount: Int
     @State private var liking = false
+    @State private var viewing = false
+    @Environment(\.displayScale) private var scale
 
-    init(card: MediaCard, onLikeChange: @escaping (Bool, Int) -> Void = { _, _ in }) {
+    init(card: MediaCard, photos: [MediaCard] = [], onLikeChange: @escaping (Bool, Int) -> Void = { _, _ in }) {
         self.card = card
+        self.photos = photos
         self.onLikeChange = onLikeChange
         _liked = State(initialValue: card.liked)
         _likeCount = State(initialValue: card.likeCount)
@@ -27,10 +33,14 @@ struct MediaDetailView: View {
                 if card.type == .video {
                     PlayerArea(card: card)
                 } else {
-                    Color.clear
-                        .aspectRatio(16 / 9, contentMode: .fit)
-                        .overlay { AuthImage(path: card.posterUrl, contentMode: .fit) }
-                        .background(.black)
+                    Button { viewing = true } label: {
+                        Color.clear
+                            .aspectRatio(photoAspect, contentMode: .fit)
+                            .overlay { AuthImage(path: photoPath, contentMode: .fit) }
+                            .background(.black)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Open \(card.title) full screen")
                 }
 
                 VStack(alignment: .leading, spacing: 16) {
@@ -50,6 +60,22 @@ struct MediaDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .refreshable { await load() }
+        .fullScreenCover(isPresented: $viewing) {
+            PhotoViewer(photos: photos.contains(where: { $0.id == card.id }) ? photos : [card], current: card.id)
+                .environment(model)
+        }
+    }
+
+    /// The photo's own shape, so a portrait shot is not letterboxed into a wide frame.
+    private var photoAspect: CGFloat {
+        guard let w = card.width, let h = card.height, w > 0, h > 0 else { return 4 / 3 }
+        return max(0.5, CGFloat(w / h))
+    }
+
+    /// Sized for the screen width; the viewer loads larger copies as needed.
+    private var photoPath: String {
+        PhotoSize.path(id: card.id, width: PhotoSize.width(
+            points: UIScreen.main.bounds.width, scale: scale, sourceWidth: card.width))
     }
 
     private var header: some View {

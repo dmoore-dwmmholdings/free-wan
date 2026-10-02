@@ -31,7 +31,7 @@ part of one) per pass.
 - [x] Media detail: metadata, like (`/api/media/:id/like`), tags
 - [x] Video playback: `/api/media/:id/playback` (direct or HLS), AVPlayer with bearer header, resume and report progress (`/api/media/:id/progress`), Picture in Picture, background audio, playback error overlay
 - [x] Subtitles: track list and picker (see `captions.ts`)
-- [ ] Photo viewer: `/raw` with width parameter (`image-width` logic), zoom and swipe
+- [x] Photo viewer: `/raw` with width parameter (`image-width` logic), zoom and swipe
 
 ### Other tabs
 - [ ] Collections list and detail (read-only)
@@ -59,3 +59,4 @@ part of one) per pass.
 - Media detail: MediaDetail model, like via PUT/DELETE with optimistic update and rollback that also updates the grid tile, tags, file details; poster stands in for the player until playback lands.
 - Video playback: PlaybackDescriptor, progress reporting policy (10 s, on pause, on background, on leaving) and resume rule in the kit; AVPlayer with the token on every request via AVURLAssetHTTPHeaderFieldsKey, AVPlayerViewController (PiP, AirPlay), audio session and background mode, error overlay with retry. Leaving the detail screen stops playback, PiP included.
 - Subtitles: WebVTT parser and cue lookup in the kit (ported edge cases), 120 s fetch timeout for on-demand extraction; captions drawn in AVPlayerViewController.contentOverlayView so they show in full screen; picker under the video, off by default.
+- Photo viewer: PhotoSize width buckets in the kit; detail shows a screen-sized copy in its own aspect; full-screen pager over the loaded photos with UIScrollView pinch and double-tap zoom, swapping in the original past 1.5x.
