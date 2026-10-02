@@ -36,7 +36,7 @@ part of one) per pass.
 ### Other tabs
 - [x] Collections list and detail (read-only)
 - [x] Clips list and clip player looping between in and out points (`/api/clips/:id/preview`)
-- [ ] Downloads: background URLSession with bearer header, progress, cancel, retry, delete, offline playback, survives relaunch
+- [x] Downloads: background URLSession with bearer header, progress, cancel, retry, delete, offline playback, survives relaunch
 - [ ] Upload from the photo library (`/api/upload/targets`, `/api/repositories/:id/upload`) with target picker and progress
 - [ ] Settings: server, user, change password, sign out, version
 
@@ -63,3 +63,4 @@ part of one) per pass.
 - Collections: MediaCollection (not Collection, which clashes with the Swift protocol), list with cover and counts, detail as a media grid in the collection's own order.
 - Clips: Clip, ClipPreview and the loop rule in the kit; list with poster, span and orphaned notice; player seeks to the in point and loops or stops at the out point via a 0.1 s time observer.
 - Downloads, part 1: DownloadJob/Record/Index/file naming in the kit (extension kept so AVPlayer recognises local files); DownloadManager on a background URLSession with the job in taskDescription, reconnect on launch, orphan sweep, cancel, retry, delete, poster cached; AppDelegate hands over background wake-ups. Left: Downloads tab, download button, offline playback.
+- Downloads, part 2: Downloads tab (in progress with stop/retry/dismiss, downloaded with sizes and swipe to delete, offline player and photo view), download button on the detail screen, player prefers the downloaded file and falls back to it when the server is unreachable, offline hint on the library error.

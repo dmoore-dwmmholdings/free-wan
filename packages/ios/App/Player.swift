@@ -42,15 +42,32 @@ final class PlayerModel {
         self.client = client
         self.mediaID = mediaID
         state = .loading
+        // A downloaded copy plays from the phone. The server still supplies the resume point
+        // and subtitles when it can be reached, and is not needed when it cannot.
+        let downloads = DownloadManager.shared
+        let local = downloads.index[mediaID].map(downloads.fileURL)
         do {
-            let descriptor = try await MediaAPI.playback(client, id: mediaID)
-            duration = descriptor.duration
-            resumeAt = descriptor.resumeAt
-            captionTracks = descriptor.captions
-            // AVPlayer makes its own requests, including every HLS segment; this asset option
-            // puts the session token on all of them.
-            let asset = AVURLAsset(url: try client.url(descriptor.url),
+            let descriptor: PlaybackDescriptor?
+            do {
+                descriptor = try await MediaAPI.playback(client, id: mediaID)
+            } catch {
+                guard local != nil else { throw error }
+                descriptor = nil
+            }
+            duration = descriptor?.duration
+            resumeAt = descriptor?.resumeAt
+            captionTracks = descriptor?.captions ?? []
+            let asset: AVURLAsset
+            if let local {
+                asset = AVURLAsset(url: local)
+            } else if let descriptor {
+                // AVPlayer makes its own requests, including every HLS segment; this asset
+                // option puts the session token on all of them.
+                asset = AVURLAsset(url: try client.url(descriptor.url),
                                    options: ["AVURLAssetHTTPHeaderFieldsKey": client.authHeaders])
+            } else {
+                throw APIError(status: 0, code: "unreachable", message: "The server could not be reached.")
+            }
             let item = AVPlayerItem(asset: asset)
             observe(item)
             player.replaceCurrentItem(with: item)

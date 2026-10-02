@@ -112,7 +112,9 @@ struct LibraryStatus: View {
                 ContentUnavailableView {
                     Label("Cannot reach the server", systemImage: "wifi.exclamationmark")
                 } description: {
-                    Text(error.localizedDescription)
+                    Text([error.localizedDescription,
+                          Format.offlineHint(downloads: DownloadManager.shared.index.records.count)]
+                        .compactMap { $0 }.joined(separator: " "))
                 } actions: {
                     Button("Try again") { Task { await pager.reload() } }
                 }

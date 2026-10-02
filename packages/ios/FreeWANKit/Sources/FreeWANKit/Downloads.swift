@@ -112,3 +112,13 @@ public enum DownloadFiles {
         expected > 0 ? min(1, max(0, Double(written) / Double(expected))) : 0
     }
 }
+
+extension Format {
+    /// Shown when the server cannot be reached, so downloads are not forgotten.
+    public static func offlineHint(downloads: Int) -> String? {
+        guard downloads > 0 else { return nil }
+        return downloads == 1
+            ? "1 download is still playable from the Downloads tab."
+            : "\(downloads) downloads are still playable from the Downloads tab."
+    }
+}

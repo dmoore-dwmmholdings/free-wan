@@ -51,3 +51,11 @@ import Testing
         #expect(index.sorted.isEmpty)
     }
 }
+
+@Suite struct OfflineHintTests {
+    @Test func hint() {
+        #expect(Format.offlineHint(downloads: 0) == nil)
+        #expect(Format.offlineHint(downloads: 1) == "1 download is still playable from the Downloads tab.")
+        #expect(Format.offlineHint(downloads: 3)?.hasPrefix("3 downloads are") == true)
+    }
+}

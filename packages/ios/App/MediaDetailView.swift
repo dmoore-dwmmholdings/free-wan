@@ -89,8 +89,8 @@ struct MediaDetailView: View {
                     .font(.footnote)
                     .foregroundStyle(Theme.muted)
             }
-            HStack {
-                Spacer()
+            HStack(spacing: 12) {
+                DownloadButton(card: card, ext: detail?.ext)
                 likeButton
             }
         }
