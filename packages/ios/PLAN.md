@@ -27,7 +27,7 @@ part of one) per pass.
 
 ### Library
 - [x] Media list models and query building (`/api/media` paging, search, type filters, the sort orderings, categories `/api/categories`, tags `/api/tags`)
-- [ ] Library grid with authenticated posters (`/api/media/:id/poster`) and an image cache; search, filter toggles, sort sheet, category and tag chips; infinite scroll; pull to refresh
+- [x] Library grid with authenticated posters (`/api/media/:id/poster`) and an image cache; search, filter toggles, sort sheet, category and tag chips; infinite scroll; pull to refresh
 - [ ] Media detail: metadata, like (`/api/media/:id/like`), tags
 - [ ] Video playback: `/api/media/:id/playback` (direct or HLS), AVPlayer with bearer header, resume and report progress (`/api/media/:id/progress`), Picture in Picture, background audio, playback error overlay
 - [ ] Subtitles: track list and picker (see `captions.ts`)
@@ -55,3 +55,4 @@ part of one) per pass.
 - Tab shell: MainTabs with a NavigationStack per tab, themed bars, placeholders for unbuilt tabs; Settings shows server, user and Sign out.
 - Media list models: MediaCard, CategoryNode, Tag, SortChoice (7 orderings), MediaListQuery building `/api/media` paths with strict percent-encoding (a literal + survives), MediaAPI, duration formatting.
 - Library grid, part 1: generic Pager (stale pages dropped, duplicates across pages skipped), APIClient.data, AuthImage with a decoded-image cache, adaptive grid with search, infinite scroll, pull to refresh, empty and error states. Left: filter toggles, sort sheet, category and tag chips.
+- Library grid, part 2: liked/video/photo toggles, sort menu, folder trail chips, tag chips; CategoryTrail and filter-specific empty messages in the kit.

@@ -53,3 +53,35 @@ import Testing
         #expect(Format.duration(3723) == "1:02:03")
     }
 }
+
+@Suite struct LibraryFilterTests {
+    func node(_ id: String) -> CategoryNode {
+        CategoryNode(id: id, name: id.uppercased(), path: id, depth: 0, itemCount: 0, hasChildren: true)
+    }
+
+    @Test func trail() {
+        var t = CategoryTrail()
+        #expect(t.current == nil)
+        t.enter(node("a")); t.enter(node("b")); t.enter(node("c"))
+        #expect(t.current?.id == "c")
+        t.exit(to: 1)
+        #expect(t.crumbs.map(\.id) == ["a"])
+        t.exit(to: 0)
+        #expect(t.crumbs.isEmpty)
+    }
+
+    @Test func emptyMessageNamesTheFilter() {
+        var q = MediaListQuery()
+        #expect(q.emptyMessage.hasPrefix("Your library is empty"))
+        q.category = "c"
+        #expect(q.emptyMessage.hasPrefix("This folder"))
+        q.search = "cat"
+        #expect(q.emptyMessage == "No results for \"cat\".")
+        q.liked = true
+        #expect(q.emptyMessage.hasPrefix("Nothing liked"))
+        q.tags = ["t"]
+        #expect(q.emptyMessage.hasPrefix("Nothing carries"))
+        q.type = .image
+        #expect(q.emptyMessage.hasPrefix("No photos"))
+    }
+}

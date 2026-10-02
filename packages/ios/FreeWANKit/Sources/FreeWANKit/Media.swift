@@ -150,3 +150,42 @@ public enum Format {
         return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 }
+
+/// The folders entered so far, root first. The last one filters the list.
+public struct CategoryTrail: Equatable, Sendable {
+    public struct Crumb: Equatable, Hashable, Sendable {
+        public let id: String
+        public let name: String
+    }
+
+    public private(set) var crumbs: [Crumb] = []
+
+    public init() {}
+
+    public var current: Crumb? { crumbs.last }
+
+    public mutating func enter(_ node: CategoryNode) {
+        crumbs.append(Crumb(id: node.id, name: node.name))
+    }
+
+    /// Back out to `depth` crumbs; 0 is the top of the library.
+    public mutating func exit(to depth: Int) {
+        crumbs = Array(crumbs.prefix(max(0, depth)))
+    }
+}
+
+extension MediaListQuery {
+    /// What to say when a query comes back empty, naming the filter most likely responsible.
+    public var emptyMessage: String {
+        if let type {
+            return type == .video
+                ? "No videos here. Turn off the video filter to show everything."
+                : "No photos here. Turn off the photo filter to show everything."
+        }
+        if !tags.isEmpty { return "Nothing carries all of the selected tags. Tap one to remove it." }
+        if liked { return "Nothing liked yet. Like anything you want to find again." }
+        if !search.isEmpty { return "No results for \"\(search)\"." }
+        if category != nil { return "This folder has no media directly in it. Try a sub-folder above." }
+        return "Your library is empty, or the server is still scanning."
+    }
+}

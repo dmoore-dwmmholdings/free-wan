@@ -5,15 +5,17 @@ import SwiftUI
 struct LibraryView: View {
     @Environment(AppModel.self) private var model
     @State private var query = MediaListQuery()
+    @State private var trail = CategoryTrail()
     @State private var searchText = ""
     @State private var pager: Pager<MediaCard>?
 
     var body: some View {
         ScrollView {
-            if let pager {
-                MediaGrid(pager: pager)
-                    .padding(12)
+            VStack(alignment: .leading, spacing: 14) {
+                LibraryFilters(query: $query, trail: $trail)
+                if let pager { MediaGrid(pager: pager) }
             }
+            .padding(12)
         }
         .overlay { if let pager { LibraryStatus(pager: pager, query: query) } }
         .refreshable { await pager?.reload() }
@@ -119,8 +121,5 @@ struct LibraryStatus: View {
         }
     }
 
-    private var emptyMessage: String {
-        if !query.search.isEmpty { return "No results for \"\(query.search)\"." }
-        return "Your library is empty, or the server is still scanning."
-    }
+    private var emptyMessage: String { query.emptyMessage }
 }
