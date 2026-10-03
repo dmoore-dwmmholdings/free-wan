@@ -59,3 +59,19 @@ public struct ProgressPolicy: Sendable {
         return resumeAt
     }
 }
+
+/// A long-pressed video's preview: short pieces from across it, to tell what it is and where.
+public enum PreviewSnippets {
+    public static let length: Double = 5
+    public static let count = 5
+
+    /// Evenly spaced starts, from the beginning to the last piece's; just the beginning when the
+    /// video is too short to cut up.
+    public static func starts(duration: Double?) -> [Double] {
+        guard let duration, duration.isFinite else { return [0] }
+        let pieces = min(count, Int(duration / length))
+        guard pieces >= 2 else { return [0] }
+        let last = duration - length
+        return (0..<pieces).map { last * Double($0) / Double(pieces - 1) }
+    }
+}

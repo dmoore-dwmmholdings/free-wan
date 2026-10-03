@@ -31,6 +31,13 @@ struct LoginResponse: Decodable {
 }
 
 public enum Auth {
+    /// Who the token belongs to; the server wraps it as `{ user }`.
+    public static func me(_ client: APIClient) async throws -> Me {
+        struct Response: Decodable { let user: Me }
+        let response: Response = try await client.get("/api/auth/me")
+        return response.user
+    }
+
     /// Signs in against an address that has only just been typed, before any session exists.
     public static func login(
         server: URL, username: String, password: String,

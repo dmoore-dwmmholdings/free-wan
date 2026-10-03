@@ -198,6 +198,7 @@ struct PlainPlayerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = player
+        controller.delegate = FullScreenRotation.shared
         return controller
     }
 

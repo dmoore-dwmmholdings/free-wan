@@ -9,13 +9,21 @@ public struct DownloadJob: Codable, Equatable, Sendable {
     public let durationS: Double?
     /// The file's extension, when known up front from the item's details.
     public let ext: String?
+    /// The server it comes from, so each server's downloads show only while it is in use.
+    public let server: String?
 
-    public init(id: String, title: String, type: MediaType, durationS: Double?, ext: String?) {
+    public init(id: String, title: String, type: MediaType, durationS: Double?, ext: String?, server: String? = nil) {
         self.id = id
         self.title = title
         self.type = type
         self.durationS = durationS
         self.ext = ext
+        self.server = server
+    }
+
+    /// The same job, from `server`.
+    public func from(_ server: String) -> DownloadJob {
+        DownloadJob(id: id, title: title, type: type, durationS: durationS, ext: ext, server: server)
     }
 
     public var encoded: String {
@@ -42,8 +50,11 @@ public struct DownloadRecord: Codable, Equatable, Identifiable, Sendable {
     public let posterFileName: String?
     public let bytes: Int64
     public let completedAt: Date
+    /// Nil only for a download made before servers were recorded, until one claims it.
+    public internal(set) var server: String?
 
     public init(job: DownloadJob, fileName: String, posterFileName: String?, bytes: Int64, completedAt: Date) {
+        server = job.server
         id = job.id
         title = job.title
         type = job.type
@@ -75,6 +86,22 @@ public struct DownloadIndex: Codable, Equatable, Sendable {
     public var sorted: [DownloadRecord] { records.values.sorted { $0.completedAt > $1.completedAt } }
 
     public var totalBytes: Int64 { records.values.reduce(0) { $0 + $1.bytes } }
+
+    /// One server's downloads, newest first.
+    public func sorted(from server: String?) -> [DownloadRecord] { sorted.filter { $0.server == server } }
+
+    public func totalBytes(from server: String?) -> Int64 {
+        records.values.filter { $0.server == server }.reduce(0) { $0 + $1.bytes }
+    }
+
+    /// Gives downloads made before servers were recorded to `server`: the one in use when there
+    /// was only one. True when any changed.
+    @discardableResult
+    public mutating func claimUnowned(for server: String) -> Bool {
+        let unowned = records.filter { $0.value.server == nil }.keys
+        for id in unowned { records[id]?.server = server }
+        return !unowned.isEmpty
+    }
 
     public mutating func add(_ record: DownloadRecord) { records[record.id] = record }
 

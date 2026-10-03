@@ -147,7 +147,8 @@ struct MediaTile: View {
                 .overlay {
                     // While another video plays in Picture in Picture, tiles stay quiet.
                     if playback != .none {
-                        TileVideo(card: item, muted: playback == .muted || PlaybackCenter.shared.pipActive)
+                        TileVideo(card: item, muted: playback == .muted || PlaybackCenter.shared.pipActive,
+                                  snippets: playback == .sound)
                     }
                 }
                 .overlay(alignment: .bottomTrailing) {
@@ -179,11 +180,13 @@ struct MediaTile: View {
     }
 }
 
-/// A video playing on a loop inside its tile, filling it as the poster does, from the start.
+/// A video playing on a loop inside its tile, filling it as the poster does. With `snippets` it
+/// plays a few seconds from each of several points across the video, to tell what it is.
 struct TileVideo: View {
     @Environment(AppModel.self) private var model
     let card: MediaCard
     let muted: Bool
+    var snippets = false
 
     @State private var player: AVPlayer?
 
@@ -192,7 +195,8 @@ struct TileVideo: View {
             if let player { PlayerLayerView(player: player, gravity: .resizeAspectFill) }
         }
         .allowsHitTesting(false)
-        .task {
+        .task(id: snippets) {
+            player?.pause()
             guard let client = model.client, let asset = await playableAsset(card, client: client),
                   !Task.isCancelled else { return }
             let item = AVPlayerItem(asset: asset)
@@ -203,9 +207,21 @@ struct TileVideo: View {
             tile.automaticallyWaitsToMinimizeStalling = false
             tile.play()
             player = tile
-            for await _ in NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification, object: item) {
-                await tile.seek(to: .zero)
-                tile.play()
+            let starts = snippets ? PreviewSnippets.starts(duration: card.durationS) : [0]
+            if starts.count > 1 {
+                var piece = 0
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    if tile.currentTime().seconds >= starts[piece] + PreviewSnippets.length {
+                        piece = (piece + 1) % starts.count
+                        await tile.seek(to: CMTime(seconds: starts[piece], preferredTimescale: 600))
+                    }
+                }
+            } else {
+                for await _ in NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification, object: item) {
+                    await tile.seek(to: .zero)
+                    tile.play()
+                }
             }
         }
         .onChange(of: muted) { _, muted in player?.isMuted = muted }

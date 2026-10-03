@@ -69,6 +69,11 @@ final class PlaybackCenter: NSObject {
         }
     }
 
+    /// Ends whatever is playing, PiP included, as when switching servers.
+    func stopAll() {
+        end()
+    }
+
     private func end() {
         if pip?.isPictureInPictureActive == true { pip?.stopPictureInPicture() }
         current?.stop()

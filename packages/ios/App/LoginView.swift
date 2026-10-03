@@ -3,6 +3,8 @@ import SwiftUI
 
 struct LoginView: View {
     @Environment(AppModel.self) private var model
+    /// Set when adding a server alongside others, which can be backed out of.
+    var onCancel: (() -> Void)?
     @State private var address = ""
     @State private var username = ""
     @State private var password = ""
@@ -12,7 +14,11 @@ struct LoginView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(Theme.siteName)
+                if let onCancel {
+                    Button("Cancel", action: onCancel)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                Text(onCancel == nil ? Theme.siteName : "Add a server")
                     .font(.largeTitle.bold())
                     .foregroundStyle(Theme.text)
                 Text("Sign in to your server")
@@ -55,7 +61,9 @@ struct LoginView: View {
             .padding(24)
         }
         .background(Theme.background)
-        .onAppear { if address.isEmpty { address = model.server?.absoluteString ?? "" } }
+        .onAppear {
+            if address.isEmpty && onCancel == nil { address = model.session.recentServer?.absoluteString ?? "" }
+        }
     }
 
     private func field(_ label: String, text: Binding<String>, prompt: String) -> some View {

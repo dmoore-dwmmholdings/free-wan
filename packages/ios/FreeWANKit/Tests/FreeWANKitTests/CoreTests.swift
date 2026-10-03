@@ -86,14 +86,69 @@ import Testing
     }
 }
 
+@Suite struct MeTests {
+    @Test func readsTheWrappedUser() async throws {
+        let stub = StubTransport(json: #"{"user":{"id":"u","username":"dawson","role":"admin","canRunCommands":true,"mustChangePassword":false}}"#)
+        let me = try await Auth.me(APIClient(baseURL: server, transport: stub))
+        #expect(me.username == "dawson" && me.role == "admin")
+        #expect(stub.requests[0].url?.path == "/api/auth/me")
+    }
+}
+
 @Suite struct SessionTests {
-    @Test func clearKeepsServer() {
+    let other = URL(string: "https://other.example.ts.net")!
+
+    @Test func signingOutKeepsTheAddressForTheForm() {
         let session = Session(store: MemoryStore())
-        session.save(server: server, token: "t")
+        let account = session.save(server: server, username: "me", token: "t")
         #expect(session.token == "t")
-        session.clear()
+        session.remove(account.id)
         #expect(session.token == nil)
-        #expect(session.server == server)
+        #expect(session.active == nil)
+        #expect(session.recentServer == server)
+    }
+
+    @Test func keepsATokenPerServerAndSwitches() {
+        let store = MemoryStore()
+        let session = Session(store: store)
+        let a = session.save(server: server, username: "me", token: "ta")
+        let b = session.save(server: other, username: "me", token: "tb")
+        #expect(session.server == other && session.token == "tb")
+        session.activate(a.id)
+        #expect(session.token == "ta")
+        // Signing in again to the same server and user renews it rather than adding another.
+        session.save(server: server, username: "me", token: "ta2")
+        #expect(session.accounts.count == 2 && session.token == "ta2")
+        // The list and choice survive a relaunch.
+        let reopened = Session(store: store)
+        #expect(reopened.accounts.map(\.id) == [a.id, b.id] && reopened.active?.id == a.id)
+    }
+
+    @Test func opensTheLastNonPrivateServer() {
+        let session = Session(store: MemoryStore())
+        let a = session.save(server: server, token: "ta")
+        let b = session.save(server: other, token: "tb")
+        #expect(session.openingAccount?.id == b.id)
+        session.activate(a.id)
+        #expect(session.openingAccount?.id == a.id)
+        session.setPrivate(a.id, true)
+        #expect(session.openingAccount?.id == b.id) // a private server is never opened on its own
+        session.setPrivate(b.id, true)
+        #expect(session.openingAccount == nil)
+    }
+
+    @Test func movesASingleServerSignInAcross() {
+        let store = MemoryStore()
+        store.set("server", server.absoluteString)
+        store.set("token", "old")
+        let session = Session(store: store)
+        #expect(session.server == server && session.token == "old")
+        #expect(store.get("server") == nil && store.get("token") == nil)
+
+        let signedOut = MemoryStore()
+        signedOut.set("server", server.absoluteString)
+        let empty = Session(store: signedOut)
+        #expect(empty.accounts.isEmpty && empty.recentServer == server)
     }
 }
 

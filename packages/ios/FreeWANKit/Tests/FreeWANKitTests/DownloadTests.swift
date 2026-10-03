@@ -59,3 +59,31 @@ import Testing
         #expect(Format.offlineHint(downloads: 3)?.hasPrefix("3 downloads are") == true)
     }
 }
+
+@Suite struct DownloadServerTests {
+    let job = DownloadJob(id: "a", title: "A", type: .video, durationS: 1, ext: "mp4")
+
+    @Test func keepsEachServersDownloadsApart() {
+        var index = DownloadIndex()
+        index.add(DownloadRecord(job: job.from("https://one"), fileName: "a.mp4", posterFileName: nil, bytes: 5, completedAt: .now))
+        let other = DownloadJob(id: "b", title: "B", type: .image, durationS: nil, ext: "jpg", server: "https://two")
+        index.add(DownloadRecord(job: other, fileName: "b.jpg", posterFileName: nil, bytes: 7, completedAt: .now))
+        #expect(index.sorted(from: "https://one").map(\.id) == ["a"])
+        #expect(index.totalBytes(from: "https://two") == 7)
+        // A job's server travels with the transfer.
+        #expect(DownloadJob(encoded: other.encoded)?.server == "https://two")
+    }
+
+    @Test func givesOldDownloadsToTheFirstServer() throws {
+        var index = DownloadIndex()
+        index.add(DownloadRecord(job: job, fileName: "a.mp4", posterFileName: nil, bytes: 5, completedAt: .now))
+        // Saved before servers were recorded: no server field at all.
+        let old = try JSONDecoder().decode(DownloadIndex.self, from: JSONEncoder().encode(index))
+        var claimed = old
+        let changed = claimed.claimUnowned(for: "https://one")
+        #expect(changed)
+        #expect(claimed["a"]?.server == "https://one")
+        let again = claimed.claimUnowned(for: "https://two")
+        #expect(!again) // claimed once only
+    }
+}

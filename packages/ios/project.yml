@@ -38,6 +38,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
+        # Portrait only; landscape is listed for full-screen video, which AppDelegate allows alone.
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
@@ -50,6 +51,8 @@ targets:
         # Plain-HTTP servers on the LAN (http://192.168.x.x:8080). Tailnet addresses are HTTPS.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # Unlocking private servers.
+        NSFaceIDUsageDescription: FreeWAN uses Face ID to show your private servers.
         # Deleting uploaded photos and videos from the phone, when asked to after an upload.
         NSPhotoLibraryUsageDescription: FreeWAN deletes photos and videos from your library after uploading them, when you ask it to.
         # Picture in Picture and audio with the screen locked.

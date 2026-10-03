@@ -222,6 +222,7 @@ struct VideoPlayerView: UIViewControllerRepresentable {
         func playerViewController(_ controller: AVPlayerViewController,
                                   willBeginFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator) {
             model.isFullScreen = true
+            FullScreenRotation.began()
         }
 
         func playerViewController(_ controller: AVPlayerViewController,
@@ -229,7 +230,9 @@ struct VideoPlayerView: UIViewControllerRepresentable {
             // A swipe that is let go of part way stays in full screen.
             coordinator.animate(alongsideTransition: nil) { [model] context in
                 MainActor.assumeIsolated {
-                    if !context.isCancelled { model.isFullScreen = false }
+                    guard !context.isCancelled else { return }
+                    model.isFullScreen = false
+                    FullScreenRotation.ended()
                 }
             }
         }
@@ -257,6 +260,46 @@ struct CaptionOverlay: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .allowsHitTesting(false)
+    }
+}
+
+/// The app is portrait only; a video in the system player's full screen may turn to landscape.
+@MainActor
+final class FullScreenRotation: NSObject, AVPlayerViewControllerDelegate {
+    /// For players with no delegate of their own.
+    static let shared = FullScreenRotation()
+    private(set) static var allowsLandscape = false
+
+    static func began() {
+        allowsLandscape = true
+        updateWindows()
+    }
+
+    /// Back to portrait, turning the screen round if the phone is held sideways.
+    static func ended() {
+        allowsLandscape = false
+        updateWindows()
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
+        }
+    }
+
+    private static func updateWindows() {
+        for scene in UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }) {
+            scene.keyWindow?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+        }
+    }
+
+    func playerViewController(_ controller: AVPlayerViewController,
+                              willBeginFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator) {
+        Self.began()
+    }
+
+    func playerViewController(_ controller: AVPlayerViewController,
+                              willEndFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator) {
+        coordinator.animate(alongsideTransition: nil) { context in
+            MainActor.assumeIsolated { if !context.isCancelled { Self.ended() } }
+        }
     }
 }
 

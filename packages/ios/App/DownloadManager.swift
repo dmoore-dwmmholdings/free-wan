@@ -18,8 +18,21 @@ final class DownloadManager {
     /// What each transfer in flight or failed is of, for listing and retrying.
     private(set) var jobs: [String: DownloadJob] = [:]
 
-    /// The signed-in server, for requests and for the poster fetched after a file lands.
-    var client: APIClient?
+    /// The signed-in server, for requests and for the poster fetched after a file lands. Its
+    /// downloads are the ones that show.
+    var client: APIClient? {
+        didSet {
+            // Downloads from before servers were recorded belong to the one there was then.
+            if let server, index.claimUnowned(for: server) { saveIndex() }
+        }
+    }
+
+    var server: String? { client?.baseURL.absoluteString }
+    /// The server in use's downloads, newest first, and what they take up.
+    var visible: [DownloadRecord] { index.sorted(from: server) }
+    var visibleBytes: Int64 { index.totalBytes(from: server) }
+    /// Its transfers still running or failed.
+    var visibleJobs: [DownloadJob] { jobs.values.filter { $0.server == nil || $0.server == server } }
     /// Given by the system when it relaunches the app for finished background transfers.
     var backgroundCompletion: (() -> Void)?
 
@@ -67,6 +80,7 @@ final class DownloadManager {
 
     func start(_ job: DownloadJob) {
         guard index[job.id] == nil, active[job.id] == nil, let client else { return }
+        let job = job.from(client.baseURL.absoluteString)
         guard let url = try? client.url(job.rawPath) else { return }
         var request = URLRequest(url: url)
         for (name, value) in client.authHeaders {
@@ -246,6 +260,10 @@ final class DownloadDelegate: NSObject, URLSessionDownloadDelegate, @unchecked S
 
 /// Hands the system's background-transfer wake-up to the download manager.
 final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        MainActor.assumeIsolated { FullScreenRotation.allowsLandscape ? .allButUpsideDown : .portrait }
+    }
+
     func application(_ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
                      completionHandler: @escaping () -> Void) {
         guard identifier == DownloadManager.sessionID else { return completionHandler() }

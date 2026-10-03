@@ -24,12 +24,22 @@ struct FreeWANApp: App {
 
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         content
             .tint(Theme.primary)
             .preferredColorScheme(Theme.colorScheme)
             .onOpenURL { model.open($0) }
+            // The app switcher's snapshot must not show a private server.
+            .overlay {
+                if phase != .active && model.account?.isPrivate == true {
+                    Theme.background.ignoresSafeArea()
+                }
+            }
+            .onChange(of: phase) { _, phase in
+                if phase == .background { model.lockPrivate() }
+            }
     }
 
     @ViewBuilder
@@ -39,13 +49,19 @@ struct RootView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .background(Theme.background)
-                .task { await model.restore() }
+                // Waits for the app to be in front: after private servers lock on leaving, a
+                // request made while suspended would fail and open the server as unreachable.
+                .task(id: phase) { if phase == .active { await model.restore() } }
         case .signedOut:
             LoginView()
+        case .locked:
+            LockedView()
         case .signedIn(let me) where me.mustChangePassword:
             ChangePasswordView(forced: true)
         case .signedIn(let me):
             MainTabs(me: me)
+                // Each server starts on fresh tabs.
+                .id(model.account?.id)
         }
     }
 }

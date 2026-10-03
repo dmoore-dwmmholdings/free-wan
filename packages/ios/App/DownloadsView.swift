@@ -9,7 +9,7 @@ struct DownloadsView: View {
 
     var body: some View {
         List {
-            let pending = downloads.jobs.values.sorted { $0.title < $1.title }
+            let pending = downloads.visibleJobs.sorted { $0.title < $1.title }
             if !pending.isEmpty {
                 Section("In progress") {
                     ForEach(pending, id: \.id) { job in
@@ -19,7 +19,7 @@ struct DownloadsView: View {
                 .listRowBackground(Theme.surface)
             }
 
-            let records = downloads.index.sorted
+            let records = downloads.visible
             if !records.isEmpty {
                 Section {
                     ForEach(records) { record in
@@ -31,14 +31,14 @@ struct DownloadsView: View {
                         for offset in offsets { downloads.remove(records[offset].id) }
                     }
                 } header: {
-                    Text("On this phone, \(Format.bytes(Double(downloads.index.totalBytes)))")
+                    Text("On this phone, \(Format.bytes(Double(downloads.visibleBytes)))")
                 }
                 .listRowBackground(Theme.surface)
             }
         }
         .scrollContentBackground(.hidden)
         .overlay {
-            if downloads.jobs.isEmpty && downloads.index.records.isEmpty {
+            if downloads.visibleJobs.isEmpty && downloads.visible.isEmpty {
                 ContentUnavailableView("No downloads", systemImage: "arrow.down.circle",
                                        description: Text("Download anything from its page to watch it without a connection."))
             }

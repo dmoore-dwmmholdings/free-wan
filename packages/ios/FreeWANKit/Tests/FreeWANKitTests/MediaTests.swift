@@ -135,3 +135,12 @@ import Testing
         #expect(Format.bytes(1_500_000_000) == "1.5 GB")
     }
 }
+
+@Suite struct PreviewSnippetTests {
+    @Test func spreadsFivePiecesAcrossTheVideo() {
+        #expect(PreviewSnippets.starts(duration: 605) == [0, 150, 300, 450, 600])
+        #expect(PreviewSnippets.starts(duration: 12) == [0, 7]) // room for two
+        #expect(PreviewSnippets.starts(duration: 8) == [0]) // too short: just loop it
+        #expect(PreviewSnippets.starts(duration: nil) == [0])
+    }
+}

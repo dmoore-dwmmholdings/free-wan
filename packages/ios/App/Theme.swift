@@ -23,14 +23,17 @@ final class ThemeStore {
         apply(cached)
     }
 
-    /// Fetches current branding. A failure keeps whatever is showing.
+    /// Fetches current branding, shown if `current` still says so when it arrives (another
+    /// server may be open by then). A failure keeps whatever is showing.
     @MainActor
-    func refresh(from server: URL) async {
-        guard let fresh = try? await Branding.fetch(from: APIClient(baseURL: server)) else { return }
-        apply(fresh)
+    @discardableResult
+    func refresh(from server: URL, current: () -> Bool = { true }) async -> Branding? {
+        guard let fresh = try? await Branding.fetch(from: APIClient(baseURL: server)) else { return nil }
+        if current() { apply(fresh) }
         if let data = try? JSONEncoder().encode(fresh) {
             UserDefaults.standard.set(data, forKey: Self.cacheKey(server))
         }
+        return fresh
     }
 
     @MainActor
