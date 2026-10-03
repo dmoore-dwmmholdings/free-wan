@@ -34,6 +34,11 @@ struct MainTabs: View {
         }
         // The raw primary is too faint for the 10pt tab label on the default preset.
         .tint(Theme.primaryStrong)
+        .background(alignment: .topLeading) { PiPHost().frame(width: 4, height: 4) }
+        .onAppear {
+            PlaybackCenter.shared.onRestore = { [model] id in model.show(.media(id)) }
+            LibraryPrefs.shared.load(for: model.server)
+        }
         // Runs when a link arrives, and when the tabs first appear with one held from before
         // sign-in.
         .task(id: model.pendingLink) { await openPendingLink() }
@@ -87,3 +92,30 @@ struct MainTabs: View {
     }
 }
 
+
+extension View {
+    /// A tab's title on the row of its toolbar buttons, rather than as a large title under them.
+    @ViewBuilder
+    func tabTitle(_ title: String) -> some View {
+        let inline = navigationTitle(title).navigationBarTitleDisplayMode(.inline)
+        let label = Text(title)
+            .font(.title2.bold())
+            .foregroundStyle(Theme.text)
+            .lineLimit(1)
+            .fixedSize()
+            .accessibilityAddTraits(.isHeader)
+        if #available(iOS 26, *) {
+            inline.toolbar {
+                // An item in the principal place stands in for the centred inline title.
+                ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
+                // A label, not a button, so no glass behind it.
+                ToolbarItem(placement: .topBarLeading) { label }.sharedBackgroundVisibility(.hidden)
+            }
+        } else {
+            inline.toolbar {
+                ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1) }
+                ToolbarItem(placement: .topBarLeading) { label }
+            }
+        }
+    }
+}

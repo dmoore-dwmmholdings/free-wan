@@ -1,5 +1,6 @@
 import CoreTransferable
 import FreeWANKit
+import Photos
 import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -28,7 +29,8 @@ struct PickedFile: Transferable {
     }
 }
 
-/// Uploads one file at a time, with progress, and can be stopped.
+/// The upload flow on Browse: pick, choose a library if there is more than one, upload one file
+/// at a time with progress, then offer to delete what uploaded from the phone.
 @MainActor
 @Observable
 final class Uploader {
@@ -37,15 +39,51 @@ final class Uploader {
     private(set) var count = 0
     private(set) var progress = 0.0
     var summary: (title: String, body: String)?
+    /// Photo library ids of the items that uploaded, which can now be deleted from the phone.
+    var uploadedIDs: [String] = []
+    var picking = false
+    var picked: [PhotosPickerItem] = []
+    var choosingTarget = false
+    var problem: String?
+    var deleteProblem: String?
+    private(set) var targets: [UploadTarget] = []
     @ObservationIgnored private var task: Task<Void, Never>?
+
+    /// Checks there is somewhere to upload to before opening the picker.
+    func prepare(_ client: APIClient) async {
+        do {
+            targets = try await Uploads.targets(client)
+            if targets.isEmpty {
+                problem = "No library on your server takes uploads. An admin can make one writable on the web app."
+            } else {
+                picking = true
+            }
+        } catch {
+            problem = "Your server could not be reached. \(error.localizedDescription)"
+        }
+    }
+
+    /// Picked items go straight up when there is one library, otherwise after choosing one.
+    func pickingEnded(_ client: APIClient?, done: @escaping () -> Void) {
+        guard !picked.isEmpty else { return }
+        if targets.count == 1, let client { start(targets[0], client: client, done: done) } else { choosingTarget = true }
+    }
+
+    func start(_ target: UploadTarget, client: APIClient, done: @escaping () -> Void) {
+        let items = picked
+        picked = []
+        run(items, to: target, client: client, done: done)
+    }
 
     func run(_ items: [PhotosPickerItem], to target: UploadTarget, client: APIClient, done: @escaping () -> Void) {
         guard !running else { return }
         running = true
         count = items.count
         current = 0
+        uploadedIDs = []
         task = Task {
             var results: [UploadOutcome] = []
+            var uploaded: [String] = []
             for (index, item) in items.enumerated() {
                 if Task.isCancelled { break }
                 current = index + 1
@@ -57,7 +95,9 @@ final class Uploader {
                     }
                     defer { try? FileManager.default.removeItem(at: picked.url.deletingLastPathComponent()) }
                     let name = Uploads.fileName(given: picked.url.lastPathComponent, index: index, isVideo: picked.isVideo)
-                    results.append(try await upload(picked, name: name, to: target, client: client))
+                    let outcome = try await upload(picked, name: name, to: target, client: client)
+                    results.append(outcome)
+                    if outcome.ok, let id = item.itemIdentifier { uploaded.append(id) }
                 } catch is CancellationError {
                     break
                 } catch let error as URLError where error.code == .cancelled {
@@ -66,6 +106,7 @@ final class Uploader {
                     results.append(UploadOutcome(name: "Item \(index + 1)", ok: false, reason: error.localizedDescription))
                 }
             }
+            uploadedIDs = uploaded
             summary = Uploads.summary(results, stopped: Task.isCancelled)
             running = false
             done()
@@ -73,6 +114,35 @@ final class Uploader {
     }
 
     func stop() { task?.cancel() }
+
+    /// Deletes the uploaded items from the photo library. iOS asks to confirm, and keeps them in
+    /// Recently Deleted for 30 days.
+    func deleteUploaded() async {
+        let ids = uploadedIDs
+        uploadedIDs = []
+        let access = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+        guard access == .authorized || access == .limited else {
+            deleteProblem = "FreeWAN needs access to your photos to delete them. Allow it in Settings, FreeWAN, Photos."
+            return
+        }
+        // With limited access only the photos shared with the app can be found.
+        let assets = PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+        let hidden = ids.count - assets.count
+        if assets.count > 0 {
+            do {
+                try await PHPhotoLibrary.shared().performChanges { PHAssetChangeRequest.deleteAssets(assets) }
+            } catch let error as PHPhotosError where error.code == .userCancelled {
+                return
+            } catch {
+                deleteProblem = "They could not be deleted. \(error.localizedDescription)"
+                return
+            }
+        }
+        if hidden > 0 {
+            deleteProblem = "\(hidden) could not be deleted because FreeWAN can only see the photos you have "
+                + "shared with it. Allow Full Access in Settings, FreeWAN, Photos, or delete them in Photos."
+        }
+    }
 
     private func upload(_ file: PickedFile, name: String, to target: UploadTarget, client: APIClient) async throws -> UploadOutcome {
         let boundary = Multipart.boundary()
@@ -111,82 +181,93 @@ final class UploadProgress: NSObject, URLSessionTaskDelegate, @unchecked Sendabl
     }
 }
 
-/// The toolbar button on Browse: pick, choose a library if there is more than one, upload.
+/// The toolbar button on Browse. What it opens is presented by `uploadFlow` on the screen, not
+/// from the toolbar, which is rebuilt when the upload ends and would take an alert with it.
 struct UploadButton: View {
     @Environment(AppModel.self) private var model
-    var onUploaded: () -> Void = {}
-
-    @State private var uploader = Uploader()
-    @State private var picking = false
-    @State private var picked: [PhotosPickerItem] = []
-    @State private var targets: [UploadTarget] = []
-    @State private var choosingTarget = false
-    @State private var problem: String?
+    let uploader: Uploader
 
     var body: some View {
-        Group {
-            if uploader.running {
-                Button { uploader.stop() } label: {
-                    HStack(spacing: 6) {
-                        ProgressView(value: uploader.progress).frame(width: 40)
-                        Text("\(uploader.current) of \(uploader.count)").font(.caption.monospacedDigit())
-                        Image(systemName: "xmark.circle.fill")
+        if uploader.running {
+            Button { uploader.stop() } label: {
+                HStack(spacing: 6) {
+                    ProgressView(value: uploader.progress).frame(width: 40)
+                    Text("\(uploader.current) of \(uploader.count)").font(.caption.monospacedDigit())
+                    Image(systemName: "xmark.circle.fill")
+                }
+            }
+            .accessibilityLabel("Uploading \(uploader.current) of \(uploader.count). Stop")
+        } else {
+            Button {
+                guard let client = model.client else { return }
+                Task { await uploader.prepare(client) }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .accessibilityLabel("Upload from your photo library")
+        }
+    }
+}
+
+extension View {
+    /// The picker, library choice and results of the upload `UploadButton` starts.
+    func uploadFlow(_ uploader: Uploader, onUploaded: @escaping () -> Void) -> some View {
+        modifier(UploadFlow(uploader: uploader, onUploaded: onUploaded))
+    }
+}
+
+private struct UploadFlow: ViewModifier {
+    @Environment(AppModel.self) private var model
+    @Bindable var uploader: Uploader
+    let onUploaded: () -> Void
+
+    func body(content: Content) -> some View {
+        let device = UIDevice.current.model
+        content
+            // The shared library gives each picked item an id, which deleting it later needs.
+            .photosPicker(isPresented: $uploader.picking, selection: $uploader.picked,
+                          maxSelectionCount: Uploads.maxFilesPerBatch, matching: .any(of: [.images, .videos]),
+                          photoLibrary: .shared())
+            .onChange(of: uploader.picked) { uploader.pickingEnded(model.client, done: onUploaded) }
+            .confirmationDialog("Upload to which library?", isPresented: $uploader.choosingTarget,
+                                titleVisibility: .visible) {
+                ForEach(uploader.targets) { target in
+                    Button(target.name) {
+                        guard let client = model.client else { return }
+                        uploader.start(target, client: client, done: onUploaded)
                     }
                 }
-                .accessibilityLabel("Uploading \(uploader.current) of \(uploader.count). Stop")
-            } else {
-                Button { Task { await prepare() } } label: {
-                    Image(systemName: "square.and.arrow.up")
+                Button("Cancel", role: .cancel) { uploader.picked = [] }
+            }
+            .alert(uploader.summary?.title ?? "", isPresented: Binding(
+                get: { uploader.summary != nil }, set: { if !$0 { uploader.summary = nil } }
+            )) {
+                if uploader.uploadedIDs.isEmpty {
+                    Button("OK", role: .cancel) {}
+                } else {
+                    Button("Delete \(uploader.uploadedIDs.count) from \(device)", role: .destructive) {
+                        Task { await uploader.deleteUploaded() }
+                    }
+                    Button("Keep on \(device)", role: .cancel) { uploader.uploadedIDs = [] }
                 }
-                .accessibilityLabel("Upload from your photo library")
+            } message: {
+                let freeUp = "\n\nDeleting what uploaded frees space on this \(device). iOS keeps deleted items in "
+                    + "Recently Deleted for 30 days first."
+                Text((uploader.summary?.body ?? "") + (uploader.uploadedIDs.isEmpty ? "" : freeUp))
             }
-        }
-        .photosPicker(isPresented: $picking, selection: $picked, maxSelectionCount: Uploads.maxFilesPerBatch,
-                      matching: .any(of: [.images, .videos]))
-        .onChange(of: picked) { _, items in
-            guard !items.isEmpty else { return }
-            if targets.count == 1 { start(items, targets[0]) } else { choosingTarget = true }
-        }
-        .confirmationDialog("Upload to which library?", isPresented: $choosingTarget, titleVisibility: .visible) {
-            ForEach(targets) { target in
-                Button(target.name) { start(picked, target) }
+            .alert("Cannot upload", isPresented: Binding(
+                get: { uploader.problem != nil }, set: { if !$0 { uploader.problem = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(uploader.problem ?? "")
             }
-            Button("Cancel", role: .cancel) { picked = [] }
-        }
-        .alert(uploader.summary?.title ?? "", isPresented: Binding(
-            get: { uploader.summary != nil }, set: { if !$0 { uploader.summary = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(uploader.summary?.body ?? "")
-        }
-        .alert("Cannot upload", isPresented: Binding(
-            get: { problem != nil }, set: { if !$0 { problem = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(problem ?? "")
-        }
-    }
-
-    /// Checks there is somewhere to upload to before opening the picker.
-    private func prepare() async {
-        guard let client = model.client else { return }
-        do {
-            targets = try await Uploads.targets(client)
-            if targets.isEmpty {
-                problem = "No library on your server takes uploads. An admin can make one writable on the web app."
-            } else {
-                picking = true
+            .alert("Not deleted", isPresented: Binding(
+                get: { uploader.deleteProblem != nil }, set: { if !$0 { uploader.deleteProblem = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(uploader.deleteProblem ?? "")
             }
-        } catch {
-            problem = "Your server could not be reached. \(error.localizedDescription)"
-        }
-    }
-
-    private func start(_ items: [PhotosPickerItem], _ target: UploadTarget) {
-        guard let client = model.client else { return }
-        picked = []
-        uploader.run(items, to: target, client: client, done: onUploaded)
     }
 }

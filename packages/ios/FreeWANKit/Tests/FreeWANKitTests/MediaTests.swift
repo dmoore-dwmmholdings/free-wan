@@ -33,6 +33,26 @@ import Testing
         #expect(page.nextCursor == "n")
     }
 
+    @Test func libraryTabs() async throws {
+        var q = MediaListQuery()
+        q.tab = .photos
+        #expect(q.path() == "/api/media?limit=40&repositoryType=image&repositoryType=mixed&sort=added&order=desc")
+        q.tab = .videos
+        #expect(q.path() == "/api/media?limit=40&repositoryType=video&sort=added&order=desc")
+
+        let cats = StubTransport(json: #"{"data":[]}"#)
+        _ = try await MediaAPI.categories(APIClient(baseURL: server, transport: cats), parent: "p", tab: .photos)
+        #expect(cats.requests[0].url?.absoluteString
+            == "https://media.example.ts.net/api/categories?parent=p&repositoryType=image&repositoryType=mixed")
+    }
+
+    @Test func libraries() async throws {
+        let stub = StubTransport(json: #"{"data":[{"id":"r1","name":"Phone","type":"mixed"}]}"#)
+        let found = try await MediaAPI.libraries(APIClient(baseURL: server, transport: stub))
+        #expect(found == [Library(id: "r1", name: "Phone", type: "mixed")])
+        #expect(stub.requests[0].url?.path == "/api/repositories")
+    }
+
     @Test func categoriesAndTags() async throws {
         let cats = StubTransport(json: #"{"data":[{"id":"c","name":"Films","path":"Films","depth":0,"itemCount":3,"hasChildren":true}]}"#)
         let found = try await MediaAPI.categories(APIClient(baseURL: server, transport: cats), parent: "p 1")

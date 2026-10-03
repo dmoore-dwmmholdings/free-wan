@@ -57,6 +57,12 @@ struct AuthImage: View {
                 return
             }
             image = await ImageCache.shared.load(path, client: client)
+            // A just-uploaded item shows before the server has made its poster; look again shortly.
+            for wait in [2, 5] where image == nil {
+                try? await Task.sleep(for: .seconds(wait))
+                if Task.isCancelled { return }
+                image = await ImageCache.shared.load(path, client: client)
+            }
         }
     }
 }

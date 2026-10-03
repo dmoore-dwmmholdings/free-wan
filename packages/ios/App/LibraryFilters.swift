@@ -12,6 +12,16 @@ struct LibraryFilters: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            Picker("Library", selection: Binding(get: { query.tab }, set: { tab in
+                // Each tab has its own folders, so leave the current one, as on the web.
+                query.tab = tab
+                exit(to: 0)
+            })) {
+                ForEach(LibraryTab.allCases) { tab in
+                    Text(tab.label).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
             HStack(spacing: 8) {
                 toggle(on: query.liked, symbol: query.liked ? "heart.fill" : "heart",
                        label: query.liked ? "Show all media" : "Show only liked media") {
@@ -31,9 +41,9 @@ struct LibraryFilters: View {
             folderChips
             tagChips
         }
-        .task(id: trail.current?.id) {
+        .task(id: "\(query.tab.rawValue)/\(trail.current?.id ?? "")") {
             guard let client = model.client else { return }
-            folders = (try? await MediaAPI.categories(client, parent: trail.current?.id)) ?? []
+            folders = (try? await MediaAPI.categories(client, parent: trail.current?.id, tab: query.tab)) ?? []
         }
         .task {
             guard let client = model.client else { return }

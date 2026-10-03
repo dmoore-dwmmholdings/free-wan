@@ -26,7 +26,7 @@ struct ClipsView: View {
         }
         .refreshable { await load() }
         .task { if !loaded { await load() } }
-        .navigationTitle("Clips")
+        .tabTitle("Clips")
         .navigationDestination(for: Clip.self) { ClipPlayerView(clip: $0) }
     }
 

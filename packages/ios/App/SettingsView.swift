@@ -7,6 +7,7 @@ struct SettingsView: View {
     let me: Me
 
     @State private var serverVersion: String?
+    @State private var libraries: [Library] = []
     @State private var confirmingSignOut = false
 
     private var downloads: DownloadManager { DownloadManager.shared }
@@ -32,6 +33,23 @@ struct SettingsView: View {
             }
             .listRowBackground(Theme.surface)
 
+            if !libraries.isEmpty {
+                Section {
+                    ForEach(libraries) { library in
+                        Toggle(library.name, isOn: Binding(
+                            get: { LibraryPrefs.shared.showsNames(library.id) },
+                            set: { LibraryPrefs.shared.setShowsNames($0, for: library.id) }
+                        ))
+                        .tint(Theme.primary)
+                    }
+                } header: {
+                    Text("Show names")
+                } footer: {
+                    Text("Names under each library's photos and videos, on this phone.")
+                }
+                .listRowBackground(Theme.surface)
+            }
+
             Section("Offline") {
                 LabeledContent("Downloads", value: "\(downloads.index.records.count)")
                 LabeledContent("Storage used", value: Format.bytes(Double(downloads.index.totalBytes)))
@@ -54,7 +72,7 @@ struct SettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .foregroundStyle(Theme.text)
-        .navigationTitle("Settings")
+        .tabTitle("Settings")
         .confirmationDialog("Sign out?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
             Button("Sign out", role: .destructive) { Task { await model.signOut() } }
             Button("Cancel", role: .cancel) {}
@@ -64,6 +82,8 @@ struct SettingsView: View {
         .task {
             guard let client = model.client else { return }
             serverVersion = (try? await Health.fetch(client))?.version
+            // An older server has no library list; the section stays hidden.
+            libraries = (try? await MediaAPI.libraries(client)) ?? []
         }
     }
 }

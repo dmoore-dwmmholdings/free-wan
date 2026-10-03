@@ -78,10 +78,42 @@ public struct SortChoice: Equatable, Hashable, Identifiable, Sendable {
 }
 
 /// One page request against `GET /api/media` (`mediaQuerySchema`).
+/// One of the server's libraries (a repository), as `GET /api/repositories` lists it.
+public struct Library: Codable, Equatable, Identifiable, Sendable {
+    public let id: String
+    public let name: String
+    public let type: String
+}
+
+/// The Browse tabs, by the kind of library an item lives in, as on the web.
+public enum LibraryTab: String, CaseIterable, Identifiable, Sendable {
+    case all, videos, photos
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .all: "All"
+        case .videos: "Video"
+        case .photos: "Photos"
+        }
+    }
+
+    /// The `repositoryType` filter; the Photos tab is image and mixed libraries.
+    public var repositoryTypes: [String] {
+        switch self {
+        case .all: []
+        case .videos: ["video"]
+        case .photos: ["image", "mixed"]
+        }
+    }
+}
+
 public struct MediaListQuery: Equatable, Hashable, Sendable {
     public var search = ""
     public var liked = false
     public var type: MediaType?
+    public var tab = LibraryTab.all
     public var category: String?
     public var collection: String?
     public var tags: Set<String> = []
@@ -97,6 +129,7 @@ public struct MediaListQuery: Equatable, Hashable, Sendable {
         if !q.isEmpty { items.append(("q", q)) }
         if liked { items.append(("liked", "true")) }
         if let type { items.append(("type", type.rawValue)) }
+        for kind in tab.repositoryTypes { items.append(("repositoryType", kind)) }
         if let category { items.append(("category", category)) }
         if let collection { items.append(("collection", collection)) }
         items.append(("sort", sort.sort.rawValue))
@@ -128,10 +161,18 @@ public enum MediaAPI {
         try await client.get(query.path(cursor: cursor))
     }
 
-    /// Top-level categories, or the children of `parent` (a category id).
-    public static func categories(_ client: APIClient, parent: String? = nil) async throws -> [CategoryNode] {
-        let path = parent.map { "/api/categories?parent=" + Query.escape($0) } ?? "/api/categories"
+    /// Top-level categories, or the children of `parent` (a category id), in `tab`'s libraries.
+    public static func categories(_ client: APIClient, parent: String? = nil, tab: LibraryTab = .all) async throws -> [CategoryNode] {
+        var items = parent.map { [("parent", $0)] } ?? []
+        for kind in tab.repositoryTypes { items.append(("repositoryType", kind)) }
+        let path = items.isEmpty ? "/api/categories" : "/api/categories?" + Query.encode(items)
         let list: DataList<CategoryNode> = try await client.get(path)
+        return list.data
+    }
+
+    /// The server's enabled libraries.
+    public static func libraries(_ client: APIClient) async throws -> [Library] {
+        let list: DataList<Library> = try await client.get("/api/repositories")
         return list.data
     }
 

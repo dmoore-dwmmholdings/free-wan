@@ -50,6 +50,8 @@ targets:
         # Plain-HTTP servers on the LAN (http://192.168.x.x:8080). Tailnet addresses are HTTPS.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        # Deleting uploaded photos and videos from the phone, when asked to after an upload.
+        NSPhotoLibraryUsageDescription: FreeWAN deletes photos and videos from your library after uploading them, when you ask it to.
         # Picture in Picture and audio with the screen locked.
         UIBackgroundModes: [audio]
         CFBundleURLTypes:

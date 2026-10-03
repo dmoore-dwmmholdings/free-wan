@@ -8,6 +8,8 @@ struct MediaDetailView: View {
     let card: MediaCard
     /// The photos around this one, for swiping in the full-screen viewer.
     var photos: [MediaCard] = []
+    /// Off in the info sheet over the full-screen viewers, which already show the item.
+    var showsMedia = true
     /// Tells the list the item came from about a like, so its tile agrees.
     var onLikeChange: (Bool, Int) -> Void = { _, _ in }
 
@@ -19,9 +21,11 @@ struct MediaDetailView: View {
     @State private var viewing = false
     @Environment(\.displayScale) private var scale
 
-    init(card: MediaCard, photos: [MediaCard] = [], onLikeChange: @escaping (Bool, Int) -> Void = { _, _ in }) {
+    init(card: MediaCard, photos: [MediaCard] = [], showsMedia: Bool = true,
+         onLikeChange: @escaping (Bool, Int) -> Void = { _, _ in }) {
         self.card = card
         self.photos = photos
+        self.showsMedia = showsMedia
         self.onLikeChange = onLikeChange
         _liked = State(initialValue: card.liked)
         _likeCount = State(initialValue: card.likeCount)
@@ -30,7 +34,9 @@ struct MediaDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                if card.type == .video {
+                if !showsMedia {
+                    EmptyView()
+                } else if card.type == .video {
                     PlayerArea(card: card)
                 } else {
                     Button { viewing = true } label: {
@@ -61,7 +67,7 @@ struct MediaDetailView: View {
         .task { await load() }
         .refreshable { await load() }
         .fullScreenCover(isPresented: $viewing) {
-            PhotoViewer(photos: photos.contains(where: { $0.id == card.id }) ? photos : [card], current: card.id)
+            PhotoViewer(items: photos.contains(where: { $0.id == card.id }) ? photos : [card], current: card.id)
                 .environment(model)
         }
     }
@@ -150,6 +156,21 @@ struct MediaDetailView: View {
             likeCount = beforeCount
             self.error = "Could not save the like. \(ErrorText(error).title)."
         }
+    }
+}
+
+/// Swiped up from a full-screen photo or video: the detail page without the media.
+struct MediaInfoSheet: View {
+    @Environment(AppModel.self) private var model
+    let card: MediaCard
+    var onLikeChange: (Bool, Int) -> Void = { _, _ in }
+
+    var body: some View {
+        NavigationStack {
+            MediaDetailView(card: card, showsMedia: false, onLikeChange: onLikeChange)
+        }
+        .environment(model)
+        .presentationDetents([.medium, .large])
     }
 }
 

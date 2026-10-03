@@ -15,6 +15,9 @@ final class PlayerModel {
 
     private(set) var state: State = .idle
     let player = AVPlayer()
+    /// The system player's own full screen covers the screen it was opened from, which SwiftUI
+    /// reports as that screen disappearing; playback has to carry on through it.
+    @ObservationIgnored var isFullScreen = false
 
     /// Tracks the server offers for this video, known once playback starts.
     private(set) var captionTracks: [PlaybackDescriptor.Caption] = []
@@ -29,8 +32,6 @@ final class PlayerModel {
     private var mediaID = ""
     private var duration: Double?
     private var policy = ProgressPolicy()
-    private var resumeAt: Double?
-    private var resumed = false
     private var timeObserver: Any?
     private var statusObservation: NSKeyValueObservation?
     private var rateObservation: NSKeyValueObservation?
@@ -55,7 +56,7 @@ final class PlayerModel {
                 descriptor = nil
             }
             duration = descriptor?.duration
-            resumeAt = descriptor?.resumeAt
+            let resumeAt = descriptor?.resumeAt
             captionTracks = descriptor?.captions ?? []
             let asset: AVURLAsset
             if let local {
@@ -68,9 +69,19 @@ final class PlayerModel {
             } else {
                 throw APIError(status: 0, code: "unreachable", message: "The server could not be reached.")
             }
+            // Left the screen while the descriptor loaded: do not start playing behind it.
+            if Task.isCancelled {
+                state = .idle
+                return
+            }
             let item = AVPlayerItem(asset: asset)
             observe(item)
             player.replaceCurrentItem(with: item)
+            // Seeking before playing fetches from the resume point at once, instead of loading
+            // the start first and then the resume point.
+            if let position = ProgressPolicy.resumePosition(resumeAt: resumeAt, playedTo: 0) {
+                await player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
+            }
             player.play()
             state = .playing
         } catch {
@@ -106,12 +117,6 @@ final class PlayerModel {
 
     private func statusChanged(_ item: AVPlayerItem) {
         switch item.status {
-        case .readyToPlay where !resumed:
-            resumed = true
-            let playedTo = player.currentTime().seconds
-            if let position = ProgressPolicy.resumePosition(resumeAt: resumeAt, playedTo: playedTo.isFinite ? playedTo : 0) {
-                player.seek(to: CMTime(seconds: position, preferredTimescale: 600))
-            }
         case .failed:
             state = .failed(item.error?.localizedDescription ?? "This video could not be played.")
         default:
@@ -167,7 +172,6 @@ final class PlayerModel {
         rateObservation = nil
         player.replaceCurrentItem(with: nil)
         state = .idle
-        resumed = false
         captionTracks = []
         selectedCaption = nil
         captionText = nil
@@ -176,7 +180,7 @@ final class PlayerModel {
     }
 }
 
-/// The system player: standard controls, full screen, AirPlay and Picture in Picture. Captions
+/// The system player: standard controls, full screen and AirPlay. Captions
 /// are drawn in its content overlay, so they stay visible in full screen too.
 struct VideoPlayerView: UIViewControllerRepresentable {
     let model: PlayerModel
@@ -184,8 +188,9 @@ struct VideoPlayerView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> AVPlayerViewController {
         let controller = AVPlayerViewController()
         controller.player = model.player
-        controller.allowsPictureInPicturePlayback = true
-        controller.canStartPictureInPictureAutomaticallyFromInline = true
+        controller.delegate = context.coordinator
+        // Picture in Picture comes from PlaybackCenter, which keeps it going after this page.
+        controller.allowsPictureInPicturePlayback = false
 
         let captions = UIHostingController(rootView: CaptionOverlay(model: model))
         captions.view.backgroundColor = .clear
@@ -201,11 +206,33 @@ struct VideoPlayerView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {}
 
-    func makeCoordinator() -> Coordinator { Coordinator() }
+    func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
-    /// Keeps the hosting controller alive for as long as the player view.
-    final class Coordinator {
+    /// Keeps the hosting controller alive for as long as the player view, and tells the model
+    /// when the player goes full screen.
+    @MainActor
+    final class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+        let model: PlayerModel
         var captions: UIHostingController<CaptionOverlay>?
+
+        init(model: PlayerModel) {
+            self.model = model
+        }
+
+        func playerViewController(_ controller: AVPlayerViewController,
+                                  willBeginFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator) {
+            model.isFullScreen = true
+        }
+
+        func playerViewController(_ controller: AVPlayerViewController,
+                                  willEndFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator) {
+            // A swipe that is let go of part way stays in full screen.
+            coordinator.animate(alongsideTransition: nil) { [model] context in
+                MainActor.assumeIsolated {
+                    if !context.isCancelled { model.isFullScreen = false }
+                }
+            }
+        }
     }
 }
 
@@ -259,11 +286,12 @@ struct CaptionPicker: View {
     }
 }
 
-/// The video area on the detail screen: the poster with a play button until tapped, then the
-/// player, or the reason it could not play.
+/// The video area on the detail screen: plays as soon as it opens, like a watch page, or shows
+/// the reason it could not play.
 struct PlayerArea: View {
     @Environment(AppModel.self) private var model
     let card: MediaCard
+    /// A stand-in until the page appears and takes the video's shared player.
     @State private var playback = PlayerModel()
 
     var body: some View {
@@ -282,7 +310,18 @@ struct PlayerArea: View {
                 .padding(.horizontal, 16)
             }
         }
-        .onDisappear { playback.stop() }
+        .task {
+            let center = PlaybackCenter.shared
+            playback = center.claim(card.id)
+            center.showing = card.id
+            guard playback.state == .idle, let client = model.client else { return }
+            await playback.start(client: client, mediaID: card.id)
+        }
+        .onDisappear {
+            let center = PlaybackCenter.shared
+            if center.showing == card.id { center.showing = nil }
+            if !playback.isFullScreen { center.leave(playback) }
+        }
     }
 
     @ViewBuilder

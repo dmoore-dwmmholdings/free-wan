@@ -43,7 +43,7 @@ struct DownloadsView: View {
                                        description: Text("Download anything from its page to watch it without a connection."))
             }
         }
-        .navigationTitle("Downloads")
+        .tabTitle("Downloads")
         .navigationDestination(for: String.self) { id in
             if let record = downloads.index[id] { OfflineItemView(record: record) }
         }

@@ -59,6 +59,11 @@ final class AppModel {
         if let link = DeepLink(url: url) { pendingLink = link }
     }
 
+    /// Opens a page from inside the app the way a link would, e.g. back from Picture in Picture.
+    func show(_ link: DeepLink) {
+        pendingLink = link
+    }
+
     /// The held link, once; nil until the tabs are showing.
     func takePendingLink() -> DeepLink? {
         guard case .signedIn(let me) = state, !me.mustChangePassword else { return nil }

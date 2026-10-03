@@ -1,3 +1,4 @@
+import AVFoundation
 import FreeWANKit
 import SwiftUI
 
@@ -8,6 +9,11 @@ struct LibraryView: View {
     @State private var trail = CategoryTrail()
     @State private var searchText = ""
     @State private var pager: Pager<MediaCard>?
+    /// The item open in the full-screen gallery.
+    @State private var opened: MediaCard?
+    /// The video whose page is pushed from its tile.
+    @State private var pushed: MediaCard?
+    @State private var uploader = Uploader()
 
     var body: some View {
         ScrollView {
@@ -16,7 +22,13 @@ struct LibraryView: View {
                 if let pager, let error = pager.error, !pager.items.isEmpty {
                     ErrorBanner(error: error) { await pager.reload() }.padding(.horizontal, -12)
                 }
-                if let pager { MediaGrid(pager: pager) }
+                if let pager {
+                    MediaGrid(pager: pager, autoplay: query.tab == .photos) { card in
+                        // Photos open in the gallery; in the Photos tab videos do too, playing like
+                        // GIFs, as on the web. Elsewhere a video gets its own page.
+                        if card.type == .image || query.tab == .photos { opened = card } else { pushed = card }
+                    }
+                }
             }
             .padding(12)
         }
@@ -28,10 +40,10 @@ struct LibraryView: View {
             if text.trimmingCharacters(in: .whitespaces).isEmpty { query.search = "" }
         }
         .task(id: query) { await load() }
-        .navigationTitle(Theme.siteName)
+        .tabTitle(Theme.siteName)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                UploadButton { Task { await pager?.reload() } }
+                UploadButton(uploader: uploader)
             }
         }
         .navigationDestination(for: MediaCard.self) { card in
@@ -39,6 +51,34 @@ struct LibraryView: View {
                 pager?.update(card.id) { $0.liked = liked; $0.likeCount = count }
             }
         }
+        .navigationDestination(item: $pushed) { card in
+            MediaDetailView(card: card) { liked, count in updateLike(card.id, liked, count) }
+        }
+        .uploadFlow(uploader) { Task { await refreshAfterUpload() } }
+        .fullScreenCover(item: $opened) { card in
+            PhotoViewer(items: galleryItems ?? [card], current: card.id, onLikeChange: updateLike)
+                .environment(model)
+        }
+    }
+
+    /// What the gallery steps through: everything in the Photos tab, otherwise just the photos.
+    private var galleryItems: [MediaCard]? {
+        pager?.items.filter { query.tab == .photos || $0.type == .image }
+    }
+
+    /// The server indexes uploads a moment after they arrive, so look again a few times until
+    /// the library's count changes.
+    private func refreshAfterUpload() async {
+        let before = pager?.total
+        for wait in [1, 2, 4, 8] {
+            try? await Task.sleep(for: .seconds(wait))
+            await pager?.reload()
+            if pager?.total != before { return }
+        }
+    }
+
+    private func updateLike(_ id: String, _ liked: Bool, _ count: Int) {
+        pager?.update(id) { $0.liked = liked; $0.likeCount = count }
     }
 
     private func load() async {
@@ -49,40 +89,67 @@ struct LibraryView: View {
     }
 }
 
-/// Tiles for every loaded item; reaching the last one loads the next page.
+/// Tiles for every loaded item; reaching the last one loads the next page. A long press on a
+/// video plays it in its tile with sound until another is long-pressed or it scrolls away.
 struct MediaGrid: View {
     let pager: Pager<MediaCard>
+    /// Videos play silently in their tiles while on screen, like GIFs in a photo library.
+    var autoplay = false
+    let open: (MediaCard) -> Void
+
+    @State private var playing: String?
 
     private let columns = [GridItem(.adaptive(minimum: 150), spacing: 10)]
 
     var body: some View {
         LazyVGrid(columns: columns, spacing: 14) {
             ForEach(pager.items) { item in
-                NavigationLink(value: item) {
-                    MediaTile(item: item)
-                }
-                .buttonStyle(.plain)
-                .onAppear {
-                    if item.id == pager.items.last?.id {
-                        Task { await pager.loadMore() }
+                MediaTile(item: item, playback: playback(item))
+                    .contentShape(Rectangle())
+                    .onTapGesture { open(item) }
+                    .onLongPressGesture(minimumDuration: 0.35) { if item.type == .video { playing = item.id } }
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction(named: "Play in place") { if item.type == .video { playing = item.id } }
+                    .onAppear {
+                        if item.id == pager.items.last?.id {
+                            Task { await pager.loadMore() }
+                        }
                     }
-                }
+                    .onDisappear { if playing == item.id { playing = nil } }
             }
         }
+        .sensoryFeedback(.impact, trigger: playing) { _, new in new != nil }
         if pager.loadingMore {
             ProgressView().padding(24)
         }
     }
+
+    private func playback(_ item: MediaCard) -> TilePlayback {
+        guard item.type == .video else { return .none }
+        if playing == item.id { return .sound }
+        return autoplay ? .muted : .none
+    }
+}
+
+enum TilePlayback {
+    case none, muted, sound
 }
 
 struct MediaTile: View {
     let item: MediaCard
+    var playback = TilePlayback.none
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Color.clear
                 .aspectRatio(16 / 10, contentMode: .fit)
                 .overlay { AuthImage(path: item.posterUrl) }
+                .overlay {
+                    // While another video plays in Picture in Picture, tiles stay quiet.
+                    if playback != .none {
+                        TileVideo(card: item, muted: playback == .muted || PlaybackCenter.shared.pipActive)
+                    }
+                }
                 .overlay(alignment: .bottomTrailing) {
                     if let duration = Format.duration(item.durationS) {
                         Text(duration)
@@ -95,15 +162,57 @@ struct MediaTile: View {
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: Theme.radiusSmall))
-            Text(item.title)
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Theme.text)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
+                // A filled poster overflows its frame; clipping hides that but still takes
+                // taps there, which stole them from the filter buttons above the grid.
+                .contentShape(RoundedRectangle(cornerRadius: Theme.radiusSmall))
+            if LibraryPrefs.shared.showsNames(item.repositoryId) {
+                Text(item.title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Format.duration(item.durationS).map { "\(item.title), \($0)" } ?? item.title)
         .accessibilityAddTraits(.isLink)
+    }
+}
+
+/// A video playing on a loop inside its tile, filling it as the poster does, from the start.
+struct TileVideo: View {
+    @Environment(AppModel.self) private var model
+    let card: MediaCard
+    let muted: Bool
+
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        ZStack {
+            if let player { PlayerLayerView(player: player, gravity: .resizeAspectFill) }
+        }
+        .allowsHitTesting(false)
+        .task {
+            guard let client = model.client, let asset = await playableAsset(card, client: client),
+                  !Task.isCancelled else { return }
+            let item = AVPlayerItem(asset: asset)
+            // A tile needs a few seconds ahead, not the deep buffer a full-screen player keeps.
+            item.preferredForwardBufferDuration = 4
+            let tile = AVPlayer(playerItem: item)
+            tile.isMuted = muted
+            tile.automaticallyWaitsToMinimizeStalling = false
+            tile.play()
+            player = tile
+            for await _ in NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification, object: item) {
+                await tile.seek(to: .zero)
+                tile.play()
+            }
+        }
+        .onChange(of: muted) { _, muted in player?.isMuted = muted }
+        .onDisappear {
+            player?.pause()
+            player = nil
+        }
     }
 }
 

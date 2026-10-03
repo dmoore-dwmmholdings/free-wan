@@ -23,7 +23,7 @@ struct CollectionsView: View {
         }
         .refreshable { await load() }
         .task { if !loaded { await load() } }
-        .navigationTitle("Collections")
+        .tabTitle("Collections")
         .navigationDestination(for: MediaCollection.self) { CollectionDetailView(collection: $0) }
     }
 
@@ -94,6 +94,7 @@ struct CollectionDetailView: View {
     @Environment(AppModel.self) private var model
     let collection: MediaCollection
     @State private var pager: Pager<MediaCard>?
+    @State private var pushed: MediaCard?
 
     var body: some View {
         ScrollView {
@@ -105,7 +106,7 @@ struct CollectionDetailView: View {
                     if let error = pager.error, !pager.items.isEmpty {
                         ErrorBanner(error: error) { await pager.reload() }.padding(.horizontal, -12)
                     }
-                    MediaGrid(pager: pager)
+                    MediaGrid(pager: pager) { pushed = $0 }
                 }
                 .padding(12)
             }
@@ -130,7 +131,7 @@ struct CollectionDetailView: View {
         }
         .background(Theme.background)
         .navigationTitle(collection.name)
-        .navigationDestination(for: MediaCard.self) { card in
+        .navigationDestination(item: $pushed) { card in
             MediaDetailView(card: card, photos: pager?.items.filter { $0.type == .image } ?? []) { liked, count in
                 pager?.update(card.id) { $0.liked = liked; $0.likeCount = count }
             }
