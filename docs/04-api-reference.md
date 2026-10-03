@@ -94,6 +94,11 @@ Full detail (FR-21): all metadata, `categories[]` (id+name+path chain), `subtitl
 (id, kind, language, label), `playback` summary, `liked`, `likeCount`, `progress`,
 and `actions` availability.
 
+### `GET /api/repositories`
+Any signed-in user. The enabled libraries as `{ data: [{ id, name, type }] }`, for clients to
+label items or keep per-library preferences (the app's "show names" setting). Folder paths and
+scan state are only in the admin `GET /api/admin/repositories`.
+
 ## 6. Media streaming & playback
 
 | Method | Path | Notes |

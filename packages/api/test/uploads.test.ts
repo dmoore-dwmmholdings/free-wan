@@ -90,6 +90,15 @@ describe('photo upload', () => {
     expect(ids).not.toContain(readonlyId)
   })
 
+  it('lists every enabled library by name for any signed-in user, without paths', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/repositories', cookies })
+    expect(res.statusCode).toBe(200)
+    const libs = res.json().data as Array<Record<string, unknown>>
+    expect(libs.map((l) => l.id)).toEqual(expect.arrayContaining([writableId, readonlyId]))
+    expect(Object.keys(libs[0]!).sort()).toEqual(['id', 'name', 'type'])
+    expect((await app.inject({ method: 'GET', url: '/api/repositories' })).statusCode).toBe(401)
+  })
+
   it('accepts a photo, writes it under Uploads/, and indexes it', async () => {
     const { body, headers } = multipart('my cat.jpg', 'image/jpeg', Buffer.from('fakejpegbytes'))
     const res = await app.inject({

@@ -43,6 +43,13 @@ function decodeCursor(c?: string): number {
 export async function mediaRoutes(app: FastifyInstance): Promise<void> {
   app.addHook('preHandler', app.authenticate)
 
+  // The enabled libraries by name, for clients to label or set preferences by. Folder paths and
+  // scan state stay admin-only.
+  app.get('/api/repositories', async () => {
+    const rows = app.db.select().from(repositories).all()
+    return { data: rows.filter((r) => r.enabled).map((r) => ({ id: r.id, name: r.name, type: r.type })) }
+  })
+
   // One ffmpeg budget for request-triggered variant/frame generation. Without this, a
   // gallery page (or two users scrubbing) spawns one ffmpeg per request, and concurrent
   // requests for the same uncached file race each other writing it.
