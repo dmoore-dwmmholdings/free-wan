@@ -90,6 +90,17 @@ Mount your drives read-only in `~/free-wan/docker-compose.override.yml`, then ad
 
 To update, run the same command again. `.env`, `data/` and the override file are kept.
 
+**Tailscale already on the machine?** Use it instead of the sidecar, and skip the auth key:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dmoore-dwmmholdings/free-wan/main/scripts/install.sh | FW_TAILSCALE=host bash
+```
+
+Do this on Windows especially: Docker Desktop's networking pushes the sidecar through a
+Tailscale relay, which is slow, where Tailscale on Windows connects devices directly. The
+server is published with `tailscale serve` under the machine's own tailnet name, and the choice
+is remembered for later updates.
+
 ### From source
 
 ```bash

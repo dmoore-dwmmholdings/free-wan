@@ -1,0 +1,14 @@
+# Tailscale on the host instead of in a container: `FW_TAILSCALE=host` in scripts/install.sh,
+# which lists this file in .env's COMPOSE_FILE. Tailscale installed on the machine itself connects
+# devices directly, where Docker Desktop's networking pushes the sidecar through a slow relay.
+# FreeWAN listens on this machine only, for `tailscale serve --bg 8080` to publish on the tailnet.
+services:
+  tailscale:
+    profiles: [sidecar]
+  free-wan:
+    network_mode: !reset null
+    depends_on: !reset []
+    environment:
+      - HOST=0.0.0.0
+    ports:
+      - "127.0.0.1:8080:8080"

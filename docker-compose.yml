@@ -7,7 +7,9 @@ services:
     container_name: free-wan-ts
     hostname: free-wan
     environment:
-      - TS_AUTHKEY=${TS_AUTHKEY:?set TS_AUTHKEY in .env}
+      # Required here, but optional to Compose: with Tailscale on the host
+      # (docker-compose.host-tailscale.yml) this service never starts and has no key.
+      - TS_AUTHKEY=${TS_AUTHKEY:-}
       - TS_STATE_DIR=/var/lib/tailscale
       - TS_SERVE_CONFIG=/config/serve.json
       - TS_EXTRA_ARGS=--accept-routes

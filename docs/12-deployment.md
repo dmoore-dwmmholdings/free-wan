@@ -14,6 +14,15 @@ curl -fsSL https://raw.githubusercontent.com/dmoore-dwmmholdings/free-wan/main/s
 
 From PowerShell instead: `irm https://raw.githubusercontent.com/dmoore-dwmmholdings/free-wan/main/scripts/install.ps1 | iex`.
 
+With `FW_TAILSCALE=host` in front of `bash`, the script uses the Tailscale installed on the
+machine instead of the sidecar: it adds `docker-compose.host-tailscale.yml` through `.env`'s
+`COMPOSE_FILE` (FreeWAN then listens on `127.0.0.1:8080` only, and no sidecar starts), removes
+any old sidecar container, and runs `tailscale serve --bg 8080`. Prefer it on Windows, where the
+sidecar sits behind Docker Desktop's NAT and its traffic goes through a DERP relay; `tailscale
+status` shows `relay` against a device when that happens. The choice is saved as
+`TAILSCALE_MODE` in `.env`; `FW_TAILSCALE=container` switches back. The PowerShell installer
+does not offer it yet.
+
 ## 1. Topology
 
 ```mermaid

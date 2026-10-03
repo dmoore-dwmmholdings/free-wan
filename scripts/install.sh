@@ -3,15 +3,19 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/dmoore-dwmmholdings/free-wan/main/scripts/install.sh | bash
 #
-# Downloads the latest source from GitHub, builds it, and starts it behind a Tailscale sidecar.
-# Containers use `restart: unless-stopped`, and on Windows Docker Desktop is set to start at
-# sign-in, so the server comes back after a reboot. Re-run the same command to update: .env,
-# data/ and docker-compose.override.yml are kept.
+# Downloads the latest source from GitHub, builds it, and starts it on your tailnet: behind a
+# Tailscale sidecar container, or with FW_TAILSCALE=host through the Tailscale already installed
+# on this machine. Use host on Windows: Docker Desktop's networking pushes the sidecar through a
+# slow relay, where Tailscale on Windows connects devices directly. Containers use
+# `restart: unless-stopped`, and on Windows Docker Desktop is set to start at sign-in, so the
+# server comes back after a reboot. Re-run the same command to update: .env (including the
+# Tailscale choice), data/ and docker-compose.override.yml are kept.
 #
 # Env:
 #   FW_DIR         install directory          (default ~/free-wan)
 #   FW_REF         branch or tag to install   (default main)
-#   FW_TS_AUTHKEY  Tailscale auth key; skips the prompt on first install
+#   FW_TAILSCALE   container or host          (default: the last choice, else container)
+#   FW_TS_AUTHKEY  Tailscale auth key for the container; skips the prompt
 
 set -euo pipefail
 
@@ -50,21 +54,43 @@ cd "$dir"
 mkdir -p data/tailscale
 
 secret() { head -c "$1" /dev/urandom | base64 | tr -d '\n+/='; }
+envget() { grep "^$1=" .env 2>/dev/null | cut -d= -f2- || true; }
+# Sets or removes (no value) one line of .env, keeping it private.
+envset() {
+  (umask 077; { grep -v "^$1=" .env || true; [ $# -lt 2 ] || printf '%s=%s\n' "$1" "$2"; } > .env.tmp)
+  mv .env.tmp .env
+}
+
+mode="${FW_TAILSCALE:-$(envget TAILSCALE_MODE)}"
+mode="${mode:-container}"
+case "$mode" in
+  container|host) ;;
+  *) fail "FW_TAILSCALE must be container or host" ;;
+esac
+if [ "$mode" = host ]; then
+  command -v tailscale >/dev/null || fail "FW_TAILSCALE=host needs Tailscale on this machine: https://tailscale.com/download"
+  tailscale status >/dev/null 2>&1 || fail "Tailscale is installed but not signed in. Sign in, then re-run."
+fi
+
+authkey() {
+  local key="${FW_TS_AUTHKEY:-}"
+  if [ -z "$key" ]; then
+    # Piped into bash, stdin is this script, so the prompt reads from the terminal.
+    [ -r /dev/tty ] || fail "No terminal for the prompt. Set FW_TS_AUTHKEY and re-run."
+    echo >&2
+    echo "Free-WAN is reachable only over your tailnet. Create a reusable, non-ephemeral" >&2
+    echo "auth key at https://login.tailscale.com/admin/settings/keys" >&2
+    read -r -p "Tailscale auth key (tskey-auth-...): " key < /dev/tty
+  fi
+  [ -n "$key" ] || fail "An auth key is required."
+  printf '%s' "$key"
+}
 
 if [ -f .env ]; then
   echo "==> Keeping the existing .env"
 else
-  authkey="${FW_TS_AUTHKEY:-}"
-  if [ -z "$authkey" ]; then
-    # Piped into bash, stdin is this script, so the prompt reads from the terminal.
-    [ -r /dev/tty ] || fail "No terminal for the prompt. Set FW_TS_AUTHKEY and re-run."
-    echo
-    echo "Free-WAN is reachable only over your tailnet. Create a reusable, non-ephemeral"
-    echo "auth key at https://login.tailscale.com/admin/settings/keys"
-    read -r -p "Tailscale auth key (tskey-auth-...): " authkey < /dev/tty
-  fi
-  [ -n "$authkey" ] || fail "An auth key is required."
-
+  key=""
+  [ "$mode" = host ] || key="$(authkey)"
   adminpw="$(secret 12)"
   umask 077
   cat > .env <<ENV
@@ -72,11 +98,23 @@ else
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=$adminpw
 SESSION_SECRET=$(secret 48)
-TS_AUTHKEY=$authkey
+TS_AUTHKEY=$key
 COMMAND_ALLOWED_EXECUTABLES=
 ENV
   umask 022
   echo "==> Wrote .env (secrets generated)"
+fi
+
+# Remember the Tailscale choice; Compose reads COMPOSE_FILE from .env, so plain `docker compose`
+# commands use it too.
+envset TAILSCALE_MODE "$mode"
+if [ "$mode" = host ]; then
+  envset COMPOSE_PATH_SEPARATOR ":"
+  envset COMPOSE_FILE "docker-compose.yml:docker-compose.host-tailscale.yml:docker-compose.override.yml"
+else
+  envset COMPOSE_PATH_SEPARATOR
+  envset COMPOSE_FILE
+  [ -n "$(envget TS_AUTHKEY)" ] || envset TS_AUTHKEY "$(authkey)"
 fi
 
 if [ ! -f docker-compose.override.yml ]; then
@@ -94,6 +132,8 @@ YML
 fi
 
 echo "==> Building and starting (the first build takes a few minutes)"
+# Moving to host Tailscale: the sidecar container is no longer part of the project.
+[ "$mode" = container ] || docker rm -f free-wan-ts >/dev/null 2>&1 || true
 docker compose up -d --build
 
 # Containers only come back after a reboot if Docker itself starts on its own.
@@ -107,16 +147,32 @@ elif command -v systemctl >/dev/null && ! systemctl is-enabled docker >/dev/null
   echo "Docker does not start at boot. Run: sudo systemctl enable docker"
 fi
 
-# The node can take a few seconds to register; its name gets a suffix (free-wan-1) when
-# another machine on the tailnet already uses free-wan.
-echo "==> Waiting for Tailscale to register the server"
 url=""
-for _ in $(seq 1 30); do
-  dns="$(docker exec free-wan-ts tailscale status --json --peers=false 2>/dev/null     | grep -o '"DNSName": *"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
-  if [ -n "$dns" ]; then url="https://${dns%.}"; break; fi
-  sleep 2
-done
+if [ "$mode" = host ]; then
+  echo "==> Publishing on your tailnet with this machine's Tailscale"
+  # HTTPS on the machine's own tailnet name, kept across reboots. --yes skips prompts.
+  tailscale serve --bg --yes 8080 </dev/null >/dev/null 2>&1 || tailscale serve --bg 8080 </dev/null \
+    || echo "tailscale serve failed: turn on HTTPS certificates in the Tailscale admin console (DNS), then re-run."
+  # Windows: stay connected with nobody signed in, as a server should.
+  [ -z "${APPDATA:-}" ] || tailscale set --unattended=true >/dev/null 2>&1 || true
+  dns="$(tailscale status --json --peers=false 2>/dev/null | grep -o '"DNSName": *"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+  [ -z "$dns" ] || url="https://${dns%.}"
+else
+  # The node can take a few seconds to register; its name gets a suffix (free-wan-1) when
+  # another machine on the tailnet already uses free-wan.
+  echo "==> Waiting for Tailscale to register the server"
+  for _ in $(seq 1 30); do
+    dns="$(docker exec free-wan-ts tailscale status --json --peers=false 2>/dev/null     | grep -o '"DNSName": *"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
+    if [ -n "$dns" ]; then url="https://${dns%.}"; break; fi
+    sleep 2
+  done
+fi
 
+if [ "$mode" = host ]; then
+  missing="https://<this-machine>.<your-tailnet>.ts.net (run: tailscale serve status)"
+else
+  missing="https://free-wan.<your-tailnet>.ts.net (not registered yet; run: docker logs free-wan-ts)"
+fi
 user="$(grep '^ADMIN_USERNAME=' .env | cut -d= -f2- || true)"
 pass="$(grep '^ADMIN_PASSWORD=' .env | cut -d= -f2- || true)"
 
@@ -124,7 +180,7 @@ cat <<DONE
 
 ==> Free-WAN is running.
 
-    Open:      ${url:-https://free-wan.<your-tailnet>.ts.net (not registered yet; run: docker logs free-wan-ts)}
+    Open:      ${url:-$missing}
     Username:  ${user:-admin}
     Password:  ${pass:-printed in: docker logs free-wan}
 

@@ -17,6 +17,9 @@ the section whose heading contains the version being built.
   returned only to a sign-in that asks for it, which sets no cookie in exchange, and both
   forms expire and are revoked identically. See
   [`docs/13-security.md`](docs/13-security.md).
+- The installer can use the **Tailscale already on the machine** instead of its own container:
+  `FW_TAILSCALE=host` in front of `bash`. On Windows this replaces a slow relayed connection with
+  a direct one. Re-running the installer remembers the choice.
 - Videos that need converting start sooner and **seek anywhere at once**. The player now gets
   the whole timeline up front, and jumping ahead restarts the conversion at that point instead
   of waiting for it to get there. H.264 video in MKV files is no longer re-encoded at all: it
