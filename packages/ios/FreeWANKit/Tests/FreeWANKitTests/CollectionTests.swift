@@ -20,3 +20,14 @@ import Testing
         #expect(Format.count(2, "child", "children") == "2 children")
     }
 }
+
+@Suite struct CollectionPosterTests {
+    @Test func asksForTheFirstFourInCollectionOrder() async throws {
+        let stub = StubTransport(json: #"{"data":[{"id":"a","type":"video","title":"A","durationS":1,"width":null,"height":null,"posterUrl":"/api/media/a/poster","repositoryId":"r","categoryPath":null,"liked":false,"likeCount":0}],"nextCursor":null,"total":1}"#)
+        let posters = try await MediaAPI.collectionPosters(APIClient(baseURL: server, transport: stub), id: "c1")
+        #expect(posters == ["/api/media/a/poster"])
+        let url = try #require(stub.requests.first?.url?.absoluteString)
+        #expect(url.contains("limit=4") && url.contains("collection=c1"))
+    }
+}
+

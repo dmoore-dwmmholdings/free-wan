@@ -5,13 +5,15 @@ import SwiftUI
 struct CollectionsView: View {
     @Environment(AppModel.self) private var model
     @State private var collections: [MediaCollection] = []
+    /// Each collection's first few posters, by collection id, for its cover.
+    @State private var posters: [String: [String]] = [:]
     @State private var loaded = false
     @State private var error: Error?
 
     var body: some View {
         List(collections) { collection in
             NavigationLink(value: collection) {
-                CollectionRow(collection: collection)
+                CollectionRow(collection: collection, posters: posters[collection.id] ?? [])
             }
             .listRowBackground(Theme.background)
         }
@@ -50,25 +52,31 @@ struct CollectionsView: View {
             self.error = error
         }
         loaded = true
+        await loadPosters(client)
+    }
+
+    /// One small request per collection, all at once; a failure leaves that cover plain.
+    private func loadPosters(_ client: APIClient) async {
+        await withTaskGroup(of: (String, [String]?).self) { group in
+            for collection in collections where collection.itemCount > 0 {
+                group.addTask { (collection.id, try? await MediaAPI.collectionPosters(client, id: collection.id)) }
+            }
+            for await (id, found) in group {
+                if let found { posters[id] = found }
+            }
+        }
     }
 }
 
 struct CollectionRow: View {
     let collection: MediaCollection
+    var posters: [String] = []
 
     var body: some View {
         HStack(spacing: 12) {
-            Group {
-                if let cover = collection.coverUrl {
-                    AuthImage(path: cover)
-                } else {
-                    Theme.surface2.overlay {
-                        Image(systemName: "rectangle.stack").foregroundStyle(Theme.muted)
-                    }
-                }
-            }
-            .frame(width: 96, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.radiusSmall))
+            CollectionCover(collection: collection, posters: posters)
+                .frame(width: 112, height: 70)
+                .clipShape(RoundedRectangle(cornerRadius: Theme.radiusSmall))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(collection.name)
@@ -87,6 +95,36 @@ struct CollectionRow: View {
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+    }
+}
+
+/// A collection's cover: with four or more items, its first four tiled; with fewer, one
+/// picture, its chosen cover or else its first item's poster.
+struct CollectionCover: View {
+    let collection: MediaCollection
+    let posters: [String]
+
+    var body: some View {
+        if collection.itemCount >= 4 && posters.count >= 4 {
+            Grid(horizontalSpacing: 1, verticalSpacing: 1) {
+                GridRow { tile(posters[0]); tile(posters[1]) }
+                GridRow { tile(posters[2]); tile(posters[3]) }
+            }
+            .background(Theme.background)
+        } else if let cover = collection.coverUrl ?? posters.first {
+            AuthImage(path: cover)
+        } else {
+            Theme.surface2.overlay {
+                Image(systemName: "rectangle.stack").foregroundStyle(Theme.muted)
+            }
+        }
+    }
+
+    private func tile(_ path: String) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay { AuthImage(path: path) }
+            .clipped()
     }
 }
 

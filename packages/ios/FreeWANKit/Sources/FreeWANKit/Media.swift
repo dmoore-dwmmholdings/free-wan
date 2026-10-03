@@ -119,12 +119,14 @@ public struct MediaListQuery: Equatable, Hashable, Sendable {
     public var tags: Set<String> = []
     public var sort = SortChoice.default
     public static let pageSize = 40
+    /// Items per page; a preview needs only a few.
+    public var limit = MediaListQuery.pageSize
 
     public init() {}
 
     /// The request path for one page; `cursor` is the previous page's `nextCursor`.
     public func path(cursor: String? = nil) -> String {
-        var items: [(String, String)] = [("limit", String(Self.pageSize))]
+        var items: [(String, String)] = [("limit", String(limit))]
         let q = search.trimmingCharacters(in: .whitespacesAndNewlines)
         if !q.isEmpty { items.append(("q", q)) }
         if liked { items.append(("liked", "true")) }

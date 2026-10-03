@@ -22,6 +22,13 @@ extension MediaAPI {
         query.collection = id
         return query
     }
+
+    /// The posters of a collection's first four items, in its own order, for its cover.
+    public static func collectionPosters(_ client: APIClient, id: String) async throws -> [String] {
+        var query = collectionQuery(id)
+        query.limit = 4
+        return try await list(client, query).data.map(\.posterUrl)
+    }
 }
 
 extension Format {
