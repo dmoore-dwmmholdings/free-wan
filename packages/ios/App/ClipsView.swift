@@ -155,10 +155,11 @@ struct ClipPlayerView: View {
         .navigationTitle(clip.name)
         .navigationBarTitleDisplayMode(.inline)
         .task {
-            guard let client = model.client else { return }
+            // Back from full screen the clip is still going.
+            guard playback.player.currentItem == nil, let client = model.client else { return }
             await playback.start(client: client, clipID: clip.id)
         }
-        .onDisappear { playback.stop() }
+        .onDisappear { if !FullScreenRotation.isFullScreen { playback.stop() } }
     }
 
     @ViewBuilder

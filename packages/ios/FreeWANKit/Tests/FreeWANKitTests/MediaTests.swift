@@ -53,6 +53,16 @@ import Testing
         #expect(stub.requests[0].url?.path == "/api/repositories")
     }
 
+    @Test func librariesFromAnOlderServerViaTheAdminList() async throws {
+        let stub = StubTransport(responses: [
+            (404, #"{"message":"Route GET:/api/repositories not found","error":"Not Found","statusCode":404}"#),
+            (200, #"{"data":[{"id":"r1","name":"Phone","type":"mixed","rootPath":"/m","enabled":true}]}"#),
+        ])
+        let found = try await MediaAPI.libraries(APIClient(baseURL: server, transport: stub))
+        #expect(found == [Library(id: "r1", name: "Phone", type: "mixed")])
+        #expect(stub.requests.map { $0.url?.path } == ["/api/repositories", "/api/admin/repositories"])
+    }
+
     @Test func categoriesAndTags() async throws {
         let cats = StubTransport(json: #"{"data":[{"id":"c","name":"Films","path":"Films","depth":0,"itemCount":3,"hasChildren":true}]}"#)
         let found = try await MediaAPI.categories(APIClient(baseURL: server, transport: cats), parent: "p 1")

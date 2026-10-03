@@ -161,6 +161,8 @@ struct OfflineItemView: View {
         .task {
             let url = DownloadManager.shared.fileURL(record)
             if record.type == .video {
+                // Back from full screen the video is still going.
+                guard player == nil else { return }
                 let p = AVPlayer(url: url)
                 player = p
                 p.play()
@@ -168,7 +170,7 @@ struct OfflineItemView: View {
                 image = await Task.detached { UIImage(contentsOfFile: url.path) }.value
             }
         }
-        .onDisappear { player?.pause() }
+        .onDisappear { if !FullScreenRotation.isFullScreen { player?.pause() } }
     }
 }
 

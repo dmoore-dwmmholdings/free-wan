@@ -170,10 +170,16 @@ public enum MediaAPI {
         return list.data
     }
 
-    /// The server's enabled libraries.
+    /// The server's enabled libraries. A server from before `/api/repositories` still lists them
+    /// to an admin.
     public static func libraries(_ client: APIClient) async throws -> [Library] {
-        let list: DataList<Library> = try await client.get("/api/repositories")
-        return list.data
+        do {
+            let list: DataList<Library> = try await client.get("/api/repositories")
+            return list.data
+        } catch let error as APIError where error.status == 404 {
+            let list: DataList<Library> = try await client.get("/api/admin/repositories")
+            return list.data
+        }
     }
 
     public static func tags(_ client: APIClient) async throws -> [Tag] {

@@ -269,6 +269,9 @@ final class FullScreenRotation: NSObject, AVPlayerViewControllerDelegate {
     /// For players with no delegate of their own.
     static let shared = FullScreenRotation()
     private(set) static var allowsLandscape = false
+    /// The system player's full screen covers the page it came from, which SwiftUI reports as
+    /// that page disappearing; a page should not stop its video for it.
+    static var isFullScreen: Bool { allowsLandscape }
 
     static func began() {
         allowsLandscape = true

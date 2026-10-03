@@ -8,6 +8,8 @@ struct SettingsView: View {
 
     @State private var serverVersion: String?
     @State private var libraries: [Library] = []
+    /// Set when the server answered but could not list its libraries.
+    @State private var librariesUnavailable = false
     @State private var adding = false
     @State private var serverProblem: String?
     @State private var confirmingSignOut = false
@@ -83,7 +85,14 @@ struct SettingsView: View {
             }
             .listRowBackground(Theme.surface)
 
-            if !libraries.isEmpty {
+            if librariesUnavailable {
+                Section("Show names") {
+                    Text("Update your server to choose which libraries show names.")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.muted)
+                }
+                .listRowBackground(Theme.surface)
+            } else if !libraries.isEmpty {
                 Section {
                     ForEach(libraries) { library in
                         Toggle(library.name, isOn: Binding(
@@ -133,8 +142,14 @@ struct SettingsView: View {
         .task {
             guard let client = model.client else { return }
             serverVersion = (try? await Health.fetch(client))?.version
-            // An older server has no library list; the section stays hidden.
-            libraries = (try? await MediaAPI.libraries(client)) ?? []
+            do {
+                libraries = try await MediaAPI.libraries(client)
+            } catch let error as APIError where error.status > 0 {
+                // Reached, but too old to list them to this user.
+                librariesUnavailable = true
+            } catch {
+                // Unreachable: Settings shows that already.
+            }
         }
     }
 }
