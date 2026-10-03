@@ -147,31 +147,55 @@ transcode.
 When `mode = hls`, the player loads `master.m3u8`; the server ensures a transcode for the
 requested item/variant exists and streams segments from `data/hls/<id>/`.
 
-- **Approach**: ffmpeg produces fMP4/HLS with short segments; prioritize the first few
-  segments so playback starts within a few seconds (NFR-02). Software baseline:
+- **Plan**: on the first play the server picks a plan and saves it as `plan.json` beside the
+  segments.
+  - **Remux** when the video is 8-bit 4:2:0 H.264 and the file is Matroska with a keyframe
+    index (its Cues, read directly in a few small reads by `lib/mkv-cues.ts`). The video is
+    copied as is and only the audio is converted. Segments are cut at indexed keyframes, at
+    least 3 s apart.
+  - **Encode** everything else to 8-bit H.264 (`-pix_fmt yuv420p`, since 10-bit H.264 does not
+    play on Apple devices), with keyframes forced every 3 s and nowhere else, so segments are
+    cut every 3 s.
+  - **Growing playlist** only when the duration is unknown: ffmpeg encodes and writes
+    `index.m3u8` itself as it goes.
+- **Whole playlist up front**: for a remux or an encode the server writes a complete VOD
+  `index.m3u8` before any segment exists, so the player knows the full length and can seek
+  anywhere straight away. Segments are made on request.
+- **Seeking**: a segment request waits for the running ffmpeg when it is at most 3 segments
+  ahead of it; further away, or behind where the run started, ffmpeg restarts there
+  (`-ss <segment start>` as an input option). Only the newest request for an item can move
+  ffmpeg, and a request stops waiting when its client disconnects, so a position the player
+  has left behind cannot drag the encode back.
+- **Joining runs**: every run keeps the source's own timestamps (`-copyts -start_at_zero`) plus
+  a constant `-output_ts_offset 10`, so no timestamp is negative and ffmpeg never shifts one.
+  Segments from different runs then carry identical timestamps and join seamlessly. Encode
+  baseline from segment *n*:
   ```
-  ffmpeg -ss <seek> -i <file> \
-    -map 0:v:0 -map 0:a:<track> \
-    -c:v libx264 -preset veryfast -crf 20 -maxrate 6M -bufsize 12M \
+  ffmpeg -ss <3n> -i <file> -copyts -start_at_zero -output_ts_offset 10 \
+    -map 0:v:0 -map 0:a:0? \
+    -c:v libx264 -preset veryfast -crf 20 -pix_fmt yuv420p \
+    -sc_threshold 0 -force_key_frames "expr:gte(t,n_forced*3)" -maxrate 6M -bufsize 12M \
     -c:a aac -ac 2 -b:a 160k \
-    -f hls -hls_time 4 -hls_playlist_type event \
-    -hls_segment_type fmp4 -hls_flags independent_segments \
-    -hls_segment_filename data/hls/<id>/seg_%05d.m4s data/hls/<id>/index.m3u8
+    -f hls -hls_time 2.5 -hls_playlist_type event -hls_segment_type mpegts \
+    -hls_flags independent_segments+temp_file -start_number <n> \
+    -hls_segment_filename data/hls/<id>/seg_%05d.ts data/hls/<id>/ffmpeg.m3u8
   ```
-- **Seeking** while transcoding: support time offset (`-ss`) so the player can start mid-
-  file without transcoding everything; the master playlist and segment addressing must
-  account for the chosen strategy (single growing rendition for v1; multi-bitrate ladder
-  is a later enhancement).
+  `-hls_time` sits just under 3 s so each cut lands on the next forced keyframe. A remux uses
+  `-c:v copy` and the segment muxer with explicit `-segment_times`, counted from where the
+  run starts.
+- **Ready means whole**: `temp_file` makes an encoded segment appear under its name only once
+  complete. The segment muxer has no such flag, so a remux writes into a run directory of its
+  own, and each segment moves into the cache once the next one has begun or the run ends.
 - **Hardware acceleration (FR-29)**: if the host exposes a GPU and the image is built with
   the matching ffmpeg support, select an encoder by config — NVIDIA `h264_nvenc`, Intel
   QSV `h264_qsv`, VAAPI `h264_vaapi` — and fall back to `libx264` on any failure. Config
   key `transcode.hwaccel: auto|nvenc|qsv|vaapi|none`.
-- **One job per (item, variant)**; concurrent requests for the same transcode attach to
-  the running job rather than starting a second (a small in-memory registry keyed by
-  cache path).
-- **Caching & eviction (FR-30, NFR-12)**: segments persist under `data/hls/`. A bounded
-  LRU (config `transcode.cacheMaxGB`) evicts least-recently-served transcodes; an idle
-  transcode process is killed after `transcode.idleTimeoutS`.
+- **One ffmpeg per item** at a time; concurrent requests attach to the running one rather
+  than starting a second, and a restart replaces it.
+- **Caching & eviction (FR-30, NFR-12)**: segments persist under `data/hls/`, and a plan is
+  complete once every segment exists (a `complete` marker). A bounded LRU (config
+  `transcode.cacheMaxGB`) evicts least-recently-served transcodes; an idle transcode process
+  is killed after `transcode.idleTimeoutS`.
 
 ## 9. Job types (worker)
 

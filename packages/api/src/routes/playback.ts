@@ -6,6 +6,7 @@ import type { FastifyInstance } from 'fastify'
 import { progressRequestSchema, type PlaybackDescriptor } from '@free-wan/shared'
 import { mediaItems, repositories, subtitleTracks, playbackProgress } from '../db/schema'
 import { resolveWithinRoot } from '../lib/path-safety'
+import { segmentName } from '../services/transcode'
 import { contentTypeForExt } from '../lib/content-types'
 import { extOf } from '../lib/media-types'
 import { KeyedLimiter } from '../lib/keyed-limiter'
@@ -139,7 +140,7 @@ export async function playbackRoutes(app: FastifyInstance): Promise<void> {
     if (!repo) return reply.code(404).send(notFound)
     try {
       const abs = resolveWithinRoot(repo.rootPath, item.relPath)
-      app.transcoder.ensure(id, abs)
+      await app.transcoder.open(id, abs, item.durationS)
     } catch {
       return reply.code(404).send(notFound)
     }
@@ -156,6 +157,26 @@ export async function playbackRoutes(app: FastifyInstance): Promise<void> {
     }
     app.transcoder.touch(id)
     const abs = join(app.transcoder.outDirFor(id), file)
+    // A seekable plan's segments are made on request, from wherever the player asks.
+    const segment = /^seg_(\d+)\.ts$/.exec(file)
+    if (segment && app.transcoder.planFor(id)?.kind === 'vod') {
+      const item = app.db.select().from(mediaItems).where(eq(mediaItems.id, id)).get()
+      const repo = item && app.db.select().from(repositories).where(eq(repositories.id, item.repositoryId)).get()
+      if (!item || !repo) return reply.code(404).send(notFound)
+      let source: string
+      try {
+        source = resolveWithinRoot(repo.rootPath, item.relPath)
+      } catch {
+        return reply.code(404).send(notFound)
+      }
+      // Stop waiting once the player gives up on this segment, e.g. after seeking elsewhere.
+      const gone = new AbortController()
+      reply.raw.on('close', () => gone.abort())
+      const n = Number(segment[1])
+      if (segmentName(n) !== file || !(await app.transcoder.segment(id, n, source, gone.signal))) {
+        return reply.code(404).send(notFound)
+      }
+    }
     // On a fresh transcode the playlist may not be written yet; wait briefly.
     if (!existsSync(abs) && file === 'index.m3u8') {
       for (let i = 0; i < 50 && !existsSync(abs); i++) await delay(100)

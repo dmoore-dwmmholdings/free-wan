@@ -334,6 +334,7 @@ export async function buildApp(
     idleMs: 60_000,
     sweep: config.env !== 'test',
     maxCacheBytes: config.transcodeCacheMaxMb * 1024 * 1024,
+    prober,
   })
   app.decorate('transcoder', transcoder)
 

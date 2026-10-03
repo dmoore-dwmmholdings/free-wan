@@ -14,6 +14,8 @@ export interface ProbeResult {
   bitrate?: number
   container?: string
   videoCodec?: string
+  /** e.g. yuv420p; 10-bit sources end in 10le. */
+  pixFmt?: string
   audioCodec?: string
   audioTracks: number
   embeddedSubs: EmbeddedSub[]
@@ -42,6 +44,7 @@ export function mapProbe(json: unknown): ProbeResult {
     streams?: Array<{
       codec_type?: string
       codec_name?: string
+      pix_fmt?: string
       width?: number
       height?: number
       avg_frame_rate?: string
@@ -67,6 +70,7 @@ export function mapProbe(json: unknown): ProbeResult {
     bitrate: num(format.bit_rate) ?? num(video?.bit_rate),
     container: format.format_name,
     videoCodec: video?.codec_name,
+    pixFmt: video?.pix_fmt,
     audioCodec: audios[0]?.codec_name,
     audioTracks: audios.length,
     embeddedSubs: subs.map((s) => ({

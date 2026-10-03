@@ -17,6 +17,12 @@ the section whose heading contains the version being built.
   returned only to a sign-in that asks for it, which sets no cookie in exchange, and both
   forms expire and are revoked identically. See
   [`docs/13-security.md`](docs/13-security.md).
+- Videos that need converting start sooner and **seek anywhere at once**. The player now gets
+  the whole timeline up front, and jumping ahead restarts the conversion at that point instead
+  of waiting for it to get there. H.264 video in MKV files is no longer re-encoded at all: it
+  is repackaged as is and only the audio is converted, which starts almost instantly and uses
+  very little CPU. 10-bit videos now convert to a format iPhones and iPads can play. Existing
+  converted copies are reused.
 
 ## 0.6.1 - 2026-07-14
 - Folder categories are now matched case-insensitively: `Movies/Action` and `movies/action`
