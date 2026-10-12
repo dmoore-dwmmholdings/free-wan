@@ -225,9 +225,11 @@ private struct UploadFlow: ViewModifier {
         let device = UIDevice.current.model
         content
             // The shared library gives each picked item an id, which deleting it later needs.
+            // `.current` sends the original: the default re-encodes each HEVC video to H.264 on
+            // the phone before it can upload, which takes minutes and doubles its size.
             .photosPicker(isPresented: $uploader.picking, selection: $uploader.picked,
                           maxSelectionCount: Uploads.maxFilesPerBatch, matching: .any(of: [.images, .videos]),
-                          photoLibrary: .shared())
+                          preferredItemEncoding: .current, photoLibrary: .shared())
             .onChange(of: uploader.picked) { uploader.pickingEnded(model.client, done: onUploaded) }
             .confirmationDialog("Upload to which library?", isPresented: $uploader.choosingTarget,
                                 titleVisibility: .visible) {
