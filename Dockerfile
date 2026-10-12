@@ -17,7 +17,8 @@ RUN pnpm --filter @free-wan/web build \
 
 # ---- runtime: ffmpeg + the built app ----
 FROM base AS runtime
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
+# libheif-examples provides heif-convert: this ffmpeg cannot read the iPhone's HEIC photos.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg libheif-examples \
     && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production
 ENV DATA_DIR=/app/data

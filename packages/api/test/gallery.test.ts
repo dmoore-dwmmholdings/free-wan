@@ -158,3 +158,74 @@ describe('Phase 6 — image gallery /raw', () => {
     expect(peakMakers).toBeLessThanOrEqual(4)
   })
 })
+
+describe('HEIC photos', () => {
+  let app: FastifyInstance
+  let cookies: Record<string, string>
+  let root: string
+  let dataDir: string
+  let imageId: string
+  const thumbnailed: string[] = []
+  const resized: string[] = []
+  const converted: string[] = []
+
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'fw-heic-'))
+    dataDir = await mkdtemp(join(tmpdir(), 'fw-heicd-'))
+    await writeFile(join(root, 'IMG_1.heic'), 'HEICBYTES')
+
+    app = await buildApp(
+      { env: 'test', dataDir, adminUsername: 'admin', adminPassword: 'admin-pass-123', loginRateMax: 1000 },
+      {
+        // Like ffprobe, the fake cannot read HEIC, only the converted JPEG.
+        prober: async (abs) =>
+          abs.endsWith('.jpg') ? { width: 4032, height: 3024, audioTracks: 0, embeddedSubs: [] } : { audioTracks: 0, embeddedSubs: [] },
+        thumbnailer: async (input) => {
+          thumbnailed.push(input.absPath)
+          return fakeThumbnailer(input)
+        },
+        imageVariant: async ({ absPath, outPath }) => {
+          resized.push(absPath)
+          await writeFile(outPath, 'VARIANTBYTES')
+        },
+        heifConverter: async ({ absPath, outPath }) => {
+          converted.push(absPath)
+          await writeFile(outPath, 'JPEGBYTES')
+        },
+        frameGrabber: fakeFrameGrabber,
+      },
+    )
+    await app.ready()
+    const login = await app.inject({ method: 'POST', url: '/api/auth/login', payload: { username: 'admin', password: 'admin-pass-123' } })
+    cookies = { [SESSION_COOKIE]: login.cookies.find((c) => c.name === SESSION_COOKIE)!.value }
+    const create = await app.inject({ method: 'POST', url: '/api/admin/repositories', cookies, payload: { name: 'P', rootPath: root, type: 'image' } })
+    await app.inject({ method: 'POST', url: `/api/admin/repositories/${create.json().id}/scan`, cookies, payload: {} })
+    await app.worker.onIdle()
+    imageId = (await app.inject({ method: 'GET', url: '/api/media', cookies })).json().data[0].id
+  })
+
+  afterAll(async () => {
+    await app.close()
+    await rm(root, { recursive: true, force: true })
+    await rm(dataDir, { recursive: true, force: true })
+  })
+
+  it('makes the poster from a JPEG copy and takes the size from it', async () => {
+    expect(converted).toEqual([join(root, 'IMG_1.heic')])
+    expect(thumbnailed).toEqual([join(dataDir, 'thumbs', imageId, 'source.jpg')])
+    const detail = (await app.inject({ method: 'GET', url: `/api/media/${imageId}`, cookies })).json()
+    expect([detail.width, detail.height]).toEqual([4032, 3024])
+  })
+
+  it('resizes from the JPEG copy without converting again', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/media/${imageId}/raw?w=1280`, cookies })
+    expect(res.body).toBe('VARIANTBYTES')
+    expect(resized).toEqual([join(dataDir, 'thumbs', imageId, 'source.jpg')])
+    expect(converted).toHaveLength(1)
+  })
+
+  it('still serves the original HEIC without a width', async () => {
+    const res = await app.inject({ method: 'GET', url: `/api/media/${imageId}/raw`, cookies })
+    expect(res.body).toBe('HEICBYTES')
+  })
+})

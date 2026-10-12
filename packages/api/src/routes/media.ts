@@ -18,6 +18,7 @@ import { tagsForItem } from './tags'
 import { resolveWithinRoot } from '../lib/path-safety'
 import { contentTypeForExt } from '../lib/content-types'
 import { KeyedLimiter } from '../lib/keyed-limiter'
+import { readableImage } from '../services/images'
 
 const sortColumns = {
   title: mediaItems.title,
@@ -300,7 +301,9 @@ export async function mediaRoutes(app: FastifyInstance): Promise<void> {
     if (!existsSync(outPath) || ffmpegLimiter.isPending(outPath)) {
       mkdirSync(outDir, { recursive: true })
       try {
-        await ffmpegLimiter.run(outPath, () => app.imageVariant({ absPath: abs, width, outPath }))
+        await ffmpegLimiter.run(outPath, async () =>
+          app.imageVariant({ absPath: await readableImage(abs, item.ext, outDir, app.heifConverter), width, outPath }),
+        )
       } catch {
         // Fall back to the original on any resize failure.
         reply.header('Cache-Control', 'public, max-age=86400').type(contentTypeForExt(item.ext))

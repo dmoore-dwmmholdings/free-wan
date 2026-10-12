@@ -9,7 +9,7 @@ import fastifyRateLimit from '@fastify/rate-limit'
 import fastifyWebsocket from '@fastify/websocket'
 import fastifyMultipart from '@fastify/multipart'
 import fastifyHelmet from '@fastify/helmet'
-import { eq } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { loadConfig, type AppConfig } from './lib/config'
 import { createLogger } from './lib/logger'
 import { openDatabase, type Db } from './db/client'
@@ -24,7 +24,13 @@ import { WatcherManager } from './services/watcher'
 import { runScan } from './services/scanner'
 import { createFfprobe, type Prober } from './services/ffprobe'
 import { createThumbnailer, type Thumbnailer } from './services/thumbnailer'
-import { createImageVariantMaker, type ImageVariantMaker } from './services/images'
+import {
+  createHeifConverter,
+  createImageVariantMaker,
+  readableImage,
+  type HeifConverter,
+  type ImageVariantMaker,
+} from './services/images'
 import { createFrameGrabber, type FrameGrabber } from './services/frame-grabber'
 import { createCaptionConverter, type CaptionConverter } from './services/captions'
 import { TranscodeManager, createTranscodeStarter, type TranscodeStarter } from './services/transcode'
@@ -62,6 +68,8 @@ export interface AppDeps {
   thumbnailer?: Thumbnailer
   /** Injectable image-variant resizer for /raw?w= (tests pass a fake). */
   imageVariant?: ImageVariantMaker
+  /** Injectable HEIC→JPEG converter (tests pass a fake). */
+  heifConverter?: HeifConverter
   /** Injectable single-frame grabber for /frame?t= scrub previews (tests pass a fake). */
   frameGrabber?: FrameGrabber
   /** Injectable subtitle→WebVTT converter (tests pass a fake). */
@@ -82,6 +90,7 @@ declare module 'fastify' {
     captionConverter: CaptionConverter
     transcoder: TranscodeManager
     imageVariant: ImageVariantMaker
+    heifConverter: HeifConverter
     frameGrabber: FrameGrabber
     commandRunner: CommandRunner
     pluginHost: PluginHost
@@ -101,6 +110,7 @@ export async function buildApp(
   const thumbnailer: Thumbnailer = deps.thumbnailer ?? createThumbnailer()
   const captionConverter: CaptionConverter = deps.captionConverter ?? createCaptionConverter()
   const imageVariant: ImageVariantMaker = deps.imageVariant ?? createImageVariantMaker()
+  const heifConverter: HeifConverter = deps.heifConverter ?? createHeifConverter()
   const frameGrabber: FrameGrabber = deps.frameGrabber ?? createFrameGrabber()
   const transcodeStarter: TranscodeStarter =
     deps.transcodeStarter ??
@@ -209,14 +219,24 @@ export async function buildApp(
     if (!repo) return
     const absPath = join(repo.rootPath, ...item.relPath.split('/'))
     const outDir = join(config.dataDir, 'thumbs', item.id)
+    const source = item.type === 'image' ? await readableImage(absPath, item.ext, outDir, heifConverter) : absPath
     const { posterPath } = await thumbnailer({
-      absPath,
+      absPath: source,
       type: item.type,
       durationS: item.durationS,
       outDir,
     })
+    // ffprobe cannot read HEIC either; without a size, apps fetch the full original to show it.
+    const size = source !== absPath && item.width == null ? await prober(source).catch(() => undefined) : undefined
     const rel = relative(config.dataDir, posterPath).split(sep).join('/')
-    db.update(mediaItems).set({ posterPath: rel, updatedAt: Date.now() }).where(eq(mediaItems.id, item.id)).run()
+    db.update(mediaItems)
+      .set({
+        posterPath: rel,
+        ...(size?.width && size.height ? { width: size.width, height: size.height } : {}),
+        updatedAt: Date.now(),
+      })
+      .where(eq(mediaItems.id, item.id))
+      .run()
   })
   worker.register('clip_export', async (ctx) => {
     const { clipId, format } = ctx.payload as { clipId: string; format: 'mp4' | 'gif' }
@@ -328,6 +348,7 @@ export async function buildApp(
   app.decorate('watchers', watchers)
   app.decorate('captionConverter', captionConverter)
   app.decorate('imageVariant', imageVariant)
+  app.decorate('heifConverter', heifConverter)
   app.decorate('frameGrabber', frameGrabber)
 
   const transcoder = new TranscodeManager(config.dataDir, transcodeStarter, app.log, {
@@ -401,6 +422,16 @@ export async function buildApp(
   // Finalize a self-update that just restarted us (marks the changelog entry "success").
   reconcilePendingUpdate(app)
   watchers.sync()
+  // HEIC photos indexed before the server could read them have no poster yet.
+  if (config.env !== 'test') {
+    const unreadable = db
+      .select({ id: mediaItems.id })
+      .from(mediaItems)
+      .where(and(eq(mediaItems.status, 'active'), inArray(mediaItems.ext, ['heic', 'heif']), isNull(mediaItems.posterPath)))
+      .all()
+    for (const { id } of unreadable) enqueueJob(db, 'thumbnail', { mediaItemId: id }, 0)
+    if (unreadable.length > 0) worker.kick()
+  }
   // Bring already-enabled plugins online (daemons activate; others idle until invoked).
   if (config.pluginsEnabled) pluginHost.startEnabled()
 
