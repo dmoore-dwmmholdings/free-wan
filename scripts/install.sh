@@ -16,6 +16,7 @@
 #   FW_REF         branch or tag to install   (default main)
 #   FW_TAILSCALE   container or host          (default: the last choice, else container)
 #   FW_TS_AUTHKEY  Tailscale auth key for the container; skips the prompt
+#   FW_TS_HOSTNAME with host: this machine's tailnet name, e.g. free-wan to keep the sidecar's URL
 
 set -euo pipefail
 
@@ -132,8 +133,16 @@ YML
 fi
 
 echo "==> Building and starting (the first build takes a few minutes)"
-# Moving to host Tailscale: the sidecar container is no longer part of the project.
-[ "$mode" = container ] || docker rm -f free-wan-ts >/dev/null 2>&1 || true
+# Moving to host Tailscale: the sidecar container is no longer part of the project. Logging it
+# out first removes its node, which frees its name (free-wan) for this machine.
+if [ "$mode" = host ] && docker inspect free-wan-ts >/dev/null 2>&1; then
+  docker exec free-wan-ts tailscale logout >/dev/null 2>&1 || true
+  docker rm -f free-wan-ts >/dev/null 2>&1 || true
+  echo "==> Removed the Tailscale sidecar"
+fi
+if [ "$mode" = host ] && [ -n "${FW_TS_HOSTNAME:-}" ]; then
+  tailscale set --hostname="$FW_TS_HOSTNAME" || echo "Could not rename this machine on the tailnet. Run as administrator: tailscale set --hostname=$FW_TS_HOSTNAME"
+fi
 docker compose up -d --build
 
 # Containers only come back after a reboot if Docker itself starts on its own.
@@ -157,6 +166,10 @@ if [ "$mode" = host ]; then
   [ -z "${APPDATA:-}" ] || tailscale set --unattended=true >/dev/null 2>&1 || true
   dns="$(tailscale status --json --peers=false 2>/dev/null | grep -o '"DNSName": *"[^"]*"' | head -1 | cut -d'"' -f4 || true)"
   [ -z "$dns" ] || url="https://${dns%.}"
+  case "$dns" in
+    "${FW_TS_HOSTNAME:-}".*|"") ;;
+    *) [ -z "${FW_TS_HOSTNAME:-}" ] || echo "The name $FW_TS_HOSTNAME is still taken: delete the old $FW_TS_HOSTNAME machine at https://login.tailscale.com/admin/machines, then re-run." ;;
+  esac
 else
   # The node can take a few seconds to register; its name gets a suffix (free-wan-1) when
   # another machine on the tailnet already uses free-wan.

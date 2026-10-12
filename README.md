@@ -101,6 +101,10 @@ Tailscale relay, which is slow, where Tailscale on Windows connects devices dire
 server is published with `tailscale serve` under the machine's own tailnet name, and the choice
 is remembered for later updates.
 
+Moving an existing sidecar install to host mode changes its address. To keep it, add
+`FW_TS_HOSTNAME=free-wan`: the installer logs out the sidecar and renames this machine on the
+tailnet to the sidecar's old name.
+
 ### From source
 
 ```bash

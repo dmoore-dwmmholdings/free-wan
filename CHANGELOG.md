@@ -20,6 +20,12 @@ the section whose heading contains the version being built.
 - The installer can use the **Tailscale already on the machine** instead of its own container:
   `FW_TAILSCALE=host` in front of `bash`. On Windows this replaces a slow relayed connection with
   a direct one. Re-running the installer remembers the choice.
+  `FW_TS_HOSTNAME=free-wan` keeps the old address by giving this machine the sidecar's name.
+- **iPhone photos (HEIC)** now get previews and screen-sized copies. The server could not read
+  them before, so apps downloaded every full-size original to show one. Existing HEIC photos
+  are fixed on the first start after the update.
+- The iOS app uploads videos as they are. It used to wait for the phone to re-encode each one
+  first, which took minutes and doubled the upload.
 - Videos that need converting start sooner and **seek anywhere at once**. The player now gets
   the whole timeline up front, and jumping ahead restarts the conversion at that point instead
   of waiting for it to get there. H.264 video in MKV files is no longer re-encoded at all: it
