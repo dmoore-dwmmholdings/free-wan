@@ -16,10 +16,12 @@ struct Playable {
 /// plays as it is starts a copy for next time too. Nil when none can be had.
 @MainActor
 func playableAsset(_ card: MediaCard, client: APIClient, keepCopy: Bool = false) async -> Playable? {
+    #if os(iOS)
     let downloads = DownloadManager.shared
     if let local = downloads.index[card.id].map(downloads.fileURL) {
         return Playable(asset: AVURLAsset(url: local), direct: true, copy: nil)
     }
+    #endif
     if let cached = LoopCache.shared.file(for: card, server: client.baseURL) {
         return Playable(asset: AVURLAsset(url: cached), direct: true, copy: nil)
     }

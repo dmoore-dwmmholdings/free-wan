@@ -12,7 +12,7 @@ struct ErrorStateView: View {
         ContentUnavailableView {
             Label(text.title, systemImage: text.offline ? "wifi.exclamationmark" : "exclamationmark.triangle")
         } description: {
-            Text([text.message, text.offline ? Format.offlineHint(downloads: DownloadManager.shared.index.records.count) : nil]
+            Text([text.message, text.offline ? Format.offlineHint(downloads: offlineCount) : nil]
                 .compactMap { $0 }.joined(separator: " "))
         } actions: {
             Button("Try again") { Task { await retry() } }
@@ -45,4 +45,14 @@ struct ErrorBanner: View {
         .padding(.horizontal, 12)
         .accessibilityElement(children: .combine)
     }
+}
+
+/// Downloads to suggest watching while offline; the Apple TV app keeps none.
+@MainActor
+private var offlineCount: Int {
+    #if os(iOS)
+    DownloadManager.shared.index.records.count
+    #else
+    0
+    #endif
 }

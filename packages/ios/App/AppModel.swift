@@ -68,7 +68,9 @@ final class AppModel {
     func lockPrivate() {
         PrivacyLock.shared.lock()
         guard account?.isPrivate == true else { return }
+        #if os(iOS)
         PlaybackCenter.shared.stopAll()
+        #endif
         session.deactivate()
         account = nil
         use(nil)
@@ -128,7 +130,9 @@ final class AppModel {
     /// playing from the last. The client goes in first: the tabs start afresh when the account
     /// changes, and must load from the new server, not the one before.
     private func prepare(_ account: ServerAccount, client: APIClient) {
+        #if os(iOS)
         PlaybackCenter.shared.stopAll()
+        #endif
         session.activate(account.id)
         use(client)
         self.account = account
@@ -151,7 +155,9 @@ final class AppModel {
         session.remove(id)
         refreshAccounts()
         guard wasActive else { return }
+        #if os(iOS)
         PlaybackCenter.shared.stopAll()
+        #endif
         account = nil
         use(nil)
         state = .launching
@@ -165,7 +171,9 @@ final class AppModel {
     /// The client for requests and for downloads, which run outside any one screen.
     private func use(_ client: APIClient?) {
         self.client = client
+        #if os(iOS)
         DownloadManager.shared.client = client
+        #endif
     }
 
     /// A client for one server. A 401 signs out of that server only, even if it arrives after

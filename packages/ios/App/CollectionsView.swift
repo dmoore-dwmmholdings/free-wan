@@ -98,36 +98,6 @@ struct CollectionRow: View {
     }
 }
 
-/// A collection's cover: with four or more items, its first four tiled; with fewer, one
-/// picture, its chosen cover or else its first item's poster.
-struct CollectionCover: View {
-    let collection: MediaCollection
-    let posters: [String]
-
-    var body: some View {
-        if collection.itemCount >= 4 && posters.count >= 4 {
-            Grid(horizontalSpacing: 1, verticalSpacing: 1) {
-                GridRow { tile(posters[0]); tile(posters[1]) }
-                GridRow { tile(posters[2]); tile(posters[3]) }
-            }
-            .background(Theme.background)
-        } else if let cover = collection.coverUrl ?? posters.first {
-            AuthImage(path: cover)
-        } else {
-            Theme.surface2.overlay {
-                Image(systemName: "rectangle.stack").foregroundStyle(Theme.muted)
-            }
-        }
-    }
-
-    private func tile(_ path: String) -> some View {
-        Color.clear
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay { AuthImage(path: path) }
-            .clipped()
-    }
-}
-
 struct CollectionDetailView: View {
     @Environment(AppModel.self) private var model
     let collection: MediaCollection

@@ -158,39 +158,6 @@ extension View {
     }
 }
 
-/// Players for the gallery's current video and the ones either side, made ahead so stepping to
-/// one starts it at once. Making one also starts the server's transcode when the video needs it.
-@MainActor
-final class LoopPlayers {
-    private var made: [String: Task<Loop?, Never>] = [:]
-
-    /// The player for `card`, made now if it was not made ahead.
-    func player(for card: MediaCard, client: APIClient) async -> AVPlayer? {
-        if made[card.id] == nil { make(card, client: client) }
-        return await made[card.id]?.value?.player
-    }
-
-    /// Makes players for `cards` and lets go of the rest.
-    func keep(_ cards: [MediaCard], client: APIClient?) {
-        let ids = Set(cards.map(\.id))
-        for (id, task) in made where !ids.contains(id) {
-            task.cancel()
-            made[id] = nil
-            Task { await task.value?.player.pause() }
-        }
-        guard let client else { return }
-        for card in cards where made[card.id] == nil { make(card, client: client) }
-    }
-
-    private func make(_ card: MediaCard, client: APIClient) {
-        made[card.id] = Task {
-            guard let playable = await playableAsset(card, client: client, keepCopy: true),
-                  !Task.isCancelled else { return nil }
-            return Loop(playable, muted: true)
-        }
-    }
-}
-
 /// A video playing on a loop with no controls, like a GIF, over its poster until it starts.
 struct LoopingVideo: View {
     @Environment(AppModel.self) private var model
@@ -234,30 +201,6 @@ struct LoopingVideo: View {
         player.isMuted = muted
         player.play()
         self.player = player
-    }
-}
-
-/// The bare picture of an AVPlayer, without the system controls.
-struct PlayerLayerView: UIViewRepresentable {
-    let player: AVPlayer
-    var gravity = AVLayerVideoGravity.resizeAspect
-
-    func makeUIView(context: Context) -> LayerView {
-        let view = LayerView()
-        view.playerLayer.player = player
-        view.playerLayer.videoGravity = gravity
-        // Taps and swipes belong to the gallery around it.
-        view.isUserInteractionEnabled = false
-        return view
-    }
-
-    func updateUIView(_ view: LayerView, context: Context) {
-        view.playerLayer.player = player
-    }
-
-    final class LayerView: UIView {
-        override class var layerClass: AnyClass { AVPlayerLayer.self }
-        var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
     }
 }
 

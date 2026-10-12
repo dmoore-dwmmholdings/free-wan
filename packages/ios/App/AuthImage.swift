@@ -38,12 +38,14 @@ struct AuthImage: View {
     @Environment(AppModel.self) private var model
     let path: String
     var contentMode: ContentMode = .fill
+    /// Shown until the image arrives, and around one that does not fill its frame.
+    var placeholder = Theme.surface2
 
     @State private var image: UIImage?
 
     var body: some View {
         ZStack {
-            Theme.surface2
+            placeholder
             if let image {
                 Image(uiImage: image)
                     .resizable()
