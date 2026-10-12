@@ -12,6 +12,8 @@ struct FreeWANApp: App {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         // Reconnects to transfers that kept running, or finished, while the app was closed.
         _ = DownloadManager.shared
+        // Posters and photos are sent as cacheable; the default disk cache keeps only a few.
+        URLCache.shared = URLCache(memoryCapacity: 64 * 1024 * 1024, diskCapacity: 1024 * 1024 * 1024)
     }
 
     var body: some Scene {

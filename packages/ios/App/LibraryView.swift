@@ -189,6 +189,8 @@ struct TileVideo: View {
     var snippets = false
 
     @State private var player: AVPlayer?
+    /// Keeps a repeating video's looper alive.
+    @State private var loop: Loop?
 
     var body: some View {
         ZStack {
@@ -197,9 +199,20 @@ struct TileVideo: View {
         .allowsHitTesting(false)
         .task(id: snippets) {
             player?.pause()
-            guard let client = model.client, let asset = await playableAsset(card, client: client),
+            loop = nil
+            guard let client = model.client else { return }
+            let starts = snippets ? PreviewSnippets.starts(duration: card.durationS) : [0]
+            // A copy on the phone is for a short video that repeats, not one jumped about in.
+            guard let playable = await playableAsset(card, client: client, keepCopy: starts.count == 1),
                   !Task.isCancelled else { return }
-            let item = AVPlayerItem(asset: asset)
+            guard starts.count > 1 else {
+                let repeating = Loop(playable, muted: muted)
+                repeating.player.play()
+                loop = repeating
+                player = repeating.player
+                return
+            }
+            let item = AVPlayerItem(asset: playable.asset)
             // A tile needs a few seconds ahead, not the deep buffer a full-screen player keeps.
             item.preferredForwardBufferDuration = 4
             let tile = AVPlayer(playerItem: item)
@@ -207,20 +220,12 @@ struct TileVideo: View {
             tile.automaticallyWaitsToMinimizeStalling = false
             tile.play()
             player = tile
-            let starts = snippets ? PreviewSnippets.starts(duration: card.durationS) : [0]
-            if starts.count > 1 {
-                var piece = 0
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .milliseconds(250))
-                    if tile.currentTime().seconds >= starts[piece] + PreviewSnippets.length {
-                        piece = (piece + 1) % starts.count
-                        await tile.seek(to: CMTime(seconds: starts[piece], preferredTimescale: 600))
-                    }
-                }
-            } else {
-                for await _ in NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification, object: item) {
-                    await tile.seek(to: .zero)
-                    tile.play()
+            var piece = 0
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                if tile.currentTime().seconds >= starts[piece] + PreviewSnippets.length {
+                    piece = (piece + 1) % starts.count
+                    await tile.seek(to: CMTime(seconds: starts[piece], preferredTimescale: 600))
                 }
             }
         }
@@ -228,6 +233,7 @@ struct TileVideo: View {
         .onDisappear {
             player?.pause()
             player = nil
+            loop = nil
         }
     }
 }

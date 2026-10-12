@@ -158,27 +158,16 @@ extension View {
     }
 }
 
-/// A video's media, from a downloaded copy when there is one, otherwise from the server; nil
-/// when neither can be had.
-@MainActor
-func playableAsset(_ card: MediaCard, client: APIClient) async -> AVURLAsset? {
-    let downloads = DownloadManager.shared
-    if let local = downloads.index[card.id].map(downloads.fileURL) { return AVURLAsset(url: local) }
-    guard let descriptor = try? await MediaAPI.playback(client, id: card.id),
-          let url = try? client.url(descriptor.url) else { return nil }
-    return AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": client.authHeaders])
-}
-
 /// Players for the gallery's current video and the ones either side, made ahead so stepping to
 /// one starts it at once. Making one also starts the server's transcode when the video needs it.
 @MainActor
 final class LoopPlayers {
-    private var made: [String: Task<AVPlayer?, Never>] = [:]
+    private var made: [String: Task<Loop?, Never>] = [:]
 
     /// The player for `card`, made now if it was not made ahead.
     func player(for card: MediaCard, client: APIClient) async -> AVPlayer? {
         if made[card.id] == nil { make(card, client: client) }
-        return await made[card.id]?.value
+        return await made[card.id]?.value?.player
     }
 
     /// Makes players for `cards` and lets go of the rest.
@@ -187,7 +176,7 @@ final class LoopPlayers {
         for (id, task) in made where !ids.contains(id) {
             task.cancel()
             made[id] = nil
-            Task { await task.value?.pause() }
+            Task { await task.value?.player.pause() }
         }
         guard let client else { return }
         for card in cards where made[card.id] == nil { make(card, client: client) }
@@ -195,12 +184,9 @@ final class LoopPlayers {
 
     private func make(_ card: MediaCard, client: APIClient) {
         made[card.id] = Task {
-            guard let asset = await playableAsset(card, client: client), !Task.isCancelled else { return nil }
-            let player = AVPlayer(playerItem: AVPlayerItem(asset: asset))
-            player.isMuted = true
-            // A short loop should start on its first frames rather than wait for a deep buffer.
-            player.automaticallyWaitsToMinimizeStalling = false
-            return player
+            guard let playable = await playableAsset(card, client: client, keepCopy: true),
+                  !Task.isCancelled else { return nil }
+            return Loop(playable, muted: true)
         }
     }
 }
@@ -237,10 +223,10 @@ struct LoopingVideo: View {
         .accessibilityLabel(card.title)
     }
 
-    /// Plays and loops until the page goes away.
+    /// Plays its loop, which repeats by itself, while the page is showing.
     private func play() async {
         guard let client = model.client else { return }
-        guard let player = await players.player(for: card, client: client), let item = player.currentItem else {
+        guard let player = await players.player(for: card, client: client) else {
             if !Task.isCancelled { failed = true }
             return
         }
@@ -248,10 +234,6 @@ struct LoopingVideo: View {
         player.isMuted = muted
         player.play()
         self.player = player
-        for await _ in NotificationCenter.default.notifications(named: AVPlayerItem.didPlayToEndTimeNotification, object: item) {
-            await player.seek(to: .zero)
-            player.play()
-        }
     }
 }
 

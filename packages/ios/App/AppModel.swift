@@ -49,8 +49,7 @@ final class AppModel {
         }
         let (me, token) = try await Auth.login(server: server, username: username, password: password)
         let account = session.save(server: server, username: me.username, token: token)
-        prepare(account)
-        use(makeClient(account))
+        prepare(account, client: makeClient(account))
         state = .signedIn(me)
     }
 
@@ -110,28 +109,28 @@ final class AppModel {
     }
 
     private func open(_ account: ServerAccount) async {
-        prepare(account)
         let client = makeClient(account)
+        prepare(account, client: client)
         do {
             let me = try await Auth.me(client)
             guard self.account?.id == account.id else { return }
-            use(client)
             state = .signedIn(me)
         } catch let error as APIError where error.status == 401 {
             forget(account.id)
         } catch {
             // Cancelled, as when the screen asking went away, says nothing about the server.
             guard self.account?.id == account.id, !Task.isCancelled else { return }
-            use(client)
             state = .signedIn(Me.offline)
         }
     }
 
-    /// Makes `account` the one in use: its branding, display choices, and nothing left
-    /// playing from the last.
-    private func prepare(_ account: ServerAccount) {
+    /// Makes `account` the one in use: its client, branding, display choices, and nothing left
+    /// playing from the last. The client goes in first: the tabs start afresh when the account
+    /// changes, and must load from the new server, not the one before.
+    private func prepare(_ account: ServerAccount, client: APIClient) {
         PlaybackCenter.shared.stopAll()
         session.activate(account.id)
+        use(client)
         self.account = account
         refreshAccounts()
         LibraryPrefs.shared.load(for: account.server)
